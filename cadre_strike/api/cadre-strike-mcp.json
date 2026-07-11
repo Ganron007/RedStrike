@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "redstrike": {
+      "command": "redstrike-mcp",
+      "args": [
+        "--api",
+        "http://127.0.0.1:8890"
+      ],
+      "description": "RedStrike AD assessment MCP server with scoped read-only workflows",
+      "timeout": 300,
+      "alwaysAllow": []
+    }
+  }
+}
+

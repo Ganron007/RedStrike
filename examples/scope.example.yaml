@@ -1,0 +1,11 @@
+# RedStrike starter scope file.
+# The MVP loader accepts this simple YAML subset: top-level keys with list values.
+allowed_targets:
+  - 192.168.1.7
+  - 192.168.1.11
+allowed_domains:
+  - ignite.local
+allowed_modes:
+  - observe
+  - assess
+
