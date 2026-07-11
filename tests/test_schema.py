@@ -1,5 +1,5 @@
 import pytest
-from pydantic import SecretStr, ValidationError
+from pydantic import ValidationError
 
 from cadre_strike.core.models import (
     ADRequest,

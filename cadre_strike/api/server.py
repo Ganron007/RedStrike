@@ -32,11 +32,18 @@ class RateLimiter:
 
     Intended for non-local API usage. Loopback callers are exempt in the
     route handler, so local testing is never throttled by default.
+
+    State is per-process only (see B3) and bounded: empty keys are pruned and
+    the number of distinct keys is capped by `max_keys` to avoid unbounded
+    memory growth.
     """
 
-    def __init__(self, max_requests: int, window_seconds: float) -> None:
+    def __init__(
+        self, max_requests: int, window_seconds: float, max_keys: int = 10000
+    ) -> None:
         self.max_requests = max_requests
         self.window_seconds = window_seconds
+        self.max_keys = max(1, max_keys)
         self._lock = threading.Lock()
         self._hits: dict[str, list[float]] = {}
 
@@ -45,9 +52,9 @@ class RateLimiter:
             return
         now = time.monotonic()
         with self._lock:
-            timestamps = self._hits.setdefault(key, [])
+            timestamps = self._hits.get(key, [])
             cutoff = now - self.window_seconds
-            timestamps[:] = [stamp for stamp in timestamps if stamp > cutoff]
+            timestamps = [stamp for stamp in timestamps if stamp > cutoff]
             if len(timestamps) >= self.max_requests:
                 retry_after = max(0.0, self.window_seconds - (now - timestamps[0]))
                 raise RateLimitExceededError(
@@ -55,6 +62,10 @@ class RateLimiter:
                     f"{self.window_seconds:g}s. Retry after {retry_after:.1f}s"
                 )
             timestamps.append(now)
+            self._hits[key] = timestamps
+            if len(self._hits) > self.max_keys:
+                # Drop the oldest key to stay within the cap.
+                self._hits.pop(next(iter(self._hits)), None)
 
 
 def create_app(
@@ -143,18 +154,21 @@ def create_app(
         if api_key and x_api_key != api_key and not _is_loopback_host(client_host):
             raise HTTPException(status_code=401, detail="Invalid or missing API key")
 
-        if not _is_loopback_host(client_host):
-            caller = x_api_key or client_host or "anonymous"
-            limiter.check(f"{caller}|/jobs")
+        try:
+            if not _is_loopback_host(client_host):
+                caller = x_api_key or client_host or "anonymous"
+                limiter.check(f"{caller}|/jobs")
 
-        action = payload.action
-        if action not in ALLOWED_JOB_ACTIONS or not hasattr(service, action):
-            raise HTTPException(status_code=422, detail=f"Unknown or disallowed action '{action}'")
+            action = payload.action
+            if action not in ALLOWED_JOB_ACTIONS or not hasattr(service, action):
+                raise HTTPException(status_code=422, detail=f"Unknown or disallowed action '{action}'")
 
-        def worker(request: ADRequest) -> OperationResponse:
-            return getattr(service, action)(request)
+            def worker(request: ADRequest) -> OperationResponse:
+                return getattr(service, action)(request)
 
-        return job_store.create(action, payload.request, worker)
+            return job_store.create(action, payload.request, worker)
+        except RateLimitExceededError as exc:
+            raise HTTPException(status_code=429, detail=str(exc)) from exc
 
     @app.get("/jobs/{job_id}", response_model=Job)
     def get_job(job_id: str) -> Job:

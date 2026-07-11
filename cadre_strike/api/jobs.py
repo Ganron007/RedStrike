@@ -56,10 +56,40 @@ ALLOWED_JOB_ACTIONS = {
 
 
 class JobStore:
-    def __init__(self) -> None:
+    # In-memory store. Single-process only (see B3): state is not shared across
+    # uvicorn workers or reloads. `max_jobs` bounds memory by evicting the oldest
+    # finished jobs first.
+    def __init__(self, max_jobs: int = 1000) -> None:
+        self._max_jobs = max(1, max_jobs)
         self._lock = threading.Lock()
         self._jobs: dict[str, Job] = {}
         self._by_key: dict[str, str] = {}
+
+    def _evict_if_needed(self, protect_id: str) -> None:
+        if len(self._jobs) <= self._max_jobs:
+            return
+        # Evict oldest finished jobs first, then any others, never the protected one.
+        ordered_ids = list(self._jobs.keys())
+        for job_id in ordered_ids:
+            if len(self._jobs) <= self._max_jobs:
+                break
+            if job_id == protect_id:
+                continue
+            job = self._jobs.get(job_id)
+            if job and job.status in (JobStatus.COMPLETED, JobStatus.FAILED):
+                self._discard(job_id)
+        # If still over limit, evict oldest regardless of status.
+        for job_id in ordered_ids:
+            if len(self._jobs) <= self._max_jobs:
+                break
+            if job_id == protect_id:
+                continue
+            self._discard(job_id)
+
+    def _discard(self, job_id: str) -> None:
+        job = self._jobs.pop(job_id, None)
+        if job:
+            self._by_key.pop(job.dedupe_key, None)
 
     @staticmethod
     def _dedupe_key(action: str, request: ADRequest) -> str:
@@ -86,6 +116,7 @@ class JobStore:
             job = Job(action=action, target=request.target, domain=request.domain, dedupe_key=key)
             self._jobs[job.id] = job
             self._by_key[key] = job.id
+            self._evict_if_needed(job.id)
 
         thread = threading.Thread(target=self._execute, args=(job, request, worker), daemon=True)
         thread.start()

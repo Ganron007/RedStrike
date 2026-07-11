@@ -45,7 +45,7 @@ POLICY_PROFILES: dict[str, dict[str, object]] = {
     },
     "adcs-deep": {
         "allowed_modes": [EngagementMode.ASSESS, EngagementMode.VALIDATE],
-        "allow_high_risk": False,
+        "allow_high_risk": True,
         "max_concurrent_per_target": 1,
         "max_concurrent_per_domain": 2,
         "cooldown_seconds_per_target": 2.0,
@@ -79,6 +79,9 @@ class ScopePolicy(BaseModel):
     def assert_allowed(self, *, action: str, target: str, domain: str | None, mode: EngagementMode) -> None:
         if mode not in self.allowed_modes:
             raise PermissionError(f"Mode '{mode.value}' is not allowed by scope policy")
+
+        if mode is EngagementMode.VALIDATE and not self.allow_high_risk:
+            raise PermissionError("VALIDATE mode requires high-risk approval (allow_high_risk)")
 
         if action not in READ_ONLY_ACTIONS and not self.allow_high_risk:
             raise PermissionError(f"Action '{action}' requires high-risk approval")
@@ -116,7 +119,10 @@ def load_scope_policy(path: str | None, profile: str | None = None) -> ScopePoli
 
     if path:
         text = Path(path).read_text(encoding="utf-8")
-        data.update(_parse_scope_text(text))
+        try:
+            data.update(_parse_scope_text(text))
+        except ValueError as exc:
+            raise ValueError(f"Invalid scope policy: {exc}") from exc
 
     return ScopePolicy.model_validate(data)
 

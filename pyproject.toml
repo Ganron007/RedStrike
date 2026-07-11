@@ -14,12 +14,11 @@ dependencies = [
   "fastapi>=0.111,<1.0",
   "uvicorn[standard]>=0.30,<1.0",
   "pydantic>=2.7,<3.0",
-  "requests>=2.31,<3.0",
   "networkx>=3.2,<4.0",
 ]
 
 [project.optional-dependencies]
-mcp = ["fastmcp>=0.2,<1.0"]
+mcp = ["fastmcp>=0.2,<1.0", "requests>=2.31,<3.0"]
 dev = ["pytest>=8.2,<9.0", "ruff>=0.5,<1.0"]
 
 [project.scripts]

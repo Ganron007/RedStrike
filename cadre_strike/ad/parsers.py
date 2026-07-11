@@ -14,11 +14,13 @@ from cadre_strike.ad.entities import (
     UserEntity,
 )
 
-_LINE = re.compile(r"-\s+(\S.*?)(?:\s*\([^)]*\))?\s*$")
+# Entries are prefixed by a dash (optionally led by a bullet/space). The dash is
+# required so header lines without one (e.g. "[*] Total users: 3") are skipped.
+_LINE = re.compile(r"(?:^|[*\s])-+\s+(\S.*?)(?:\s*\([^)]*\))?\s*$")
 _SPN = re.compile(r"\(SPN:\s*([^)]+)\)")
-_DELEG = re.compile(r"-\s+(\S.*?)\s*(?:\(([^)]*)\))?\s*$")
-_ADMIN = re.compile(r"-\s+(\S.*?)\s*\(adminCount:\s*(\d+)\)\s*$")
-_ADCS = re.compile(r"-\s+(\S.*?)\s*(?:\(([^)]*)\))?\s*$")
+_DELEG = re.compile(r"(?:^|[*\s])-+\s+(\S.*?)\s*(?:\(([^)]*)\))?\s*$")
+_ADMIN = re.compile(r"(?:^|[*\s])-+\s+(\S.*?)\s*\(adminCount:\s*(\d+)\)\s*$")
+_ADCS = re.compile(r"(?:^|[*\s])-+\s+(\S.*?)\s*(?:\(([^)]*)\))?\s*$")
 
 _HEADER_TOKENS = {
     "username",

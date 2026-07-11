@@ -23,17 +23,6 @@ class RiskLevel(str, Enum):
     CRITICAL = "critical"
 
 
-class Credential(BaseModel):
-    domain: str | None = None
-    username: str
-    password: SecretStr | None = None
-    nt_hash: SecretStr | None = None
-
-    @field_serializer("password", "nt_hash")
-    def redact_secret(self, value: SecretStr | None) -> str | None:
-        return "***REDACTED***" if value else None
-
-
 class ADRequest(BaseModel):
     target: str = Field(..., description="Domain controller, host, or allowed IP target")
     domain: str | None = Field(default=None, description="AD DNS domain name")

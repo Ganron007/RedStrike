@@ -94,15 +94,15 @@ class ActiveDirectoryAssessmentService:
         self.policy.assert_allowed(action=action, target=request.target, domain=request.domain, mode=request.mode)
         domain_key = request.domain.lower() if request.domain else None
         self._acquire_guardrails(request.target, domain_key)
-        argv = build_command(
-            target=request.target,
-            username=request.username,
-            password=request.password,
-            nt_hash=request.nt_hash,
-            domain=request.domain,
-            kdc_host=request.kdc_host,
-        )
         try:
+            argv = build_command(
+                target=request.target,
+                username=request.username,
+                password=request.password,
+                nt_hash=request.nt_hash,
+                domain=request.domain,
+                kdc_host=request.kdc_host,
+            )
             result = self.runner.run(argv)
             entities = parse_for_action(action, result.stdout)
             evidence = EvidenceRecord(
