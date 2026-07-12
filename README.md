@@ -1,7 +1,7 @@
 # RedStrike
 
 <p align="center">
-  <strong>Policy-aware Active Directory assessment service for authorized testing.</strong>
+  <img src="assets/redstrike-logo.svg" alt="RedStrike" width="620">
 </p>
 
 <p align="center">
