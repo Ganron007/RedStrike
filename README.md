@@ -1,8 +1,25 @@
 # RedStrike
 
+<p align="center">
+  <strong>Policy-aware Active Directory assessment service for authorized testing.</strong>
+</p>
+
+<p align="center">
+  <a href="https://github.com/CADRE-Platform/RedStrike/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/CADRE-Platform/RedStrike/ci.yml?label=CI" alt="CI"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-green.svg" alt="License: MIT"></a>
+  <img src="https://img.shields.io/badge/Python-%E2%89%A53.10-blue.svg" alt="Python: >=3.10">
+  <img src="https://img.shields.io/badge/Version-0.1.0-blue.svg" alt="Version: 0.1.0">
+  <img src="https://img.shields.io/badge/Status-Testing%20Ready-yellow.svg" alt="Status: Testing Ready">
+</p>
+
+> [!IMPORTANT]
+> **Authorized use only.** RedStrike is an offensive security tool. Use it **only** for
+> authorized security assessments against systems and accounts you are explicitly permitted
+> to test. Unauthorized scanning, enumeration, or access attempts are illegal. The authors
+> and contributors accept no liability for any misuse or damage.
+
 RedStrike is a clean-room successor concept to generic offensive-tool wrappers.
-It is part of the broader CADRE initiative, where CADRE represents
-**CLOUD | AGENTIC | DFIR | REDTEAM | ENVIRONMENT**.
+It is part of the broader CADRE initiative: CADRE => **CLOUD | AGENTIC | DFIR | REDTEAM | ENVIRONMENT**.
 
 The goal is not to expose every command on the box. The goal is to run authorized,
 policy-aware Active Directory assessment workflows, normalize evidence, rank attack
@@ -18,6 +35,82 @@ paths, and produce report-ready findings.
   the default MVP.
 - MCP and HTTP APIs expose intent-level operations such as `enumerate_domain_users`
   and `find_delegation`, not arbitrary command strings.
+
+## Tool Flow
+
+RedStrike runs as a single FastAPI process. Every request — whether it arrives over
+HTTP or is proxied through the MCP server — flows through the same policy-gated
+pipeline before a typed NetExec command is executed.
+
+```mermaid
+flowchart TD
+    subgraph Clients["Clients"]
+        HTTP["HTTP client<br/>(curl / script)"]
+        MCP["MCP client<br/>(LLM agent)"]
+    end
+
+    subgraph API["RedStrike process (FastAPI)"]
+        ROUTE["/ad/* routes + /jobs"]
+        AUTH["API key + rate limiter<br/>(loopback exempt)"]
+        SVC["ActiveDirectoryAssessmentService"]
+        POLICY["ScopePolicy.assert_allowed<br/>(target / domain / mode / action)"]
+        GUARD["Concurrency + cooldown<br/>guardrails"]
+        JOBS["JobStore<br/>(async, dedupe)"]
+    end
+
+    subgraph Build["Command layer"]
+        BUILDER["NetExecCommandBuilder<br/>(typed, shell=False)"]
+        RUNNER["CommandRunner.run<br/>(subprocess, shell=False)"]
+    end
+
+    subgraph Evidence["Evidence layer"]
+        PARSE["parsers.parse_for_action"]
+        EVID["EvidenceRecord + Finding<br/>(Pydantic models)"]
+        RESP["OperationResponse"]
+    end
+
+    subgraph Report["Reporting"]
+        JSON["render_json_report"]
+        MD["markdown"]
+    end
+
+    NXEC[("nxc (NetExec)<br/>on PATH")]
+
+    HTTP --> ROUTE
+    MCP -->|requests POST| ROUTE
+    ROUTE --> AUTH --> SVC
+    SVC --> POLICY --> GUARD
+    GUARD --> BUILDER --> RUNNER --> NXEC
+    RUNNER --> PARSE --> EVID --> RESP
+    SVC --> RESP
+    ROUTE --> JOBS
+    JOBS --> SVC
+    RESP --> JSON
+    RESP --> MD
+```
+
+**Request lifecycle:**
+
+1. **Ingress** — HTTP clients hit `/ad/*` directly; MCP clients call intent-level
+   tools (`enumerate_domain_users`, `find_delegation`, …) that `POST` to the same
+   HTTP routes via `requests`.
+2. **Auth & throttle** — non-loopback callers must present a valid `X-API-Key` and
+   pass the in-memory sliding-window `RateLimiter`.
+3. **Policy gate** — `ScopePolicy.assert_allowed` rejects out-of-scope targets,
+   domains, modes, or non-read-only actions before anything runs.
+4. **Guardrails** — per-target/per-domain concurrency caps and cooldown windows are
+   acquired, then released in a `finally` block.
+5. **Build & execute** — `NetExecCommandBuilder` produces a typed `argv` (no shell),
+   `CommandRunner` runs it as a `subprocess` with secret redaction and a timeout.
+6. **Normalize** — `parsers.parse_for_action` turns raw output into entities; an
+   `EvidenceRecord` (and any derived `Finding`) is attached to the
+   `OperationResponse`.
+7. **Report** — responses serialize through `render_json_report` / `markdown` for
+   downstream consumption.
+
+Long-running work can instead be submitted to `/jobs`; `JobStore` dedupes by
+action/target/domain/mode and runs the same service method on a worker thread
+(`PENDING → RUNNING → COMPLETED`).
 
 ## Quick Start
 
@@ -97,7 +190,14 @@ report = render_json_report(findings, evidence)
 ```
 
 `render_json_report` returns a dict with `tool`, `generated_at`, `summary`, `findings`,
-and `evidence`, ready to serialize to JSON for downstream consumption.
+and `evidence`, 
+
+## License
+
+RedStrike is released under the [MIT License](LICENSE). See the [LICENSE](LICENSE)
+file for the full text.
+
+> Copyright (c) 2026 RedStrikeready to serialize to JSON for downstream consumption.
 
 ## Safety Model
 
