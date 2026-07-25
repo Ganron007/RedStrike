@@ -1,0 +1,11 @@
+{
+  "credentials": {
+    "operator_user": {
+      "username": "operator_user",
+      "password": "CHANGE_ME",
+      "domain": "example.lab",
+      "source": "seed",
+      "notes": "Placeholder — CADRE lab seeds live in CADRE/attack-matrix/Campaign/automation/lab-seed-creds.json"
+    }
+  }
+}

@@ -10,6 +10,20 @@ from fastapi import FastAPI, Header, HTTPException, Request
 
 from cadre_strike import __version__
 from cadre_strike.ad.service import ActiveDirectoryAssessmentService
+from cadre_strike.api.campaign import (
+    CampaignApproveRequest,
+    CampaignRunRequest,
+    CampaignStartRequest,
+    CampaignStatusRequest,
+    CampaignStreamRequest,
+    IntentPreviewRequest,
+    campaign_approve,
+    campaign_run_phase,
+    campaign_start,
+    campaign_status,
+    campaign_stream,
+    intent_preview,
+)
 from cadre_strike.api.jobs import ALLOWED_JOB_ACTIONS, Job, JobRequest, JobStore
 from cadre_strike.core.errors import GuardrailViolationError, RateLimitExceededError
 from cadre_strike.core.models import ADRequest, OperationResponse
@@ -176,6 +190,52 @@ def create_app(
         if job is None:
             raise HTTPException(status_code=404, detail="Job not found")
         return job
+
+    @app.post("/campaign/start")
+    def campaign_start_route(payload: CampaignStartRequest) -> dict[str, object]:
+        try:
+            return campaign_start(payload)
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    @app.post("/campaign/approve")
+    def campaign_approve_route(payload: CampaignApproveRequest) -> dict[str, object]:
+        try:
+            return campaign_approve(payload)
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    @app.post("/campaign/run_phase")
+    def campaign_run_phase_route(payload: CampaignRunRequest) -> dict[str, object]:
+        try:
+            return campaign_run_phase(payload)
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        except FileNotFoundError as exc:
+            raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+    @app.post("/campaign/status")
+    def campaign_status_route(payload: CampaignStatusRequest) -> dict[str, object]:
+        try:
+            return campaign_status(payload)
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    @app.post("/campaign/stream")
+    def campaign_stream_route(payload: CampaignStreamRequest) -> dict[str, object]:
+        try:
+            return campaign_stream(payload)
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        except FileNotFoundError as exc:
+            raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+    @app.post("/builders/preview")
+    def builders_preview_route(payload: IntentPreviewRequest) -> dict[str, object]:
+        try:
+            return intent_preview(payload)
+        except (ValueError, KeyError, TypeError) as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
 
     return app
 

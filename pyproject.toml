@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "redstrike"
-version = "0.1.0"
-description = "Policy-aware AD assessment service for authorized Active Directory testing"
+version = "0.5.0"
+description = "Advanced agentic AD/ADCS red-team toolset + campaign graph engine"
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }
@@ -15,6 +15,7 @@ dependencies = [
   "uvicorn[standard]>=0.30,<1.0",
   "pydantic>=2.7,<3.0",
   "networkx>=3.2,<4.0",
+  "PyYAML>=6.0,<7.0",
 ]
 
 [project.optional-dependencies]
@@ -24,6 +25,7 @@ dev = ["pytest>=8.2,<9.0", "ruff>=0.5,<1.0", "httpx2>=2.0,<3.0"]
 [project.scripts]
 redstrike-api = "cadre_strike.api.server:main"
 redstrike-mcp = "cadre_strike.mcp.server:main"
+redstrike-campaign = "cadre_strike.cli.campaign:main"
 
 [tool.setuptools.packages.find]
 include = ["cadre_strike*"]

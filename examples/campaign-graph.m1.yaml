@@ -1,0 +1,14 @@
+# Minimal demo graph for standalone RedStrike (no CADRE lab secrets).
+version: 1
+name: redstrike-demo-m1
+nodes:
+  - id: DEMO-01
+    phase: 1
+    branch: spine
+    title: Demo recon step
+    path: linux60
+    beachheads: [windows, linux]
+    script: ""
+    stub: true
+    requires_cred: null
+    produces_cred: null

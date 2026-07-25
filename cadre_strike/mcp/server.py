@@ -425,6 +425,145 @@ def create_mcp(api_url: str):
             ),
         )
 
+    @mcp.tool()
+    def campaign_start(
+        engagement_id: str,
+        beachhead: str = "windows",
+        allow_mbr01_stage: bool = False,
+        graph: str = "",
+        automation_root: str = "",
+        cadre_root: str = "",
+        seed: str = "",
+        branches: str = "spine",
+    ) -> dict[str, Any]:
+        """Start a campaign engagement (seed ledger, set beachhead/branches)."""
+        return _post(
+            api_url,
+            "/campaign/start",
+            {
+                "engagement_id": engagement_id,
+                "beachhead": beachhead,
+                "allow_mbr01_stage": allow_mbr01_stage,
+                "graph": graph or None,
+                "automation_root": automation_root or None,
+                "cadre_root": cadre_root or None,
+                "seed": seed or None,
+                "branches": branches,
+            },
+        )
+
+    @mcp.tool()
+    def campaign_approve(
+        engagement_id: str,
+        gate: str,
+        note: str = "",
+        beachhead: str = "windows",
+        allow_mbr01_stage: bool = False,
+    ) -> dict[str, Any]:
+        """Approve a HITL gate (dcsync|ticket|forest|persistence|acl_write|site_takeover)."""
+        return _post(
+            api_url,
+            "/campaign/approve",
+            {
+                "engagement_id": engagement_id,
+                "gate": gate,
+                "note": note or None,
+                "beachhead": beachhead,
+                "allow_mbr01_stage": allow_mbr01_stage,
+            },
+        )
+
+    @mcp.tool()
+    def campaign_run_phase(
+        engagement_id: str,
+        beachhead: str = "windows",
+        phase: str = "1-3",
+        dry_run: bool = True,
+        stop_on_hitl: bool = True,
+        allow_mbr01_stage: bool = False,
+        graph: str = "",
+        automation_root: str = "",
+        cadre_root: str = "",
+        seed: str = "",
+        branches: str = "spine",
+        profile: str = "",
+    ) -> dict[str, Any]:
+        """Run (or dry-run) phases/branches; pauses on unapproved HITL gates when executing."""
+        return _post(
+            api_url,
+            "/campaign/run_phase",
+            {
+                "engagement_id": engagement_id,
+                "beachhead": beachhead,
+                "phase": phase,
+                "dry_run": dry_run,
+                "stop_on_hitl": stop_on_hitl,
+                "allow_mbr01_stage": allow_mbr01_stage,
+                "graph": graph or None,
+                "automation_root": automation_root or None,
+                "cadre_root": cadre_root or None,
+                "seed": seed or None,
+                "branches": branches,
+                "profile": profile or None,
+            },
+        )
+
+    @mcp.tool()
+    def campaign_status(
+        engagement_id: str,
+        beachhead: str = "windows",
+    ) -> dict[str, Any]:
+        """Return engagement HITL state, ledger creds, and graph identity."""
+        return _post(
+            api_url,
+            "/campaign/status",
+            {
+                "engagement_id": engagement_id,
+                "beachhead": beachhead,
+            },
+        )
+
+    @mcp.tool()
+    def campaign_stream(
+        engagement_id: str,
+        stream: str,
+        beachhead: str = "linux",
+        dry_run: bool = True,
+        graph: str = "",
+        automation_root: str = "",
+        cadre_root: str = "",
+        seed: str = "",
+        profile: str = "",
+    ) -> dict[str, Any]:
+        """Run Campaign E (phase 9) or F (phase 10) thin stream — no ws01 routing."""
+        return _post(
+            api_url,
+            "/campaign/stream",
+            {
+                "engagement_id": engagement_id,
+                "stream": stream,
+                "beachhead": beachhead,
+                "dry_run": dry_run,
+                "graph": graph or None,
+                "automation_root": automation_root or None,
+                "cadre_root": cadre_root or None,
+                "seed": seed or None,
+                "profile": profile or None,
+            },
+        )
+
+    @mcp.tool()
+    def build_intent(
+        intent: str,
+        args: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """Preview typed builder argv for an intent (secrets redacted). LLM must not invent argv."""
+        return _post(
+            api_url,
+            "/builders/preview",
+            {"intent": intent, "args": args or {}},
+        )
+
     return mcp
 
 

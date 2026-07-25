@@ -1,0 +1,1 @@
+"""RedStrike CLI entrypoints."""

@@ -8,8 +8,8 @@
   <a href="https://github.com/CADRE-Platform/RedStrike/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/CADRE-Platform/RedStrike/ci.yml?label=CI" alt="CI"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-green.svg" alt="License: MIT"></a>
   <img src="https://img.shields.io/badge/Python-%E2%89%A53.10-blue.svg" alt="Python: >=3.10">
-  <img src="https://img.shields.io/badge/Version-0.1.0-blue.svg" alt="Version: 0.1.0">
-  <img src="https://img.shields.io/badge/Status-Testing%20Ready-yellow.svg" alt="Status: Testing Ready">
+  <img src="https://img.shields.io/badge/Version-0.5.0-blue.svg" alt="Version: 0.5.0">
+  <img src="https://img.shields.io/badge/Status-E%2FF%20Streams-yellow.svg" alt="Status: E/F Streams">
 </p>
 
 > [!IMPORTANT]
@@ -18,12 +18,14 @@
 > to test. Unauthorized scanning, enumeration, or access attempts are illegal. The authors
 > and contributors accept no liability for any misuse or damage.
 
-RedStrike is a clean-room successor concept to generic offensive-tool wrappers.
-It is part of the broader CADRE initiative: CADRE => **CLOUD | AGENTIC | DFIR | REDTEAM | ENVIRONMENT**.
+RedStrike is an advanced **agentic AD / ADCS pentesting and red-teaming toolset**:
+intent-level ops, typed builders (`shell=False`), scope policy, credential ledger,
+HITL gates, and a campaign-graph engine — built to beat free-form LLM shell wrappers
+on fidelity and safety. It keeps improving as a standalone product.
 
-The goal is not to expose every command on the box. The goal is to run authorized,
-policy-aware Active Directory assessment workflows, normalize evidence, rank attack
-paths, and produce report-ready findings.
+It is also the orchestrator for the CADRE lab campaign (CADRE supplies graph, lab
+seeds, and profiles as **integration glue** — not hardcoded product identity).
+CADRE => **CLOUD | AGENTIC | DFIR | REDTEAM | ENVIRONMENT**.
 
 ## What is different
 
@@ -178,6 +180,26 @@ curl http://127.0.0.1:8890/jobs/{job_id} -H "X-API-Key: change-me"
 A job transitions `PENDING → RUNNING → COMPLETED` (or `FAILED`). Submitting the same
 `action`/`target`/`domain`/`mode` again returns the existing in-flight or completed job
 instead of starting a duplicate; a `FAILED` job can be retried.
+
+## Campaign graph engine (optional CADRE consumer)
+
+```bash
+pip install -e .
+export CADRE_ROOT=/path/to/CADRE   # graph + seeds + automation scripts
+redstrike-campaign start --beachhead windows --engage lab1
+redstrike-campaign run --phase 0.5-8 --beachhead windows --engage lab1
+redstrike-campaign run --phase 8 --beachhead windows --engage lab1 --branch C
+redstrike-campaign stream E --engage lab1          # network-defense exercises (phase 9)
+redstrike-campaign stream F --engage lab1          # supply-chain exercises (phase 10)
+redstrike-campaign approve --gate dcsync --engage lab1
+```
+
+- Lab **graph / seeds / profiles** live in CADRE `Campaign/automation/` when present
+- Typed **intents** (Certipy/Rubeus/bloodyAD/SQL/SharpSCCM/mimikatz) — MCP `build_intent`
+- `--branch …` · HITL · `--prefer-script` · `stream E|F` (no ws01 routing)
+- Plan 1.1 **complete** through dry-run smoke (0.5.0); live `--execute` is operator-gated
+
+See [`CAMPAIGN-AUTOMATION-PLAN.md`](CAMPAIGN-AUTOMATION-PLAN.md) · [`ROADMAP.md`](ROADMAP.md) · [`CHANGELOG.md`](CHANGELOG.md).
 
 ## Reporting
 

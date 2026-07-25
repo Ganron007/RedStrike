@@ -1,6 +1,26 @@
 # RedStrike Roadmap
 
-> **Campaign automation (planned):** see [`CAMPAIGN-AUTOMATION-PLAN.md`](CAMPAIGN-AUTOMATION-PLAN.md) — CADRE A–D/G orchestrator via provisioning→ws01 routing (M1–M5). Supersedes the generic 0.2–0.4 sketch below once implementation starts.
+> **Campaign automation:** see [`CAMPAIGN-AUTOMATION-PLAN.md`](CAMPAIGN-AUTOMATION-PLAN.md) (canonical in CADRE `plan1.1-campaign-automation/`). **SSoT = this repo**; sync major features → `CADRE/tools/red-strike/`.  
+> **Plan 1.1 status:** ✅ **Complete** (2026-07-26) — engine **0.5.0**.
+
+## Plan 1.1 — CampaignOrchestrator (done)
+
+| Milestone | Status | Notes |
+|-----------|--------|-------|
+| **M0** (CADRE lab) | ✅ | ws01 Local Admin, routing, surfaces |
+| **M1** prove path | ✅ | BeachheadRouter + ledger + P1–3; `redstrike-campaign` dry-run |
+| **M2** spine + HITL | ✅ | Phase 0–8 graph, HITL gates, MCP/API `campaign_*`, workflow doc |
+| **M3** branches | ✅ | `--branch` A–D/G/sql-ai; UnPAC stub; LAB-PROFILES preflight; CADRE glue split |
+| **M4** typed builders | ✅ | Certipy/Rubeus/bloodyAD/SQL/SharpSCCM/mimikatz + `intent:` |
+| **M5** E/F runners | ✅ | `stream E|F` · phase 9/10 · graph v5 · **0.5.0** |
+| **P11.6** live smoke | ✅ | `.60` venv 0.5.0; dry-run P1–3 + stream E/F |
+| **Docs** | ✅ | README / ROADMAP / CADRE integration 1-pager |
+
+```bash
+redstrike-campaign run --phase 1-3 --beachhead windows --engage lab1
+redstrike-campaign stream E --engage lab1
+redstrike-campaign stream F --engage lab1
+```
 
 ## 0.1 MVP
 

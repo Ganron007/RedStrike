@@ -31,6 +31,19 @@ POLICY_PROFILES: dict[str, dict[str, object]] = {
         "cooldown_seconds_per_target": 1.0,
         "cooldown_seconds_per_domain": 0.0,
     },
+    # Plan 1.1 M1 — campaign steps are graph-gated; high-risk ops still HITL in M2.
+    "cadre-campaign": {
+        "allowed_modes": [
+            EngagementMode.OBSERVE,
+            EngagementMode.ASSESS,
+            EngagementMode.VALIDATE,
+        ],
+        "allow_high_risk": True,
+        "max_concurrent_per_target": 1,
+        "max_concurrent_per_domain": 2,
+        "cooldown_seconds_per_target": 1.0,
+        "cooldown_seconds_per_domain": 0.5,
+    },
     "validate-gated": {
         "allowed_modes": [
             EngagementMode.OBSERVE,
