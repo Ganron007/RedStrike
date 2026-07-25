@@ -1,5 +1,7 @@
 # RedStrike Roadmap
 
+> **Campaign automation (planned):** see [`CAMPAIGN-AUTOMATION-PLAN.md`](CAMPAIGN-AUTOMATION-PLAN.md) — CADRE A–D/G orchestrator via provisioning→ws01 routing (M1–M5). Supersedes the generic 0.2–0.4 sketch below once implementation starts.
+
 ## 0.1 MVP
 
 - Scoped read-only AD assessment API.
