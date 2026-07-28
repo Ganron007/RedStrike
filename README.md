@@ -212,14 +212,14 @@ report = render_json_report(findings, evidence)
 ```
 
 `render_json_report` returns a dict with `tool`, `generated_at`, `summary`, `findings`,
-and `evidence`, 
+and `evidence`, ready to serialize to JSON for downstream consumption.
 
 ## License
 
 RedStrike is released under the [MIT License](LICENSE). See the [LICENSE](LICENSE)
 file for the full text.
 
-> Copyright (c) 2026 RedStrikeready to serialize to JSON for downstream consumption.
+> Copyright (c) 2026 RedStrike
 
 ## Safety Model
 
