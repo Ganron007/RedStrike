@@ -20,7 +20,7 @@ dependencies = [
 
 [project.optional-dependencies]
 mcp = ["fastmcp>=0.2,<1.0", "requests>=2.31,<3.0"]
-dev = ["pytest>=8.2,<9.0", "ruff>=0.5,<1.0", "httpx2>=2.0,<3.0"]
+dev = ["pytest>=8.2,<9.0", "ruff>=0.5,<1.0", "httpx>=0.27,<1.0"]
 
 [project.scripts]
 redstrike-api = "cadre_strike.api.server:main"
