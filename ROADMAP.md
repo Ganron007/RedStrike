@@ -1,6 +1,6 @@
 # RedStrike Roadmap
 
-> **Campaign automation:** see internal planning docs in `docs/internal/` (gitignored) (canonical in CADRE `plan1.1-campaign-automation/`). **SSoT = this repo**; sync major features → `CADRE/tools/red-strike/`.  
+> **Campaign automation:** see internal planning docs in `docs/internal/` (gitignored) (local-only planning docs, gitignored). **SSoT = this repo**; sync major features → `CADRE/tools/red-strike/`.  
 > **Plan 1.1 status:** ✅ **Complete** (2026-07-26) — engine **0.5.0**.
 
 ## Plan 1.1 — CampaignOrchestrator (done)

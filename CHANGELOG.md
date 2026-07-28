@@ -90,7 +90,7 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 **What was done:**
 - Added internal campaign-automation plan — M1–M5 plan for Campaign spine + Branches A–D + G automation under provisioning→ws01 routing, phase-gated HITL, hybrid script→typed-intent rollout. E/F deferred to thin runners (M5).
 - Linked the plan from [`ROADMAP.md`](ROADMAP.md) (supersedes generic 0.2–0.4 sketch once implementation starts).
-- CADRE mirror + checklist registration: `CADRE/docs/internal/plan1.1-campaign-automation/`, CHECKLIST **P11.*** as next action.
+- CADRE mirror + checklist registration: umbrella campaign-automation plan (internal), CHECKLIST **P11.*** as next action.
 
 ---
 
