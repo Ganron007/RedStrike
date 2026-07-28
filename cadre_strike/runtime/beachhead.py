@@ -37,6 +37,8 @@ class StepPlan:
     stub: bool = False
     branch: str = "spine"
     intent: str | None = None
+    pivot_to: str | None = None
+    produces_beachhead: str | None = None
 
 
 class BeachheadRouter:
@@ -94,6 +96,8 @@ class BeachheadRouter:
         branch: str = "spine",
         intent: str | None = None,
         argv_override: list[str] | None = None,
+        pivot_to: str | None = None,
+        produces_beachhead: str | None = None,
     ) -> StepPlan:
         path = self.effective_path(declared_path=declared_path, beachhead=beachhead)
         if stub and not argv_override and not intent:
@@ -145,4 +149,6 @@ class BeachheadRouter:
             stub=stub,
             branch=branch,
             intent=intent,
+            pivot_to=pivot_to,
+            produces_beachhead=produces_beachhead,
         )

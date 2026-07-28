@@ -32,6 +32,8 @@ class CampaignNode:
     intent: str | None = None
     intent_args: dict[str, Any] | None = None
     cred: str | None = None  # ledger name merged into intent args
+    pivot_to: str | None = None  # target machine/role for lateral movement
+    produces_beachhead: str | None = None  # credential/beachhead this node creates
 
 
 @dataclass(frozen=True)
@@ -204,6 +206,8 @@ def _parse_node(item: dict[str, Any], index: int) -> CampaignNode:
     requires = item.get("requires_cred")
     produces = item.get("produces_cred")
     gate = item.get("hitl_gate")
+    pivot_to = item.get("pivot_to")
+    produces_beachhead = item.get("produces_beachhead")
     return CampaignNode(
         id=node_id,
         phase=phase,
@@ -219,4 +223,6 @@ def _parse_node(item: dict[str, Any], index: int) -> CampaignNode:
         intent=intent,
         intent_args=dict(intent_args) if intent_args else None,
         cred=cred,
+        pivot_to=None if pivot_to in (None, "null") else str(pivot_to),
+        produces_beachhead=None if produces_beachhead in (None, "null") else str(produces_beachhead),
     )

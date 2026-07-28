@@ -6,6 +6,7 @@ from cadre_strike.builders.mimikatz import MimikatzBuilder
 from cadre_strike.builders.rubeus import RubeusBuilder
 from cadre_strike.builders.sharpsccm import SharpSCCMBuilder
 from cadre_strike.builders.sql import SqlBuilder
+from cadre_strike.builders.winrs import WinRSBuilder
 
 __all__ = [
     "BloodyADBuilder",
@@ -14,4 +15,5 @@ __all__ = [
     "RubeusBuilder",
     "SharpSCCMBuilder",
     "SqlBuilder",
+    "WinRSBuilder",
 ]

@@ -10,6 +10,7 @@ from cadre_strike.builders import (
     RubeusBuilder,
     SharpSCCMBuilder,
     SqlBuilder,
+    WinRSBuilder,
 )
 from cadre_strike.runtime.ledger import Credential, CredentialLedger
 
@@ -30,6 +31,7 @@ class IntentRegistry:
         self._sql = SqlBuilder()
         self._sccm = SharpSCCMBuilder()
         self._mimikatz = MimikatzBuilder()
+        self._winrs = WinRSBuilder()
         self._intents: dict[str, IntentFn] = {
             "certipy.find": self._certipy.find,
             "certipy.req": self._certipy.req,
@@ -50,6 +52,8 @@ class IntentRegistry:
             "mimikatz.logonpasswords": self._mimikatz.logonpasswords,
             "mimikatz.dcsync": self._mimikatz.dcsync,
             "mimikatz.sam": self._mimikatz.sam,
+            "winrs.command": self._winrs.run,
+            "winrs.cmd": self._winrs.run_cmd,
         }
 
     def known(self) -> list[str]:

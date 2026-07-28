@@ -83,6 +83,8 @@ def _blocked_plan(
         stub=node.stub,
         branch=node.branch,
         intent=node.intent,
+        pivot_to=node.pivot_to,
+        produces_beachhead=node.produces_beachhead,
     )
 
 
