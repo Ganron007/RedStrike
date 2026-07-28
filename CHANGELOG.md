@@ -81,14 +81,14 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 > **Scope:** CADRE executed M0 (ws01 Local Admin, routing, campaign promotions, optional provisioning join). This repo plan/checklist mirrors updated; **M1 code still not started.** *(superseded by M1 entry above)*
 
 **What was done (this repo):**
-- Synced [`CAMPAIGN-AUTOMATION-PLAN.md`](CAMPAIGN-AUTOMATION-PLAN.md) + [`ROADMAP.md`](ROADMAP.md) to ws01-primary / dual beachhead / M0 [x].
+- Synced campaign-automation plan + [`ROADMAP.md`](ROADMAP.md) to ws01-primary / dual beachhead / M0 [x].
 
 ### Added (2026-07-25 — CADRE Campaign Automation Plan / Plan 1.1)
 
 > **Scope:** Product direction for evolving RedStrike from read-only NetExec recon into a CADRE lab campaign orchestrator. Docs only — M1 implementation not started.
 
 **What was done:**
-- Added [`CAMPAIGN-AUTOMATION-PLAN.md`](CAMPAIGN-AUTOMATION-PLAN.md) — M1–M5 plan for Campaign spine + Branches A–D + G automation under provisioning→ws01 routing, phase-gated HITL, hybrid script→typed-intent rollout. E/F deferred to thin runners (M5).
+- Added internal campaign-automation plan — M1–M5 plan for Campaign spine + Branches A–D + G automation under provisioning→ws01 routing, phase-gated HITL, hybrid script→typed-intent rollout. E/F deferred to thin runners (M5).
 - Linked the plan from [`ROADMAP.md`](ROADMAP.md) (supersedes generic 0.2–0.4 sketch once implementation starts).
 - CADRE mirror + checklist registration: `CADRE/docs/internal/plan1.1-campaign-automation/`, CHECKLIST **P11.*** as next action.
 

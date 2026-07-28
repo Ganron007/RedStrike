@@ -199,7 +199,7 @@ redstrike-campaign approve --gate dcsync --engage lab1
 - `--branch …` · HITL · `--prefer-script` · `stream E|F` (no ws01 routing)
 - Plan 1.1 **complete** through dry-run smoke (0.5.0); live `--execute` is operator-gated
 
-See [`CAMPAIGN-AUTOMATION-PLAN.md`](CAMPAIGN-AUTOMATION-PLAN.md) · [`ROADMAP.md`](ROADMAP.md) · [`CHANGELOG.md`](CHANGELOG.md).
+See [`ROADMAP.md`](ROADMAP.md) · [`CHANGELOG.md`](CHANGELOG.md).
 
 ## Reporting
 

@@ -10,3 +10,6 @@ scope.yaml
 .agents/
 .cursor/
 
+# Internal planning docs (local-only; not shipped)
+docs/internal/
+
