@@ -5,6 +5,17 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added (2026-08-03 — live camp-v3 + runner PATH fix)
+
+- **Live Campaign v3** on provisioning — engagement `camp-v3-20260803`; documented in CADRE `Red-Strike-workflow.md`.
+- **`resolve_executable`** in `CommandRunner` — finds `/usr/bin/bash` when PATH is stripped in non-interactive SSH.
+
+### Added (2026-08-03 — ws01 SSH transport + graph v8 sync)
+
+- **`cadre_strike.runtime.ws01_transport`** — typed intents on `path: ws01` wrap argv in OpenSSH → PowerShell on ws01 (`REDSTRIKE_WS01_*` env vars; default key `~/.ssh/cadre-ws01-key`). Bash harness scripts unchanged (`ws01-exec` mechanism).
+- **Campaign graph v8** (CADRE glue): branch **H** (WT063–068 stubs), post-DA **T097–T109** stubs, fixed `certipy.find` / removed broken `rubeus.monitor`, Branch D linux script paths.
+- **Tests:** 91 pytest (`test_ws01_transport.py`).
+
 ### Added (2026-07-26 — Plan 1.1 M5 + P11.6 — Plan 1.1 complete)
 
 > **Scope:** E/F thin streams + live dry-run smoke on provisioning; close Plan 1.1.

@@ -1,10 +1,27 @@
 from __future__ import annotations
 
+import os
 import subprocess
 import time
 from shutil import which
 
 from cadre_strike.core.models import CommandResult
+
+_UNIX_FALLBACKS = ("/usr/bin", "/bin", "/usr/local/bin")
+
+
+def resolve_executable(name: str) -> str:
+    """Resolve argv[0] even when PATH is stripped (common in non-interactive SSH)."""
+    found = which(name)
+    if found:
+        return found
+    if os.path.isabs(name) and os.path.isfile(name):
+        return name
+    for directory in _UNIX_FALLBACKS:
+        candidate = os.path.join(directory, name)
+        if os.path.isfile(candidate):
+            return candidate
+    return name
 
 
 class CommandRunner:
@@ -14,7 +31,8 @@ class CommandRunner:
     def run(self, argv: list[str]) -> CommandResult:
         if not argv:
             raise ValueError("Command cannot be empty")
-        if which(argv[0]) is None:
+        argv = [resolve_executable(argv[0])] + argv[1:]
+        if which(argv[0]) is None and not os.path.isfile(argv[0]):
             raise FileNotFoundError(f"Required tool not found on PATH: {argv[0]}")
 
         started = time.monotonic()

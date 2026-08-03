@@ -7,7 +7,7 @@ from typing import Any, Callable
 
 import yaml
 
-KNOWN_BRANCHES = frozenset({"spine", "A", "B", "C", "D", "E", "F", "G", "sql-ai"})
+KNOWN_BRANCHES = frozenset({"spine", "A", "B", "C", "D", "E", "F", "G", "H", "sql-ai"})
 
 # Standalone exercise streams (Plan 1.1 M5) — not on the AD spine.
 STREAM_SPECS: dict[str, dict[str, str]] = {

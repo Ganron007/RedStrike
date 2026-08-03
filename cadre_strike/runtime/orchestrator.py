@@ -15,6 +15,7 @@ from cadre_strike.runtime.graph import (
     resolve_graph_path,
 )
 from cadre_strike.runtime.preflight import PreflightResult, preflight as run_preflight
+from cadre_strike.runtime.ws01_transport import argv_for_plan
 from cadre_strike.runtime.hitl import EngagementState, EngagementStore
 from cadre_strike.runtime.intents import DEFAULT_REGISTRY, IntentRegistry, UnknownIntentError
 from cadre_strike.runtime.ledger import Credential, CredentialLedger, MissingCredentialError
@@ -319,7 +320,7 @@ class CampaignOrchestrator:
                 results.append(StepResult(plan=plan, dry_run=True, return_code=0))
                 continue
 
-            completed = self.runner.run(plan.argv)
+            completed = self.runner.run(argv_for_plan(plan))
             if completed.success and node.produces_cred and not self.ledger.has(node.produces_cred):
                 self.ledger.put(
                     Credential(

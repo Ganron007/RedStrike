@@ -30,7 +30,7 @@ def build_parser() -> argparse.ArgumentParser:
         p.add_argument(
             "--branch",
             default="spine",
-            help=f"Branches: spine (default), A,B,C,D,G,sql-ai, or all. Known={sorted(KNOWN_BRANCHES)}",
+            help=f"Branches: spine (default), A,B,C,D,H,G,sql-ai, or all. Known={sorted(KNOWN_BRANCHES)}",
         )
         if beachhead_required:
             p.add_argument(
