@@ -8,7 +8,7 @@
   <a href="https://github.com/CADRE-Platform/RedStrike/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/CADRE-Platform/RedStrike/ci.yml?label=CI" alt="CI"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-green.svg" alt="License: MIT"></a>
   <img src="https://img.shields.io/badge/Python-%E2%89%A53.10-blue.svg" alt="Python: >=3.10">
-  <img src="https://img.shields.io/badge/Version-0.5.0-blue.svg" alt="Version: 0.5.0">
+  <img src="https://img.shields.io/badge/Version-0.5.2-blue.svg" alt="Version: 0.5.2">
   <img src="https://img.shields.io/badge/Status-E%2FF%20Streams-yellow.svg" alt="Status: E/F Streams">
 </p>
 
@@ -186,8 +186,12 @@ instead of starting a duplicate; a `FAILED` job can be retried.
 ```bash
 pip install -e .
 export CADRE_ROOT=/path/to/CADRE   # graph + seeds + automation scripts
-redstrike-campaign start --beachhead windows --engage lab1
-redstrike-campaign run --phase 0.5-8 --beachhead windows --engage lab1
+# Hybrid (orchestrator on Kali/.60 → SSH into ws01):
+redstrike-campaign start --beachhead windows --operator provisioning --engage lab1
+redstrike-campaign run --phase 0.5-8 --beachhead windows --operator provisioning --engage lab1
+# Native (orchestrator on domain-joined ws01 — no SSH wrap; default on win32):
+redstrike-campaign start --beachhead windows --operator ws01 --engage lab-native
+redstrike-campaign run --phase 1-3 --beachhead windows --operator ws01 --engage lab-native
 redstrike-campaign run --phase 8 --beachhead windows --engage lab1 --branch C
 redstrike-campaign stream E --engage lab1          # network-defense exercises (phase 9)
 redstrike-campaign stream F --engage lab1          # supply-chain exercises (phase 10)
@@ -195,9 +199,10 @@ redstrike-campaign approve --gate dcsync --engage lab1
 ```
 
 - Lab **graph / seeds / profiles** live in CADRE `Campaign/automation/` when present
+- **Dual operators:** `provisioning` (hybrid) · `ws01` (native) — see CADRE `Red-Strike-workflow.md`
 - Typed **intents** (Certipy/Rubeus/bloodyAD/SQL/SharpSCCM/mimikatz) — MCP `build_intent`
 - `--branch …` · HITL · `--prefer-script` · `stream E|F` (no ws01 routing)
-- Plan 1.1 **complete** through dry-run smoke (0.5.0); live `--execute` is operator-gated
+- Plan 1.1 **complete**; engine **0.5.2**; live `--execute` is HITL-gated
 
 See [`ROADMAP.md`](ROADMAP.md) · [`CHANGELOG.md`](CHANGELOG.md).
 

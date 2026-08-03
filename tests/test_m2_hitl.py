@@ -138,6 +138,7 @@ def test_api_campaign_routes(automation_root: Path, tmp_path: Path, monkeypatch:
         json={
             "engagement_id": "api-lab",
             "beachhead": "windows",
+            "operator": "provisioning",
             "automation_root": str(automation_root),
             "graph": str(CADRE_GRAPH) if CADRE_GRAPH.is_file() else str(EXAMPLES / "campaign-graph.m1.yaml"),
             "seed": str(SEED),
@@ -145,12 +146,14 @@ def test_api_campaign_routes(automation_root: Path, tmp_path: Path, monkeypatch:
     )
     assert start.status_code == 200
     assert start.json()["ok"] is True
+    assert start.json()["operator"] == "provisioning"
 
     run = client.post(
         "/campaign/run_phase",
         json={
             "engagement_id": "api-lab",
             "beachhead": "windows",
+            "operator": "provisioning",
             "phase": "1-3",
             "dry_run": True,
             "automation_root": str(automation_root),
@@ -160,6 +163,7 @@ def test_api_campaign_routes(automation_root: Path, tmp_path: Path, monkeypatch:
     )
     assert run.status_code == 200
     assert run.json()["ws01_exec_count"] >= 1
+    assert run.json()["operator"] == "provisioning"
 
     status = client.post("/campaign/status", json={"engagement_id": "api-lab"})
     assert status.status_code == 200

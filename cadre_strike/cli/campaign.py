@@ -5,7 +5,7 @@ import json
 import sys
 from pathlib import Path
 
-from cadre_strike.runtime.beachhead import Beachhead
+from cadre_strike.runtime.beachhead import Beachhead, OperatorMode, detect_default_operator
 from cadre_strike.runtime.graph import KNOWN_BRANCHES, STREAM_SPECS
 from cadre_strike.runtime.hitl import KNOWN_GATES
 from cadre_strike.runtime.session import CampaignSession, default_automation_root, default_seed_path
@@ -31,6 +31,16 @@ def build_parser() -> argparse.ArgumentParser:
             "--branch",
             default="spine",
             help=f"Branches: spine (default), A,B,C,D,H,G,sql-ai, or all. Known={sorted(KNOWN_BRANCHES)}",
+        )
+        p.add_argument(
+            "--operator",
+            choices=[m.value for m in OperatorMode],
+            default=None,
+            help=(
+                "Where the orchestrator runs: provisioning (Kali/.60 → SSH/ws01-exec) "
+                "or ws01 (native domain-joined). Default: win32→ws01, else provisioning "
+                "(override with REDSTRIKE_OPERATOR)."
+            ),
         )
         if beachhead_required:
             p.add_argument(
@@ -90,9 +100,11 @@ def build_parser() -> argparse.ArgumentParser:
 def _session_from_args(args: argparse.Namespace) -> CampaignSession:
     automation_root = Path(args.automation_root) if args.automation_root else default_automation_root()
     seed = args.seed if getattr(args, "seed", None) else None
+    operator = getattr(args, "operator", None) or detect_default_operator()
     return CampaignSession(
         args.engage,
         beachhead=getattr(args, "beachhead", "windows") or "windows",
+        operator=operator,
         automation_root=automation_root,
         graph_path=args.graph,
         cadre_root=args.cadre_root,
@@ -109,7 +121,7 @@ def _print(data: dict, *, as_json: bool) -> None:
         return
     if "steps" in data:
         mode = "DRY-RUN" if all(s.get("dry_run", True) for s in data["steps"]) else "EXECUTE"
-        print(f"[{mode}] engagement={data['engagement_id']} beachhead={data['beachhead']}")
+        print(f"[{mode}] engagement={data['engagement_id']} beachhead={data['beachhead']} operator={data.get('operator')}")
         print(f"graph={data['graph']} branches={data.get('branches')}")
         pf = data.get("preflight") or {}
         if pf:
@@ -121,6 +133,7 @@ def _print(data: dict, *, as_json: bool) -> None:
             print(f"pending_gate={state['pending_gate']} status={state.get('status')}")
         print(
             f"ws01_exec={data.get('ws01_exec_count', 0)} "
+            f"local_ws01={data.get('local_ws01_count', 0)} "
             f"linux_direct={data.get('linux_direct_count', 0)} "
             f"mbr01={data.get('mbr01_count', 0)} "
             f"awaiting={data.get('awaiting_approval_count', 0)} "
@@ -186,6 +199,7 @@ def main(argv: list[str] | None = None) -> int:
         session = CampaignSession(
             args.engage,
             beachhead=getattr(args, "beachhead", None) or spec["beachhead"],
+            operator=getattr(args, "operator", None) or detect_default_operator(),
             automation_root=Path(args.automation_root) if args.automation_root else default_automation_root(),
             graph_path=args.graph,
             cadre_root=args.cadre_root,

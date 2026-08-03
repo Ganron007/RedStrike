@@ -43,8 +43,10 @@ def test_m3_graph_has_all_branches() -> None:
     graph = load_campaign_graph(GRAPH)
     branches = {n.branch for n in graph.nodes}
     assert {"spine", "A", "B", "C", "D", "E", "F", "G", "sql-ai"} <= branches
-    assert any(n.id == "T-UNPAC" and n.stub for n in graph.nodes)
+    assert any(n.id == "T-UNPAC" for n in graph.nodes)
     assert any(n.id == "T039" and n.hitl_gate == "site_takeover" for n in graph.nodes)
+    # Deferred stubs remain in graph v9+
+    assert any(n.stub for n in graph.nodes)
 
 
 def test_parse_branches_defaults_and_all() -> None:

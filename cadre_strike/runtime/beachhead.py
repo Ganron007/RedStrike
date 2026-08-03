@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import os
+import sys
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
@@ -10,11 +12,33 @@ class Beachhead(str, Enum):
     LINUX = "linux"
 
 
+class OperatorMode(str, Enum):
+    """Where the CampaignOrchestrator process runs.
+
+    Distinct from Beachhead (attack-identity / preferred path):
+    - provisioning: orchestrator on Kali/.60 → SSH/ws01-exec into ws01 (hybrid)
+    - ws01: orchestrator on domain-joined ws01 → local tools, no SSH wrap (Rule 1 strict)
+    """
+
+    PROVISIONING = "provisioning"
+    WS01 = "ws01"
+
+
 class ExecutionPath(str, Enum):
     WS01 = "ws01"
     LINUX60 = "linux60"
     STAGE_MBR01 = "stage_mbr01"
     EXTERNAL60_PHASE0 = "external60_phase0"
+
+
+def detect_default_operator() -> OperatorMode:
+    """Prefer native ws01 when running on Windows; otherwise provisioning hybrid."""
+    env = os.environ.get("REDSTRIKE_OPERATOR", "").strip().lower()
+    if env in {m.value for m in OperatorMode}:
+        return OperatorMode(env)
+    if sys.platform == "win32":
+        return OperatorMode.WS01
+    return OperatorMode.PROVISIONING
 
 
 @dataclass(frozen=True)
@@ -39,6 +63,7 @@ class StepPlan:
     intent: str | None = None
     pivot_to: str | None = None
     produces_beachhead: str | None = None
+    operator: OperatorMode = OperatorMode.PROVISIONING
 
 
 class BeachheadRouter:
@@ -50,10 +75,12 @@ class BeachheadRouter:
         automation_root: Path,
         allow_mbr01_stage: bool = False,
         bash: str = "bash",
+        operator: OperatorMode | str = OperatorMode.PROVISIONING,
     ) -> None:
         self.automation_root = Path(automation_root)
         self.allow_mbr01_stage = allow_mbr01_stage
         self.bash = bash
+        self.operator = OperatorMode(operator)
 
     def effective_path(
         self,
@@ -100,6 +127,8 @@ class BeachheadRouter:
         produces_beachhead: str | None = None,
     ) -> StepPlan:
         path = self.effective_path(declared_path=declared_path, beachhead=beachhead)
+        native = self.operator is OperatorMode.WS01
+
         if stub and not argv_override and not intent:
             argv: list[str] = []
             mechanism = "stub"
@@ -107,13 +136,18 @@ class BeachheadRouter:
         elif argv_override is not None:
             argv = list(argv_override)
             mechanism = f"intent:{intent}" if intent else "typed"
-            uses_ws01 = path is ExecutionPath.WS01
+            # Intents on path ws01: remote SSH only under provisioning operator.
+            uses_ws01 = path is ExecutionPath.WS01 and not native
         elif script:
             script_path = (self.automation_root / script).resolve()
             argv = [self.bash, str(script_path)]
             if path is ExecutionPath.WS01:
-                mechanism = "ws01-exec"
-                uses_ws01 = True
+                if native:
+                    mechanism = "local-ws01"
+                    uses_ws01 = False
+                else:
+                    mechanism = "ws01-exec"
+                    uses_ws01 = True
             elif path is ExecutionPath.LINUX60:
                 mechanism = "direct-linux60"
                 uses_ws01 = False
@@ -151,4 +185,5 @@ class BeachheadRouter:
             intent=intent,
             pivot_to=pivot_to,
             produces_beachhead=produces_beachhead,
+            operator=self.operator,
         )

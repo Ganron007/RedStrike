@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 
 from cadre_strike.core.policy import POLICY_PROFILES
-from cadre_strike.runtime.beachhead import Beachhead, BeachheadRouter, ExecutionPath
+from cadre_strike.runtime.beachhead import Beachhead, BeachheadRouter, ExecutionPath, OperatorMode
 from cadre_strike.runtime.graph import load_campaign_graph
 from cadre_strike.runtime.ledger import CredentialLedger, MissingCredentialError
 from cadre_strike.runtime.orchestrator import CampaignOrchestrator
@@ -55,6 +55,7 @@ def test_windows_beachhead_uses_ws01_exec(automation_root: Path, tmp_path: Path)
     orch = CampaignOrchestrator(
         engagement_id="lab-win",
         beachhead=Beachhead.WINDOWS,
+        operator=OperatorMode.PROVISIONING,
         automation_root=automation_root,
         graph_path=GRAPH,
         ledger_root=tmp_path / "ledgers",
@@ -72,6 +73,29 @@ def test_windows_beachhead_uses_ws01_exec(automation_root: Path, tmp_path: Path)
         r.plan.mechanism == "ws01-exec" or r.plan.mechanism.startswith("intent:")
         for r in results
         if not r.skipped
+    )
+
+
+def test_ws01_operator_uses_local_mechanism(automation_root: Path, tmp_path: Path) -> None:
+    orch = CampaignOrchestrator(
+        engagement_id="lab-native",
+        beachhead=Beachhead.WINDOWS,
+        operator=OperatorMode.WS01,
+        automation_root=automation_root,
+        graph_path=GRAPH,
+        ledger_root=tmp_path / "ledgers",
+        prefer_script=True,
+    )
+    orch.ledger.seed(json.loads(SEED.read_text(encoding="utf-8")))
+    results = orch.run("1-3", dry_run=True)
+    summary = orch.summary(results)
+
+    assert summary["operator"] == "ws01"
+    assert summary["ws01_exec_count"] == 0
+    assert summary["local_ws01_count"] >= 1
+    assert all(not r.plan.uses_ws01_exec for r in results if not r.skipped)
+    assert all(
+        r.plan.mechanism == "local-ws01" for r in results if not r.skipped and r.plan.script
     )
 
 
@@ -167,6 +191,8 @@ def test_cli_dry_run_windows(automation_root: Path, tmp_path: Path, monkeypatch:
             "1-3",
             "--beachhead",
             "windows",
+            "--operator",
+            "provisioning",
             "--engage",
             "cli-lab",
             "--graph",

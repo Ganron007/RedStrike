@@ -429,6 +429,7 @@ def create_mcp(api_url: str):
     def campaign_start(
         engagement_id: str,
         beachhead: str = "windows",
+        operator: str = "",
         allow_mbr01_stage: bool = False,
         graph: str = "",
         automation_root: str = "",
@@ -436,13 +437,14 @@ def create_mcp(api_url: str):
         seed: str = "",
         branches: str = "spine",
     ) -> dict[str, Any]:
-        """Start a campaign engagement (seed ledger, set beachhead/branches)."""
+        """Start a campaign engagement (seed ledger, set beachhead/operator/branches)."""
         return _post(
             api_url,
             "/campaign/start",
             {
                 "engagement_id": engagement_id,
                 "beachhead": beachhead,
+                "operator": operator or None,
                 "allow_mbr01_stage": allow_mbr01_stage,
                 "graph": graph or None,
                 "automation_root": automation_root or None,
@@ -477,6 +479,7 @@ def create_mcp(api_url: str):
     def campaign_run_phase(
         engagement_id: str,
         beachhead: str = "windows",
+        operator: str = "",
         phase: str = "1-3",
         dry_run: bool = True,
         stop_on_hitl: bool = True,
@@ -495,6 +498,7 @@ def create_mcp(api_url: str):
             {
                 "engagement_id": engagement_id,
                 "beachhead": beachhead,
+                "operator": operator or None,
                 "phase": phase,
                 "dry_run": dry_run,
                 "stop_on_hitl": stop_on_hitl,

@@ -14,6 +14,7 @@ from cadre_strike.runtime.streams import resolve_stream
 class CampaignStartRequest(BaseModel):
     engagement_id: str
     beachhead: str = "windows"
+    operator: str | None = None
     allow_mbr01_stage: bool = False
     graph: str | None = None
     automation_root: str | None = None
@@ -27,6 +28,7 @@ class CampaignApproveRequest(BaseModel):
     gate: str
     note: str | None = None
     beachhead: str = "windows"
+    operator: str | None = None
     allow_mbr01_stage: bool = False
     branches: str = "spine"
 
@@ -34,6 +36,7 @@ class CampaignApproveRequest(BaseModel):
 class CampaignRunRequest(BaseModel):
     engagement_id: str
     beachhead: str = "windows"
+    operator: str | None = None
     phase: str = "1-3"
     dry_run: bool = True
     stop_on_hitl: bool = True
@@ -55,6 +58,7 @@ class IntentPreviewRequest(BaseModel):
 class CampaignStatusRequest(BaseModel):
     engagement_id: str
     beachhead: str = "windows"
+    operator: str | None = None
     branches: str = "spine"
 
 
@@ -62,6 +66,7 @@ class CampaignStreamRequest(BaseModel):
     engagement_id: str
     stream: str
     beachhead: str = "linux"
+    operator: str | None = None
     dry_run: bool = True
     graph: str | None = None
     automation_root: str | None = None
@@ -80,6 +85,7 @@ def _session(
     return CampaignSession(
         req.engagement_id,
         beachhead=getattr(req, "beachhead", "windows") or "windows",
+        operator=getattr(req, "operator", None),
         automation_root=getattr(req, "automation_root", None),
         graph_path=getattr(req, "graph", None),
         cadre_root=getattr(req, "cadre_root", None),
@@ -127,6 +133,7 @@ def campaign_stream(req: CampaignStreamRequest) -> dict[str, Any]:
     session = CampaignSession(
         req.engagement_id,
         beachhead=req.beachhead or spec["beachhead"],
+        operator=req.operator,
         automation_root=req.automation_root,
         graph_path=req.graph,
         cadre_root=req.cadre_root,

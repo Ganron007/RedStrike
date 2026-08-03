@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from cadre_strike.runtime.beachhead import Beachhead
+from cadre_strike.runtime.beachhead import Beachhead, OperatorMode, detect_default_operator
 from cadre_strike.runtime.hitl import EngagementStore, KNOWN_GATES
 from cadre_strike.runtime.orchestrator import CampaignOrchestrator, StepResult
 
@@ -52,6 +52,7 @@ class CampaignSession:
         engagement_id: str,
         *,
         beachhead: str = "windows",
+        operator: str | OperatorMode | None = None,
         automation_root: Path | str | None = None,
         graph_path: Path | str | None = None,
         cadre_root: Path | str | None = None,
@@ -62,6 +63,7 @@ class CampaignSession:
         prefer_script: bool = False,
     ) -> None:
         self.engagement_id = engagement_id
+        self.operator = OperatorMode(operator) if operator else detect_default_operator()
         self.automation_root = Path(automation_root) if automation_root else default_automation_root()
         self.graph_path = graph_path
         self.cadre_root = cadre_root
@@ -72,8 +74,10 @@ class CampaignSession:
         self.state = self.store.get_or_create(
             beachhead=beachhead,
             allow_mbr01_stage=allow_mbr01_stage,
+            operator=self.operator.value,
         )
         self.state.beachhead = beachhead
+        self.state.operator = self.operator.value
         self.state.allow_mbr01_stage = allow_mbr01_stage
         self.store.save(self.state)
         self._seed(seed_path)
@@ -88,6 +92,7 @@ class CampaignSession:
         return CampaignOrchestrator(
             engagement_id=self.engagement_id,
             beachhead=self.state.beachhead,
+            operator=self.operator,
             automation_root=self.automation_root,
             graph_path=self.graph_path,
             cadre_root=self.cadre_root,
@@ -105,6 +110,7 @@ class CampaignSession:
             "ok": True,
             "engagement_id": self.engagement_id,
             "beachhead": self.state.beachhead,
+            "operator": self.operator.value,
             "allow_mbr01_stage": self.state.allow_mbr01_stage,
             "approved_gates": list(self.state.approved_gates),
             "known_gates": sorted(KNOWN_GATES),
@@ -150,6 +156,7 @@ class CampaignSession:
             "graph_name": orch.graph.name,
             "known_gates": sorted(KNOWN_GATES),
             "beachhead": Beachhead(state.beachhead).value,
+            "operator": self.operator.value,
             "branches": sorted(orch.branches),
             "preflight": orch.preflight().to_dict(),
         }

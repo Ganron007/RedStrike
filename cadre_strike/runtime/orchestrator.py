@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Any
 
 from cadre_strike.core.runner import CommandRunner, redact_argv
-from cadre_strike.runtime.beachhead import Beachhead, BeachheadRouter, ExecutionPath, StepPlan
+from cadre_strike.runtime.beachhead import Beachhead, BeachheadRouter, ExecutionPath, OperatorMode, StepPlan
 from cadre_strike.runtime.graph import (
     CampaignGraph,
     CampaignNode,
@@ -40,6 +40,7 @@ class StepResult:
             "phase": self.plan.phase,
             "path": self.plan.path.value,
             "beachhead": self.plan.beachhead.value,
+            "operator": self.plan.operator.value,
             "uses_ws01_exec": self.plan.uses_ws01_exec,
             "mechanism": self.plan.mechanism,
             "argv": redact_argv(self.plan.argv),
@@ -67,6 +68,7 @@ def _blocked_plan(
     path: ExecutionPath,
     *,
     mechanism: str = "blocked",
+    operator: OperatorMode = OperatorMode.PROVISIONING,
 ) -> StepPlan:
     return StepPlan(
         node_id=node.id,
@@ -86,6 +88,7 @@ def _blocked_plan(
         intent=node.intent,
         pivot_to=node.pivot_to,
         produces_beachhead=node.produces_beachhead,
+        operator=operator,
     )
 
 
@@ -109,9 +112,11 @@ class CampaignOrchestrator:
         branches: str | set[str] | None = None,
         intents: IntentRegistry | None = None,
         prefer_script: bool = False,
+        operator: OperatorMode | str = OperatorMode.PROVISIONING,
     ) -> None:
         self.engagement_id = engagement_id
         self.beachhead = Beachhead(beachhead)
+        self.operator = OperatorMode(operator)
         self.automation_root = Path(automation_root)
         self.cadre_root = cadre_root
         resolved = resolve_graph_path(explicit=graph_path, cadre_root=cadre_root)
@@ -122,10 +127,12 @@ class CampaignOrchestrator:
         self.state = engagement_state or self.store.get_or_create(
             beachhead=self.beachhead.value,
             allow_mbr01_stage=allow_mbr01_stage,
+            operator=self.operator.value,
         )
         self.router = BeachheadRouter(
             automation_root=self.automation_root,
             allow_mbr01_stage=allow_mbr01_stage or self.state.allow_mbr01_stage,
+            operator=self.operator,
         )
         self.runner = runner or CommandRunner()
         self.allow_mbr01_stage = allow_mbr01_stage or self.state.allow_mbr01_stage
@@ -274,7 +281,9 @@ class CampaignOrchestrator:
             except UnknownIntentError as exc:
                 results.append(
                     StepResult(
-                        plan=_blocked_plan(node, self.beachhead, default_path, mechanism="bad-intent"),
+                        plan=_blocked_plan(
+                            node, self.beachhead, default_path, mechanism="bad-intent", operator=self.operator
+                        ),
                         dry_run=dry_run,
                         skipped=True,
                         skip_reason=str(exc),
@@ -285,7 +294,13 @@ class CampaignOrchestrator:
             except TypeError as exc:
                 results.append(
                     StepResult(
-                        plan=_blocked_plan(node, self.beachhead, default_path, mechanism="bad-intent-args"),
+                        plan=_blocked_plan(
+                            node,
+                            self.beachhead,
+                            default_path,
+                            mechanism="bad-intent-args",
+                            operator=self.operator,
+                        ),
                         dry_run=dry_run,
                         skipped=True,
                         skip_reason=f"intent args error: {exc}",
@@ -296,7 +311,7 @@ class CampaignOrchestrator:
             except MissingCredentialError as exc:
                 results.append(
                     StepResult(
-                        plan=_blocked_plan(node, self.beachhead, default_path),
+                        plan=_blocked_plan(node, self.beachhead, default_path, operator=self.operator),
                         dry_run=dry_run,
                         skipped=True,
                         skip_reason=str(exc),
@@ -307,7 +322,9 @@ class CampaignOrchestrator:
             except PermissionError as exc:
                 results.append(
                     StepResult(
-                        plan=_blocked_plan(node, self.beachhead, ExecutionPath.STAGE_MBR01),
+                        plan=_blocked_plan(
+                            node, self.beachhead, ExecutionPath.STAGE_MBR01, operator=self.operator
+                        ),
                         dry_run=dry_run,
                         skipped=True,
                         skip_reason=str(exc),
@@ -355,6 +372,7 @@ class CampaignOrchestrator:
             "engagement_id": self.engagement_id,
             "profile": self.PROFILE,
             "beachhead": self.beachhead.value,
+            "operator": self.operator.value,
             "graph": str(self.graph_path),
             "graph_name": self.graph.name,
             "allow_mbr01_stage": self.allow_mbr01_stage,
@@ -362,6 +380,9 @@ class CampaignOrchestrator:
             "state": self.state.to_dict(),
             "steps": [r.to_dict() for r in results],
             "ws01_exec_count": sum(1 for r in results if r.plan.uses_ws01_exec and not r.skipped),
+            "local_ws01_count": sum(
+                1 for r in results if r.plan.mechanism == "local-ws01" and not r.skipped
+            ),
             "linux_direct_count": sum(
                 1 for r in results if r.plan.mechanism == "direct-linux60" and not r.skipped
             ),

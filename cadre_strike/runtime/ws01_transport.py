@@ -4,7 +4,7 @@ import os
 import shutil
 from pathlib import Path
 
-from cadre_strike.runtime.beachhead import ExecutionPath, StepPlan
+from cadre_strike.runtime.beachhead import ExecutionPath, OperatorMode, StepPlan
 
 
 def _ssh_binary() -> str:
@@ -79,8 +79,17 @@ def wrap_argv_for_ws01(argv: list[str]) -> list[str]:
 
 
 def argv_for_plan(plan: StepPlan) -> list[str]:
-    """Return argv to run locally (scripts) or SSH-wrapped (ws01 intents)."""
+    """Return argv to run locally (scripts / native ws01) or SSH-wrapped (hybrid intents).
+
+    Operator modes:
+    - provisioning: bash scripts keep ws01-exec; typed intents SSH → PowerShell on ws01
+    - ws01: already on the domain-joined host — never SSH wrap
+    """
     if not plan.argv:
+        return plan.argv
+    if plan.operator is OperatorMode.WS01:
+        return plan.argv
+    if plan.mechanism == "local-ws01":
         return plan.argv
     if plan.path is not ExecutionPath.WS01:
         return plan.argv

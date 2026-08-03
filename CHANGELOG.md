@@ -5,6 +5,14 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added (2026-08-03 — dual operator modes)
+
+- **`--operator provisioning|ws01`** — first-class dual simulation:
+  - `provisioning` (default on Linux): orchestrator on Kali/.60 → SSH / `ws01-exec` hybrid (current path)
+  - `ws01` (default on win32): orchestrator on domain-joined ws01 → `local-ws01` / no SSH wrap (Rule 1 strict)
+- Env override: `REDSTRIKE_OPERATOR`. Persisted on engagement state; summary exposes `operator` + `local_ws01_count`.
+- API/MCP accept optional `operator`. Tests cover native no-SSH wrap.
+
 ### Added (2026-08-03 — live camp-v3 + runner PATH fix)
 
 - **Live Campaign v3** on provisioning — engagement `camp-v3-20260803`; documented in CADRE `Red-Strike-workflow.md`.
