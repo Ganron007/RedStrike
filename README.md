@@ -12,6 +12,8 @@
   <img src="https://img.shields.io/badge/Status-E%2FF%20Streams-yellow.svg" alt="Status: E/F Streams">
 </p>
 
+Part of the [CADRE](https://github.com/Ganron007/CADRE) platform — agentic AD/ADCS campaign orchestration (CADRE supplies graph, seeds, and profiles).
+
 > [!IMPORTANT]
 > **Authorized use only.** RedStrike is an offensive security tool. Use it **only** for
 > authorized security assessments against systems and accounts you are explicitly permitted
@@ -22,10 +24,6 @@ RedStrike is an advanced **agentic AD / ADCS pentesting and red-teaming toolset*
 intent-level ops, typed builders (`shell=False`), scope policy, credential ledger,
 HITL gates, and a campaign-graph engine — built to beat free-form LLM shell wrappers
 on fidelity and safety. It keeps improving as a standalone product.
-
-It is also the orchestrator for the CADRE lab campaign (CADRE supplies graph, lab
-seeds, and profiles as **integration glue** — not hardcoded product identity).
-CADRE => **CLOUD | AGENTIC | DFIR | REDTEAM | ENVIRONMENT**.
 
 ## What is different
 
