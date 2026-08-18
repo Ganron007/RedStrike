@@ -64,7 +64,7 @@ def collect_checks(*, scope_path: Path) -> list[CheckItem]:
             (
                 str(scope_path)
                 if scope_path.is_file()
-                else f"missing {scope_path} — copy examples/scope.example.yaml and edit targets"
+                else f"missing {scope_path} -> copy examples/scope.example.yaml and edit targets"
             ),
             required_for_core=False,
         ),
@@ -80,7 +80,7 @@ def collect_checks(*, scope_path: Path) -> list[CheckItem]:
             CheckItem(
                 names[0],
                 found is not None,
-                f"{found} ({purpose})" if found else f"not on PATH — {purpose}. {hint}",
+                f"{found} ({purpose})" if found else f"not on PATH -> {purpose}. {hint}",
                 required_for_execute=True,
                 required_for_core=False,
             )
