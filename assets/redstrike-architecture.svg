@@ -1,293 +1,348 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="940" viewBox="0 0 1600 940" role="img" aria-label="RedStrike Active Directory Security Architecture Diagram">
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="880" viewBox="0 0 1600 880" role="img" aria-label="RedStrike Active Directory Assessment Circuit & Execution Pipeline">
   <defs>
-    <!-- Background Canvas Gradient -->
-    <linearGradient id="bgGrad" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#140608"/>
-      <stop offset="50%" stop-color="#0a0304"/>
-      <stop offset="100%" stop-color="#040102"/>
+    <!-- Background Gradient -->
+    <linearGradient id="bgGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0d0204"/>
+      <stop offset="50%" stop-color="#060102"/>
+      <stop offset="100%" stop-color="#020001"/>
     </linearGradient>
 
-    <!-- Ambient Top Crimson Glow -->
-    <radialGradient id="topGlow" cx="50%" cy="0%" r="60%">
-      <stop offset="0%" stop-color="#e11d2a" stop-opacity="0.4"/>
-      <stop offset="100%" stop-color="#e11d2a" stop-opacity="0"/>
-    </radialGradient>
+    <!-- Grid Pattern -->
+    <pattern id="cyberGrid" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#2a080d" stroke-width="0.8" stroke-opacity="0.6"/>
+      <circle cx="40" cy="40" r="1" fill="#e11d2a" fill-opacity="0.3"/>
+    </pattern>
 
-    <!-- Card Backgrounds -->
-    <linearGradient id="cardDark" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#200a0e"/>
-      <stop offset="100%" stop-color="#120508"/>
-    </linearGradient>
-
-    <linearGradient id="cardCenter" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#2c0d12"/>
-      <stop offset="100%" stop-color="#170609"/>
-    </linearGradient>
-
-    <linearGradient id="cardGreen" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#0f291e"/>
-      <stop offset="100%" stop-color="#061610"/>
-    </linearGradient>
-
-    <!-- RedStrike Brand Gradients -->
-    <linearGradient id="redGrad" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="#ff5a5a"/>
+    <!-- Brand Color Gradients -->
+    <linearGradient id="crimsonGrad" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#ff3b30"/>
       <stop offset="50%" stop-color="#e11d2a"/>
       <stop offset="100%" stop-color="#991b1b"/>
     </linearGradient>
 
-    <linearGradient id="amberGrad" x1="0" y1="0" x2="1" y2="1">
+    <linearGradient id="goldGrad" x1="0" y1="0" x2="1" y2="0">
       <stop offset="0%" stop-color="#fde047"/>
       <stop offset="100%" stop-color="#f59e0b"/>
     </linearGradient>
 
-    <linearGradient id="emeraldGrad" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="#6ee7b7"/>
-      <stop offset="100%" stop-color="#10b981"/>
+    <linearGradient id="cyanGrad" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#38bdf8"/>
+      <stop offset="100%" stop-color="#0284c7"/>
     </linearGradient>
 
-    <!-- Glow Filters -->
-    <filter id="shadow" x="-15%" y="-15%" width="130%" height="130%">
-      <feDropShadow dx="0" dy="6" stdDeviation="6" flood-color="#000000" flood-opacity="0.8"/>
-    </filter>
+    <linearGradient id="emeraldGrad" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#4ade80"/>
+      <stop offset="100%" stop-color="#16a34a"/>
+    </linearGradient>
 
+    <!-- Container Panels Fill -->
+    <linearGradient id="panelDark" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#1a0609"/>
+      <stop offset="100%" stop-color="#0d0304"/>
+    </linearGradient>
+
+    <linearGradient id="panelRail" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#1f070b"/>
+      <stop offset="50%" stop-color="#28090f"/>
+      <stop offset="100%" stop-color="#180508"/>
+    </linearGradient>
+
+    <!-- Glowing Filters -->
     <filter id="glowRed" x="-20%" y="-20%" width="140%" height="140%">
-      <feDropShadow dx="0" dy="0" stdDeviation="12" flood-color="#ff4d4d" flood-opacity="0.75"/>
+      <feDropShadow dx="0" dy="0" stdDeviation="8" flood-color="#ff3b30" flood-opacity="0.6"/>
+    </filter>
+    <filter id="glowGold" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="0" stdDeviation="8" flood-color="#f59e0b" flood-opacity="0.6"/>
+    </filter>
+    <filter id="glowCyan" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="0" stdDeviation="8" flood-color="#38bdf8" flood-opacity="0.6"/>
+    </filter>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="6" stdDeviation="6" flood-color="#000000" flood-opacity="0.8"/>
     </filter>
 
     <!-- Arrow Markers -->
     <marker id="arrRed" markerWidth="10" markerHeight="10" refX="7" refY="3.5" orient="auto">
-      <polygon points="0 0, 10 3.5, 0 7" fill="#ff5a5a"/>
+      <polygon points="0 0, 10 3.5, 0 7" fill="#ff3b30"/>
     </marker>
-    <marker id="arrAmber" markerWidth="10" markerHeight="10" refX="7" refY="3.5" orient="auto">
+    <marker id="arrGold" markerWidth="10" markerHeight="10" refX="7" refY="3.5" orient="auto">
       <polygon points="0 0, 10 3.5, 0 7" fill="#f59e0b"/>
     </marker>
+    <marker id="arrCyan" markerWidth="10" markerHeight="10" refX="7" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#38bdf8"/>
+    </marker>
     <marker id="arrGreen" markerWidth="10" markerHeight="10" refX="7" refY="3.5" orient="auto">
-      <polygon points="0 0, 10 3.5, 0 7" fill="#34d399"/>
+      <polygon points="0 0, 10 3.5, 0 7" fill="#4ade80"/>
     </marker>
   </defs>
 
-  <!-- Background Base -->
-  <rect width="1600" height="940" fill="url(#bgGrad)"/>
-  <rect width="1600" height="420" fill="url(#topGlow)"/>
+  <!-- Base Grid Background -->
+  <rect width="1600" height="880" fill="url(#bgGrad)"/>
+  <rect width="1600" height="880" fill="url(#cyberGrid)"/>
+
+  <!-- Top Ambient Glow -->
+  <circle cx="800" cy="0" r="500" fill="#e11d2a" fill-opacity="0.15"/>
 
   <!-- ========================================================================= -->
-  <!-- HEADER & LOGO                                                             -->
+  <!-- COMMAND HEADER DECK                                                       -->
   <!-- ========================================================================= -->
-  <g transform="translate(800, 54)">
-    <!-- RedStrike Shield & Lightning Bolt -->
-    <g transform="translate(-320, -26) scale(0.38)">
-      <path d="M55 0 L110 18 V62 C110 100 86 128 55 145 C24 128 0 100 0 62 V18 Z" fill="url(#redGrad)" stroke="#7a0a12" stroke-width="3"/>
+  <g transform="translate(60, 40)">
+    <!-- Logo Icon -->
+    <g transform="translate(0, -10) scale(0.42)">
+      <path d="M55 0 L110 18 V62 C110 100 86 128 55 145 C24 128 0 100 0 62 V18 Z" fill="url(#crimsonGrad)" stroke="#7a0a12" stroke-width="3"/>
       <path d="M60 26 L38 74 L54 74 L46 116 L80 54 L58 54 Z" fill="#ffffff" opacity="0.95"/>
     </g>
-    <text x="-250" y="10" font-family="'Segoe UI', -apple-system, sans-serif" font-size="38" font-weight="900" fill="url(#redGrad)" letter-spacing="0.5">REDSTRIKE</text>
-    <text x="-35" y="10" font-family="'Segoe UI', -apple-system, sans-serif" font-size="38" font-weight="800" fill="#ffffff" letter-spacing="1">ENGINE ARCHITECTURE</text>
-    <text x="0" y="42" text-anchor="middle" font-family="'Segoe UI', -apple-system, sans-serif" font-size="18" font-weight="600" fill="#fca5a5">
-      Policy-Aware Active Directory &amp; ADCS Assessment Engine · Typed Builders · HITL Gates
+    <!-- Title & Subtitle -->
+    <text x="60" y="24" font-family="'Segoe UI', -apple-system, sans-serif" font-size="34" font-weight="900" fill="url(#crimsonGrad)" letter-spacing="1">REDSTRIKE</text>
+    <text x="245" y="24" font-family="'Segoe UI', -apple-system, sans-serif" font-size="34" font-weight="800" fill="#ffffff" letter-spacing="1">| PIPELINE &amp; ATTACK CIRCUIT</text>
+    <text x="62" y="52" font-family="'Segoe UI', -apple-system, sans-serif" font-size="16" font-weight="600" fill="#fca5a5">
+      Policy-Gated AD &amp; ADCS Assessment Engine · Typed Command Rails · Operator-In-The-Loop Orchestration
+    </text>
+
+    <!-- Engine Mode Badges (Top Right) -->
+    <g transform="translate(1080, 0)">
+      <rect x="0" y="4" width="130" height="30" rx="6" fill="#1f070b" stroke="#e11d2a" stroke-width="1.2"/>
+      <text x="65" y="24" text-anchor="middle" font-family="sans-serif" font-size="13" font-weight="800" fill="#ff4d4d">`shell=False` ARGV</text>
+
+      <rect x="145" y="4" width="125" height="30" rx="6" fill="#261705" stroke="#f59e0b" stroke-width="1.2"/>
+      <text x="207" y="24" text-anchor="middle" font-family="sans-serif" font-size="13" font-weight="800" fill="#fde047">HITL GATED</text>
+
+      <rect x="285" y="4" width="115" height="30" rx="6" fill="#081e28" stroke="#38bdf8" stroke-width="1.2"/>
+      <text x="342" y="24" text-anchor="middle" font-family="sans-serif" font-size="13" font-weight="800" fill="#38bdf8">DAG LEDGER</text>
+    </g>
+  </g>
+
+  <!-- ========================================================================= -->
+  <!-- MAIN CIRCUIT CANVAS (y=120..740)                                          -->
+  <!-- ========================================================================= -->
+
+  <!-- ========================================================================= -->
+  <!-- 1. LEFT COCKPIT: INGRESS & CONTROL VALVE (x=60, w=340)                    -->
+  <!-- ========================================================================= -->
+  <g transform="translate(60, 120)" filter="url(#shadow)">
+    <!-- Chamfered Ingress Box -->
+    <path d="M 0 16 L 16 0 L 330 0 L 330 580 L 0 580 Z" fill="url(#panelDark)" stroke="#991b1b" stroke-width="2"/>
+    <path d="M 0 16 L 16 0 L 140 0 L 140 32 L 0 32 Z" fill="#360a10"/>
+    <text x="16" y="22" font-family="sans-serif" font-size="14" font-weight="900" fill="#ff8080">1. INGRESS &amp; POLICY</text>
+
+    <!-- Calling Interfaces -->
+    <g transform="translate(18, 48)">
+      <text x="0" y="16" font-family="sans-serif" font-size="16" font-weight="800" fill="#ffffff">Calling Surfaces</text>
+      
+      <rect x="0" y="30" width="294" height="60" rx="8" fill="#140407" stroke="#7f1d1d" stroke-width="1.2"/>
+      <text x="14" y="54" font-family="sans-serif" font-size="14" font-weight="800" fill="#ff4d4d">🔌 Intent MCP Server</text>
+      <text x="14" y="74" font-family="sans-serif" font-size="12" fill="#fca5a5">`enumerate_users` · `find_delegation`</text>
+
+      <rect x="0" y="100" width="294" height="60" rx="8" fill="#140407" stroke="#7f1d1d" stroke-width="1.2"/>
+      <text x="14" y="124" font-family="sans-serif" font-size="14" font-weight="800" fill="#ff4d4d">⚡ Policy-Gated FastAPI</text>
+      <text x="14" y="144" font-family="sans-serif" font-size="12" fill="#fca5a5">`/ad/*` REST routes · `/jobs` queue</text>
+
+      <rect x="0" y="170" width="294" height="60" rx="8" fill="#140407" stroke="#7f1d1d" stroke-width="1.2"/>
+      <text x="14" y="194" font-family="sans-serif" font-size="14" font-weight="800" fill="#ff4d4d">&gt;_ CLI &amp; Campaign Runner</text>
+      <text x="14" y="214" font-family="sans-serif" font-size="12" fill="#fca5a5">`redstrike` · `redstrike-campaign`</text>
+    </g>
+
+    <!-- Scope Policy Valve -->
+    <g transform="translate(18, 300)">
+      <rect x="0" y="0" width="294" height="110" rx="8" fill="#200609" stroke="#e11d2a" stroke-width="1.4"/>
+      <text x="14" y="24" font-family="sans-serif" font-size="14" font-weight="800" fill="#ff6b6b">ScopePolicy Gatekeeper</text>
+      <text x="14" y="46" font-family="sans-serif" font-size="12" fill="#fecaca">• Validates Target IP &amp; FQDN overlay</text>
+      <text x="14" y="66" font-family="sans-serif" font-size="12" fill="#fecaca">• Action Modes: `observe` · `exploit`</text>
+      <text x="14" y="90" font-family="sans-serif" font-size="12" font-weight="700" fill="#34d399">✓ Hard-Stop Out-of-Scope Rejection</text>
+    </g>
+
+    <!-- HITL Operator Gate Valve -->
+    <g transform="translate(18, 424)">
+      <rect x="0" y="0" width="294" height="136" rx="8" fill="#241403" stroke="#f59e0b" stroke-width="1.6" filter="url(#glowGold)"/>
+      <text x="14" y="24" font-family="sans-serif" font-size="14" font-weight="900" fill="#fde047">✋ HITL Operator Boundary</text>
+      <text x="14" y="48" font-family="sans-serif" font-size="12" fill="#fef08a">• Privilege jumps wait for operator</text>
+      <text x="14" y="68" font-family="sans-serif" font-size="12" fill="#fef08a">• Approval: `redstrike-campaign approve`</text>
+      <text x="14" y="88" font-family="sans-serif" font-size="12" fill="#fef08a">• Nonce-Gated Token Verification</text>
+      <text x="14" y="114" font-family="sans-serif" font-size="12" font-weight="800" fill="#fde047">✓ Zero Autonomous Runaway Impact</text>
+    </g>
+  </g>
+
+  <!-- Flow Conduits from Gate to Central Attack Rails -->
+  <path d="M 390 490 L 440 490 L 440 260 L 480 260" fill="none" stroke="#ff3b30" stroke-width="3.5" marker-end="url(#arrRed)"/>
+  <path d="M 390 490 L 440 490 L 440 410 L 480 410" fill="none" stroke="#ff3b30" stroke-width="3.5" marker-end="url(#arrRed)"/>
+  <path d="M 390 490 L 440 490 L 440 560 L 480 560" fill="none" stroke="#ff3b30" stroke-width="3.5" marker-end="url(#arrRed)"/>
+
+  <!-- ========================================================================= -->
+  <!-- 2. CENTER: MULTI-TRACK TYPED EXECUTION RAILS (x=480, w=640)               -->
+  <!-- ========================================================================= -->
+  <g transform="translate(480, 120)" filter="url(#shadow)">
+    <!-- Container -->
+    <path d="M 0 16 L 16 0 L 640 0 L 640 580 L 0 580 Z" fill="url(#panelRail)" stroke="#ff3b30" stroke-width="2.2" filter="url(#glowRed)"/>
+    <path d="M 0 16 L 16 0 L 180 0 L 180 32 L 0 32 Z" fill="#450a0a"/>
+    <text x="16" y="22" font-family="sans-serif" font-size="14" font-weight="900" fill="#ffffff">2. TYPED ATTACK RAILS</text>
+    <text x="200" y="22" font-family="sans-serif" font-size="13" font-weight="700" fill="#fca5a5">Pure `shell=False` argv · Subprocess Isolation · Transport Hop</text>
+
+    <!-- ==================== RAIL A: KERBEROS & DOMAIN ==================== -->
+    <g transform="translate(18, 48)">
+      <rect x="0" y="0" width="604" height="120" rx="10" fill="#130305" stroke="#7f1d1d" stroke-width="1.4"/>
+      
+      <rect x="14" y="14" width="130" height="26" rx="4" fill="#360a10"/>
+      <text x="79" y="32" text-anchor="middle" font-family="sans-serif" font-size="12" font-weight="900" fill="#ff4d4d">TRACK A · IDENTITY</text>
+      
+      <text x="156" y="32" font-family="sans-serif" font-size="15" font-weight="800" fill="#ffffff">NetExec &amp; Rubeus Command Builders</text>
+      
+      <g transform="translate(14, 52)">
+        <rect x="0" y="0" width="184" height="52" rx="6" fill="#200609"/>
+        <text x="10" y="22" font-family="sans-serif" font-size="12" font-weight="700" fill="#fca5a5">SMB / LDAP / WinRM</text>
+        <text x="10" y="40" font-family="sans-serif" font-size="11" fill="#f87171">Domain user / share enum</text>
+
+        <rect x="196" y="0" width="184" height="52" rx="6" fill="#200609"/>
+        <text x="10" y="22" font-family="sans-serif" font-size="12" font-weight="700" fill="#fca5a5">AS-REP &amp; Kerberoasting</text>
+        <text x="10" y="40" font-family="sans-serif" font-size="11" fill="#f87171">Offline ticket cracking</text>
+
+        <rect x="392" y="0" width="184" height="52" rx="6" fill="#200609"/>
+        <text x="10" y="22" font-family="sans-serif" font-size="12" font-weight="700" fill="#fca5a5">PKINIT &amp; S4U2Proxy</text>
+        <text x="10" y="40" font-family="sans-serif" font-size="11" fill="#f87171">Cross-domain delegation</text>
+      </g>
+    </g>
+
+    <!-- ==================== RAIL B: CERTIFICATE & ADCS ==================== -->
+    <g transform="translate(18, 182)">
+      <rect x="0" y="0" width="604" height="120" rx="10" fill="#130305" stroke="#7f1d1d" stroke-width="1.4"/>
+      
+      <rect x="14" y="14" width="130" height="26" rx="4" fill="#360a10"/>
+      <text x="79" y="32" text-anchor="middle" font-family="sans-serif" font-size="12" font-weight="900" fill="#ff4d4d">TRACK B · ADCS</text>
+      
+      <text x="156" y="32" font-family="sans-serif" font-size="15" font-weight="800" fill="#ffffff">Certipy ADCS Assessment Builder</text>
+      
+      <g transform="translate(14, 52)">
+        <rect x="0" y="0" width="184" height="52" rx="6" fill="#200609"/>
+        <text x="10" y="22" font-family="sans-serif" font-size="12" font-weight="700" fill="#fca5a5">CA &amp; Template Audit</text>
+        <text x="10" y="40" font-family="sans-serif" font-size="11" fill="#f87171">ESC1 to ESC13 scanning</text>
+
+        <rect x="196" y="0" width="184" height="52" rx="6" fill="#200609"/>
+        <text x="10" y="22" font-family="sans-serif" font-size="12" font-weight="700" fill="#fca5a5">Certificate Request</text>
+        <text x="10" y="40" font-family="sans-serif" font-size="11" fill="#f87171">SAN client auth cert forge</text>
+
+        <rect x="392" y="0" width="184" height="52" rx="6" fill="#200609"/>
+        <text x="10" y="22" font-family="sans-serif" font-size="12" font-weight="700" fill="#fca5a5">UnPAC &amp; Shadow Creds</text>
+        <text x="10" y="40" font-family="sans-serif" font-size="11" fill="#f87171">NT hash recovery</text>
+      </g>
+    </g>
+
+    <!-- ==================== RAIL C: ACCESS CONTROL & SCCM ==================== -->
+    <g transform="translate(18, 316)">
+      <rect x="0" y="0" width="604" height="120" rx="10" fill="#130305" stroke="#7f1d1d" stroke-width="1.4"/>
+      
+      <rect x="14" y="14" width="130" height="26" rx="4" fill="#360a10"/>
+      <text x="79" y="32" text-anchor="middle" font-family="sans-serif" font-size="12" font-weight="900" fill="#ff4d4d">TRACK C · ACL &amp; SCCM</text>
+      
+      <text x="156" y="32" font-family="sans-serif" font-size="15" font-weight="800" fill="#ffffff">BloodyAD &amp; SharpSCCM Builders</text>
+      
+      <g transform="translate(14, 52)">
+        <rect x="0" y="0" width="184" height="52" rx="6" fill="#200609"/>
+        <text x="10" y="22" font-family="sans-serif" font-size="12" font-weight="700" fill="#fca5a5">ACL &amp; Object Abuse</text>
+        <text x="10" y="40" font-family="sans-serif" font-size="11" fill="#f87171">GenericAll, ResetPassword</text>
+
+        <rect x="196" y="0" width="184" height="52" rx="6" fill="#200609"/>
+        <text x="10" y="22" font-family="sans-serif" font-size="12" font-weight="700" fill="#fca5a5">SCCM NAA Extraction</text>
+        <text x="10" y="40" font-family="sans-serif" font-size="11" fill="#f87171">Network Access Account</text>
+
+        <rect x="392" y="0" width="184" height="52" rx="6" fill="#200609"/>
+        <text x="10" y="22" font-family="sans-serif" font-size="12" font-weight="700" fill="#fca5a5">AdminService &amp; Relay</text>
+        <text x="10" y="40" font-family="sans-serif" font-size="11" fill="#f87171">Site takeover &amp; scripts</text>
+      </g>
+    </g>
+
+    <!-- Subprocess Runner & Beachhead Engine -->
+    <g transform="translate(18, 450)">
+      <rect x="0" y="0" width="604" height="110" rx="8" fill="#200a0e" stroke="#e11d2a" stroke-width="1.4"/>
+      <text x="14" y="24" font-family="sans-serif" font-size="14" font-weight="800" fill="#ffffff">⚙️ CommandRunner Subprocess Engine &amp; Beachhead Proxy</text>
+      
+      <g transform="translate(14, 40)">
+        <rect x="0" y="0" width="184" height="52" rx="6" fill="#140407"/>
+        <text x="10" y="22" font-family="sans-serif" font-size="12" font-weight="700" fill="#34d399">✓ Zero Shell Execution</text>
+        <text x="10" y="40" font-family="sans-serif" font-size="11" fill="#fca5a5">Pure list-form `argv`</text>
+
+        <rect x="196" y="0" width="184" height="52" rx="6" fill="#140407"/>
+        <text x="10" y="22" font-family="sans-serif" font-size="12" font-weight="700" fill="#34d399">✓ Secret Redaction</text>
+        <text x="10" y="40" font-family="sans-serif" font-size="11" fill="#fca5a5">Real-time hash masking</text>
+
+        <rect x="392" y="0" width="184" height="52" rx="6" fill="#140407"/>
+        <text x="10" y="22" font-family="sans-serif" font-size="12" font-weight="700" fill="#34d399">✓ Multi-Hop Transport</text>
+        <text x="10" y="40" font-family="sans-serif" font-size="11" fill="#fca5a5">Kali local &amp; WS01 proxy</text>
+      </g>
+    </g>
+  </g>
+
+  <!-- Flow Conduits from Attack Rails to Convergent Hub -->
+  <path d="M 1120 260 L 1150 260 L 1150 410 L 1180 410" fill="none" stroke="#38bdf8" stroke-width="3.5" marker-end="url(#arrCyan)"/>
+  <path d="M 1120 410 L 1180 410" fill="none" stroke="#38bdf8" stroke-width="3.5" marker-end="url(#arrCyan)"/>
+  <path d="M 1120 560 L 1150 560 L 1150 410 L 1180 410" fill="none" stroke="#38bdf8" stroke-width="3.5" marker-end="url(#arrCyan)"/>
+
+  <!-- ========================================================================= -->
+  <!-- 3. RIGHT: CONVERGENT ORCHESTRATION & EVIDENCE HUB (x=1180, w=360)         -->
+  <!-- ========================================================================= -->
+  <g transform="translate(1180, 120)" filter="url(#shadow)">
+    <!-- Container -->
+    <path d="M 0 16 L 16 0 L 360 0 L 360 580 L 0 580 Z" fill="url(#panelDark)" stroke="#38bdf8" stroke-width="2"/>
+    <path d="M 0 16 L 16 0 L 190 0 L 190 32 L 0 32 Z" fill="#082836"/>
+    <text x="16" y="22" font-family="sans-serif" font-size="14" font-weight="900" fill="#38bdf8">3. GRAPH &amp; LEDGER SSoT</text>
+
+    <!-- Target Surface & Parsers -->
+    <g transform="translate(18, 48)">
+      <rect x="0" y="0" width="324" height="118" rx="8" fill="#06161f" stroke="#0284c7" stroke-width="1.2"/>
+      <text x="14" y="24" font-family="sans-serif" font-size="14" font-weight="800" fill="#38bdf8">AD Target Surface &amp; Parsers</text>
+      <text x="14" y="48" font-family="sans-serif" font-size="12" fill="#bae6fd">• Targets: DC01–03, MBR01–02, Linux01</text>
+      <text x="14" y="68" font-family="sans-serif" font-size="12" fill="#bae6fd">• Parsers transform stdout into Pydantic</text>
+      <text x="14" y="92" font-family="sans-serif" font-size="12" font-weight="700" fill="#34d399">✓ `EvidenceRecord` + Cryptographic `audit_id`</text>
+    </g>
+
+    <!-- Credential & Privilege Ledger SSoT -->
+    <g transform="translate(18, 180)">
+      <rect x="0" y="0" width="324" height="170" rx="8" fill="#061e12" stroke="#10b981" stroke-width="1.4"/>
+      <text x="14" y="24" font-family="sans-serif" font-size="14" font-weight="900" fill="#4ade80">Credential &amp; Privilege Ledger</text>
+      
+      <text x="14" y="50" font-family="sans-serif" font-size="12.5" fill="#a7f3d0">• Discovered NT Hashes &amp; Passwords</text>
+      <text x="14" y="72" font-family="sans-serif" font-size="12.5" fill="#a7f3d0">• Active Kerberos TGT / TGS Tickets</text>
+      <text x="14" y="94" font-family="sans-serif" font-size="12.5" fill="#a7f3d0">• Privilege State Tracking (DA, EA, Admin)</text>
+      <text x="14" y="116" font-family="sans-serif" font-size="12.5" fill="#a7f3d0">• Cross-phase Context Propagation</text>
+      
+      <text x="14" y="146" font-family="sans-serif" font-size="12" font-weight="800" fill="#34d399">✓ Single Source of Truth (Zero Fabrication)</text>
+    </g>
+
+    <!-- Campaign Graph & Reporting -->
+    <g transform="translate(18, 364)">
+      <rect x="0" y="0" width="324" height="196" rx="8" fill="#06161f" stroke="#0284c7" stroke-width="1.2"/>
+      <text x="14" y="24" font-family="sans-serif" font-size="14" font-weight="800" fill="#38bdf8">Campaign Orchestrator (DAG)</text>
+      
+      <text x="14" y="48" font-family="sans-serif" font-size="12" fill="#bae6fd">• Phase 1–8 Directed Acyclic Graph (DAG)</text>
+      <text x="14" y="68" font-family="sans-serif" font-size="12" fill="#bae6fd">• BloodHound Attack-Path Analytics</text>
+      <text x="14" y="88" font-family="sans-serif" font-size="12" fill="#bae6fd">• Machine-Readable JSON Telemetry</text>
+      <text x="14" y="108" font-family="sans-serif" font-size="12" fill="#bae6fd">• Executive Markdown Walkthroughs</text>
+
+      <rect x="12" y="126" width="300" height="54" rx="6" fill="#0c2b1e" stroke="#10b981" stroke-width="1"/>
+      <text x="150" y="148" text-anchor="middle" font-family="sans-serif" font-size="12.5" font-weight="800" fill="#4ade80">Discovered Privileges Recycled</text>
+      <text x="150" y="166" text-anchor="middle" font-family="sans-serif" font-size="11.5" font-weight="700" fill="#6ee7b7">↻ Feeds Next Phase Execution</text>
+    </g>
+  </g>
+
+  <!-- ========================================================================= -->
+  <!-- HIGH-VOLTAGE CREDENTIAL FEEDBACK BUS (Right to Left)                      -->
+  <!-- ========================================================================= -->
+  <g transform="translate(0, 720)">
+    <!-- Glowing Circuit Conduit -->
+    <path d="M 1360 0 L 1360 55 L 220 55 L 220 0" fill="none" stroke="#e11d2a" stroke-width="4" stroke-dasharray="12 6"/>
+    <polygon points="220,0 210,18 230,18" fill="#ff3b30"/>
+
+    <!-- Center Indicator Pill -->
+    <rect x="530" y="38" width="540" height="34" rx="17" fill="#180407" stroke="#ff3b30" stroke-width="1.8" filter="url(#glowRed)"/>
+    <text x="800" y="61" text-anchor="middle" font-family="sans-serif" font-size="14.5" font-weight="900" fill="#fca5a5">
+      ↻ CONTINUOUS AD CAMPAIGN LOOP: DISCOVERED CREDENTIALS RE-INJECTED
     </text>
   </g>
 
   <!-- ========================================================================= -->
-  <!-- TOP ROW: CLIENT SURFACES & EXECUTION (y=120..185)                         -->
-  <!-- ========================================================================= -->
-  <g transform="translate(50, 120)" filter="url(#shadow)">
-    <!-- 1. CLI Suite -->
-    <g>
-      <rect x="0" y="0" width="355" height="64" rx="12" fill="url(#cardDark)" stroke="#7f1d1d" stroke-width="1.8"/>
-      <text x="20" y="28" font-family="sans-serif" font-size="17" font-weight="800" fill="#ffffff">&gt;_ RedStrike CLI Suite</text>
-      <text x="20" y="50" font-family="sans-serif" font-size="14.5" font-weight="600" fill="#f87171">`redstrike` · `redstrike-campaign`</text>
-    </g>
-
-    <!-- 2. Intent MCP Server -->
-    <g transform="translate(380, 0)">
-      <rect x="0" y="0" width="355" height="64" rx="12" fill="url(#cardDark)" stroke="#7f1d1d" stroke-width="1.8"/>
-      <text x="20" y="28" font-family="sans-serif" font-size="17" font-weight="800" fill="#ffffff">🔌 Intent-Level MCP Server</text>
-      <text x="20" y="50" font-family="sans-serif" font-size="14.5" font-weight="600" fill="#f87171">`enumerate_users` · `find_delegation`</text>
-    </g>
-
-    <!-- 3. Policy-Gated REST API -->
-    <g transform="translate(760, 0)">
-      <rect x="0" y="0" width="355" height="64" rx="12" fill="url(#cardDark)" stroke="#7f1d1d" stroke-width="1.8"/>
-      <text x="20" y="28" font-family="sans-serif" font-size="17" font-weight="800" fill="#ffffff">⚡ Policy-Gated FastAPI</text>
-      <text x="20" y="50" font-family="sans-serif" font-size="14.5" font-weight="600" fill="#f87171">`/ad/*` routes · async `/jobs` queue</text>
-    </g>
-
-    <!-- 4. Campaign Orchestrator -->
-    <g transform="translate(1140, 0)">
-      <rect x="0" y="0" width="360" height="64" rx="12" fill="url(#cardDark)" stroke="#7f1d1d" stroke-width="1.8"/>
-      <text x="20" y="28" font-family="sans-serif" font-size="17" font-weight="800" fill="#ffffff">🎯 Campaign Graph Runner</text>
-      <text x="20" y="50" font-family="sans-serif" font-size="14.5" font-weight="600" fill="#f87171">Phase 1–8 · Multi-hop beachhead graph</text>
-    </g>
-  </g>
-
-  <!-- ========================================================================= -->
-  <!-- 3 MAIN PILLARS (Balanced width=470 each, y=210..800)                      -->
-  <!-- ========================================================================= -->
-
-  <!-- ========================================================================= -->
-  <!-- PILLAR 1: SCOPE POLICY & GOVERNANCE (x=50, w=470)                         -->
-  <!-- ========================================================================= -->
-  <g transform="translate(50, 210)" filter="url(#shadow)">
-    <rect x="0" y="0" width="470" height="590" rx="18" fill="url(#cardDark)" stroke="#991b1b" stroke-width="2.2"/>
-    
-    <!-- Stage Header: Prominent Number Badge + Pill + Title -->
-    <g transform="translate(18, 14)">
-      <circle cx="18" cy="18" r="18" fill="#e11d2a"/>
-      <text x="18" y="25" text-anchor="middle" font-family="sans-serif" font-size="20" font-weight="900" fill="#ffffff">1</text>
-      <rect x="44" y="2" width="85" height="32" rx="8" fill="#2d0a0e" stroke="#e11d2a" stroke-width="1.2"/>
-      <text x="86" y="23" text-anchor="middle" font-family="sans-serif" font-size="14" font-weight="800" fill="#fca5a5">POLICY</text>
-      <text x="140" y="25" font-family="sans-serif" font-size="20" font-weight="800" fill="#ffffff">Scope &amp; HITL Gates</text>
-    </g>
-
-    <!-- Block 1: Scope Policy Engine -->
-    <g transform="translate(18, 62)">
-      <rect x="0" y="0" width="434" height="152" rx="12" fill="#170608" stroke="#7f1d1d" stroke-width="1.4"/>
-      <text x="16" y="28" font-family="sans-serif" font-size="17" font-weight="800" fill="#ff6b6b">ScopePolicy Gatekeeper</text>
-      <text x="16" y="56" font-family="sans-serif" font-size="15" font-weight="600" fill="#fecaca">• `scope.yaml` Target &amp; Domain Boundaries</text>
-      <text x="16" y="80" font-family="sans-serif" font-size="15" font-weight="600" fill="#fecaca">• Action Modes: `observe` · `assess` · `exploit`</text>
-      <text x="16" y="104" font-family="sans-serif" font-size="15" font-weight="600" fill="#fecaca">• Hard-Stop Out-of-Scope Target Rejection</text>
-      <text x="16" y="132" font-family="sans-serif" font-size="13.5" font-weight="700" fill="#34d399">✓ Default Read-Only Mode (Zero Inadvertent Impact)</text>
-    </g>
-
-    <!-- Block 2: HITL Operator Boundary -->
-    <g transform="translate(18, 226)">
-      <rect x="0" y="0" width="434" height="170" rx="12" fill="#1a1205" stroke="#f59e0b" stroke-width="1.4"/>
-      <text x="16" y="28" font-family="sans-serif" font-size="17" font-weight="800" fill="#fde047">✋ Human-in-the-Loop (HITL) Gate</text>
-      <text x="16" y="56" font-family="sans-serif" font-size="15" font-weight="600" fill="#fef08a">• Privilege Jumps Require Operator Approval</text>
-      <text x="16" y="80" font-family="sans-serif" font-size="15" font-weight="600" fill="#fef08a">• Interactive CLI: `redstrike-campaign approve`</text>
-      <text x="16" y="104" font-family="sans-serif" font-size="15" font-weight="600" fill="#fef08a">• Nonce &amp; Token-Gated Action Verification</text>
-      <text x="16" y="128" font-family="sans-serif" font-size="15" font-weight="600" fill="#fef08a">• Concurrency &amp; Domain Cooldown Limits</text>
-      <text x="16" y="152" font-family="sans-serif" font-size="13.5" font-weight="700" fill="#fde047">✓ Blocks Autonomous Runaway Exploitation</text>
-    </g>
-
-    <!-- Block 3: Target Environment -->
-    <g transform="translate(18, 408)">
-      <rect x="0" y="0" width="434" height="164" rx="12" fill="#170608" stroke="#7f1d1d" stroke-width="1.4"/>
-      <text x="16" y="28" font-family="sans-serif" font-size="17" font-weight="800" fill="#ff6b6b">Active Directory Target Surface</text>
-      <text x="16" y="58" font-family="sans-serif" font-size="15" font-weight="700" fill="#fca5a5">Domain Controllers · Member Servers</text>
-      <text x="16" y="84" font-family="sans-serif" font-size="15" font-weight="700" fill="#fca5a5">ADCS Certificate Authorities · SCCM Sites</text>
-      <text x="16" y="110" font-family="sans-serif" font-size="15" font-weight="700" fill="#fca5a5">Linux SSSD / Kerberos Domain Hosts</text>
-      <text x="16" y="140" font-family="sans-serif" font-size="13.5" font-weight="700" fill="#34d399">✓ Zero Hardcoded IPs / Domain Assumptions</text>
-    </g>
-  </g>
-
-  <!-- Conduit 1 -> 2 -->
-  <line x1="520" y1="505" x2="555" y2="505" stroke="#ff5a5a" stroke-width="4" marker-end="url(#arrRed)"/>
-
-  <!-- ========================================================================= -->
-  <!-- PILLAR 2: TYPED BUILDERS & EXECUTION (x=565, w=470)                       -->
-  <!-- ========================================================================= -->
-  <g transform="translate(565, 195)" filter="url(#glowRed)">
-    <rect x="0" y="0" width="470" height="620" rx="20" fill="url(#cardCenter)" stroke="#ff4d4d" stroke-width="2.6"/>
-    
-    <!-- Stage Header: Prominent Number Badge + Pill + Title -->
-    <g transform="translate(18, 14)">
-      <circle cx="18" cy="18" r="18" fill="url(#redGrad)"/>
-      <text x="18" y="25" text-anchor="middle" font-family="sans-serif" font-size="20" font-weight="900" fill="#ffffff">2</text>
-      <rect x="44" y="2" width="105" height="32" rx="8" fill="#360a10" stroke="#ff4d4d" stroke-width="1.2"/>
-      <text x="96" y="23" text-anchor="middle" font-family="sans-serif" font-size="14" font-weight="800" fill="#ff8080">EXECUTION</text>
-      <text x="160" y="25" font-family="sans-serif" font-size="20" font-weight="800" fill="#ffffff">Typed Builders &amp; Run</text>
-    </g>
-
-    <!-- Block 1: Typed Builders (shell=False) -->
-    <g transform="translate(18, 62)">
-      <rect x="0" y="0" width="434" height="174" rx="12" fill="#1c070a" stroke="#b91c1c" stroke-width="1.6"/>
-      <text x="16" y="28" font-family="sans-serif" font-size="17" font-weight="800" fill="#ff6b6b">Typed Tool Builders (`shell=False`)</text>
-      <text x="16" y="56" font-family="sans-serif" font-size="15" font-weight="600" fill="#fecaca">• NetExecBuilder: SMB, LDAP, WinRM, MSSQL</text>
-      <text x="16" y="80" font-family="sans-serif" font-size="15" font-weight="600" fill="#fecaca">• CertipyBuilder: ADCS CA &amp; Templates (ESC1–13)</text>
-      <text x="16" y="104" font-family="sans-serif" font-size="15" font-weight="600" fill="#fecaca">• RubeusBuilder: AS-REP, Kerberoast, PKINIT, S4U</text>
-      <text x="16" y="128" font-family="sans-serif" font-size="15" font-weight="600" fill="#fecaca">• BloodyADBuilder: ACL Abuse &amp; Password Reset</text>
-      <text x="16" y="152" font-family="sans-serif" font-size="15" font-weight="600" fill="#fecaca">• SharpSCCMBuilder: Site Discovery &amp; NAA Ext</text>
-    </g>
-
-    <!-- Block 2: Subprocess CommandRunner -->
-    <g transform="translate(18, 248)">
-      <rect x="0" y="0" width="434" height="158" rx="12" fill="#1c070a" stroke="#b91c1c" stroke-width="1.6"/>
-      <text x="16" y="28" font-family="sans-serif" font-size="17" font-weight="800" fill="#ff6b6b">CommandRunner Subprocess Engine</text>
-      <text x="16" y="56" font-family="sans-serif" font-size="15" font-weight="600" fill="#fecaca">• List-Form `argv` Subprocess Execution</text>
-      <text x="16" y="80" font-family="sans-serif" font-size="15" font-weight="600" fill="#fecaca">• Real-time Password &amp; Hash Redaction</text>
-      <text x="16" y="104" font-family="sans-serif" font-size="15" font-weight="600" fill="#fecaca">• Timeout Controls &amp; Signal Handling</text>
-      <text x="16" y="132" font-family="sans-serif" font-size="13.5" font-weight="700" fill="#34d399">✓ Zero Shell Injection Vectors (No `shell=True`)</text>
-    </g>
-
-    <!-- Block 3: Transport & Beachhead Routing -->
-    <g transform="translate(18, 418)">
-      <rect x="0" y="0" width="434" height="184" rx="12" fill="#1c070a" stroke="#b91c1c" stroke-width="1.6"/>
-      <text x="16" y="28" font-family="sans-serif" font-size="17" font-weight="800" fill="#ff6b6b">Multi-Beachhead Transport</text>
-      <text x="16" y="58" font-family="sans-serif" font-size="15" font-weight="700" fill="#ffffff">🔀 Local Direct Kali/Linux Execution</text>
-      <text x="16" y="84" font-family="sans-serif" font-size="15" font-weight="700" fill="#ffffff">🖥️ Windows Beachhead Remote Proxy</text>
-      <text x="16" y="110" font-family="sans-serif" font-size="15" font-weight="700" fill="#ffffff">🛡️ Kerberos / PKINIT Ticket Injection</text>
-      <text x="16" y="136" font-family="sans-serif" font-size="15" font-weight="700" fill="#ffffff">⚡ Async Streams &amp; Real-Time Pipe</text>
-      <text x="16" y="166" font-family="sans-serif" font-size="13.5" font-weight="700" fill="#34d399">✓ Full Cross-Platform Transport Layer</text>
-    </g>
-  </g>
-
-  <!-- Conduit 2 -> 3 -->
-  <line x1="1035" y1="505" x2="1070" y2="505" stroke="#34d399" stroke-width="4" marker-end="url(#arrGreen)"/>
-
-  <!-- ========================================================================= -->
-  <!-- PILLAR 3: ORCHESTRATION & EVIDENCE (x=1080, w=470)                        -->
-  <!-- ========================================================================= -->
-  <g transform="translate(1080, 210)" filter="url(#shadow)">
-    <rect x="0" y="0" width="470" height="590" rx="18" fill="url(#cardGreen)" stroke="#34d399" stroke-width="2.2"/>
-    
-    <!-- Stage Header: Prominent Number Badge + Pill + Title -->
-    <g transform="translate(18, 14)">
-      <circle cx="18" cy="18" r="18" fill="url(#emeraldGrad)"/>
-      <text x="18" y="25" text-anchor="middle" font-family="sans-serif" font-size="20" font-weight="900" fill="#042316">3</text>
-      <rect x="44" y="2" width="130" height="32" rx="8" fill="#0c2b1e" stroke="#34d399" stroke-width="1.2"/>
-      <text x="109" y="23" text-anchor="middle" font-family="sans-serif" font-size="14" font-weight="800" fill="#34d399">ORCHESTRATOR</text>
-      <text x="185" y="25" font-family="sans-serif" font-size="20" font-weight="800" fill="#ffffff">Graph &amp; Ledger</text>
-    </g>
-
-    <!-- Block 1: CampaignOrchestrator -->
-    <g transform="translate(18, 62)">
-      <rect x="0" y="0" width="434" height="152" rx="12" fill="#061b11" stroke="#10b981" stroke-width="1.4"/>
-      <text x="16" y="28" font-family="sans-serif" font-size="17" font-weight="800" fill="#6ee7b7">CampaignOrchestrator Engine</text>
-      <text x="16" y="56" font-family="sans-serif" font-size="15" font-weight="600" fill="#a7f3d0">• Attack Path Directed Acyclic Graph (DAG)</text>
-      <text x="16" y="80" font-family="sans-serif" font-size="15" font-weight="600" fill="#a7f3d0">• Multi-Phase Progression (Recon → DA → Forest)</text>
-      <text x="16" y="104" font-family="sans-serif" font-size="15" font-weight="600" fill="#a7f3d0">• Automated Preflight Credential Checks</text>
-      <text x="16" y="132" font-family="sans-serif" font-size="13.5" font-weight="700" fill="#38bdf8">✓ BloodHound Graph Analytics Integration</text>
-    </g>
-
-    <!-- Block 2: Credential & Discovery Ledger -->
-    <g transform="translate(18, 226)">
-      <rect x="0" y="0" width="434" height="178" rx="12" fill="#061b11" stroke="#10b981" stroke-width="1.4"/>
-      <text x="16" y="28" font-family="sans-serif" font-size="17" font-weight="800" fill="#6ee7b7">Credential &amp; Evidence Ledger</text>
-      <text x="16" y="56" font-family="sans-serif" font-size="15" font-weight="600" fill="#a7f3d0">• Real-Time Credential State Management</text>
-      <text x="16" y="80" font-family="sans-serif" font-size="15" font-weight="600" fill="#a7f3d0">• NT Hashes, Kerberos Tickets &amp; Certificates</text>
-      <text x="16" y="104" font-family="sans-serif" font-size="15" font-weight="600" fill="#a7f3d0">• Privilege State Tracking (DA, EA, LocalAdmin)</text>
-      <text x="16" y="128" font-family="sans-serif" font-size="15" font-weight="600" fill="#a7f3d0">• Automated Session Context Propagation</text>
-      <text x="16" y="156" font-family="sans-serif" font-size="13.5" font-weight="700" fill="#34d399">✓ Zero Unverifiable Claims / Ledger SSoT</text>
-    </g>
-
-    <!-- Block 3: Parsers & Deliverables -->
-    <g transform="translate(18, 416)">
-      <rect x="0" y="0" width="434" height="156" rx="12" fill="#061b11" stroke="#10b981" stroke-width="1.4"/>
-      <text x="16" y="28" font-family="sans-serif" font-size="17" font-weight="800" fill="#6ee7b7">Parsers &amp; Audit Deliverables</text>
-      <text x="16" y="56" font-family="sans-serif" font-size="14.5" font-weight="600" fill="#a7f3d0">• Output Normalization into `EvidenceRecord`</text>
-      <text x="16" y="78" font-family="sans-serif" font-size="14.5" font-weight="600" fill="#a7f3d0">• Machine-Readable Structured JSON Exports</text>
-      <text x="16" y="100" font-family="sans-serif" font-size="14.5" font-weight="600" fill="#a7f3d0">• Executive Markdown Attack Walkthroughs</text>
-      <text x="16" y="130" font-family="sans-serif" font-size="13.5" font-weight="700" fill="#34d399">✓ Cryptographic Audit Trail &amp; Provenance</text>
-    </g>
-  </g>
-
-  <!-- ========================================================================= -->
-  <!-- CLOSED LOOP RETURN CONDUIT (Stage 3 back to Stage 1)                      -->
-  <!-- ========================================================================= -->
-  <path d="M 1315 800 C 1315 875 285 875 285 818" fill="none" stroke="#e11d2a" stroke-width="4" stroke-dasharray="10 6"/>
-  <polygon points="285,800 275,820 295,820" fill="#ff5a5a"/>
-
-  <!-- Center Watch Banner -->
-  <rect x="580" y="842" width="440" height="34" rx="17" fill="#200a0e" stroke="#e11d2a" stroke-width="1.6"/>
-  <text x="800" y="865" text-anchor="middle" font-family="sans-serif" font-size="15" font-weight="800" fill="#fca5a5">↻ Discovered Credentials Fed Into Next Attack Phase</text>
-
-  <!-- ========================================================================= -->
   <!-- FOOTER                                                                    -->
   <!-- ========================================================================= -->
-  <g transform="translate(800, 915)">
-    <text text-anchor="middle" font-family="'Segoe UI', sans-serif" font-size="14" font-weight="600" fill="#e11d2a">
-      Python ≥ 3.10 · Policy-Aware Engine · Operator-Gated HITL · CADRE Platform Ecosystem
+  <g transform="translate(800, 850)">
+    <text text-anchor="middle" font-family="'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#ff4d4d">
+      Python ≥ 3.10 · Policy-Aware Active Directory Engine · Typed Command Builders · Operator-Gated HITL
     </text>
   </g>
 </svg>
