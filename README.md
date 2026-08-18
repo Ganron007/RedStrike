@@ -72,52 +72,9 @@ curl http://127.0.0.1:8890/health
 RedStrike runs as a single FastAPI process. HTTP clients and the MCP proxy share the
 same policy-gated pipeline before a typed command is executed.
 
-```mermaid
-flowchart TD
-    subgraph Clients["Clients"]
-        HTTP["HTTP client<br/>(curl / script)"]
-        MCP["MCP client<br/>(LLM agent)"]
-    end
-
-    subgraph API["RedStrike process (FastAPI)"]
-        ROUTE["/ad/* routes + /jobs"]
-        AUTH["API key + rate limiter<br/>(loopback exempt)"]
-        SVC["ActiveDirectoryAssessmentService"]
-        POLICY["ScopePolicy.assert_allowed<br/>(target / domain / mode / action)"]
-        GUARD["Concurrency + cooldown<br/>guardrails"]
-        JOBS["JobStore<br/>(async, dedupe)"]
-    end
-
-    subgraph Build["Command layer"]
-        BUILDER["NetExecCommandBuilder<br/>(typed, shell=False)"]
-        RUNNER["CommandRunner.run<br/>(subprocess, shell=False)"]
-    end
-
-    subgraph Evidence["Evidence layer"]
-        PARSE["parsers.parse_for_action"]
-        EVID["EvidenceRecord + Finding<br/>(Pydantic models)"]
-        RESP["OperationResponse"]
-    end
-
-    subgraph Report["Reporting"]
-        JSON["render_json_report"]
-        MD["markdown"]
-    end
-
-    NXEC[("nxc (NetExec)<br/>on PATH")]
-
-    HTTP --> ROUTE
-    MCP -->|requests POST| ROUTE
-    ROUTE --> AUTH --> SVC
-    SVC --> POLICY --> GUARD
-    GUARD --> BUILDER --> RUNNER --> NXEC
-    RUNNER --> PARSE --> EVID --> RESP
-    SVC --> RESP
-    ROUTE --> JOBS
-    JOBS --> SVC
-    RESP --> JSON
-    RESP --> MD
-```
+<p align="center">
+  <img src="assets/redstrike-architecture.svg" alt="RedStrike Architecture" width="100%">
+</p>
 
 1. **Ingress** — HTTP `/ad/*`, or MCP tools that `POST` to the same routes.
 2. **Auth** — non-loopback callers must send `X-API-Key` when `--api-key` is set.
