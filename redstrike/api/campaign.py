@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from pydantic import BaseModel, Field  # noqa: F401 — Field used by IntentPreviewRequest
+from pydantic import BaseModel, Field
 
 from redstrike.core.runner import redact_argv
 from redstrike.runtime.hitl import KNOWN_GATES

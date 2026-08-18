@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 import threading
+from collections.abc import Callable
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Callable
 from uuid import uuid4
 
 from pydantic import BaseModel, Field

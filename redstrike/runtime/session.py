@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Any
 
 from redstrike.runtime.beachhead import Beachhead, OperatorMode, detect_default_operator
-from redstrike.runtime.hitl import EngagementStore, KNOWN_GATES
+from redstrike.runtime.hitl import KNOWN_GATES, EngagementStore
 from redstrike.runtime.orchestrator import CampaignOrchestrator, StepResult
 
 

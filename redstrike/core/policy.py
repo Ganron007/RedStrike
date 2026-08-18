@@ -7,7 +7,6 @@ from pydantic import BaseModel, Field
 
 from redstrike.core.models import EngagementMode
 
-
 READ_ONLY_ACTIONS = {
     "domain_users",
     "domain_groups",

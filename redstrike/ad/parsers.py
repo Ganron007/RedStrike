@@ -4,9 +4,9 @@ import re
 from collections.abc import Callable
 
 from redstrike.ad.entities import (
-    AdminCountEntity,
     AdcsEntity,
     ADEntity,
+    AdminCountEntity,
     ComputerEntity,
     DelegationEntity,
     GroupEntity,

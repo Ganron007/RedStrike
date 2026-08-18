@@ -34,7 +34,7 @@ Issues = "https://github.com/Ganron007/RedStrike/issues"
 
 [project.optional-dependencies]
 mcp = ["fastmcp>=0.2,<1.0", "requests>=2.31,<3.0"]
-dev = ["pytest>=8.2,<9.0", "ruff>=0.5,<1.0", "httpx>=0.27,<1.0"]
+dev = ["pytest>=8.2,<9.0", "ruff>=0.16.3,<0.17", "httpx>=0.27,<1.0"]
 
 [project.scripts]
 redstrike = "redstrike.cli.main:main"

@@ -51,7 +51,7 @@ def resolve_profiles_path(
 def load_lab_profiles(path: Path | str) -> dict[str, Any]:
     data = yaml.safe_load(Path(path).read_text(encoding="utf-8"))
     if not isinstance(data, dict):
-        raise ValueError("lab-profiles.yaml must be a mapping")
+        raise TypeError("lab-profiles.yaml must be a mapping")
     return data
 
 

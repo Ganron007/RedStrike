@@ -103,9 +103,11 @@ def run_check(*, scope: str = "scope.yaml", execute_ready: bool = False, as_json
         "next": [
             "Copy examples/scope.example.yaml to scope.yaml and set your targets/domains.",
             "API: redstrike-api --scope scope.yaml --profile standalone",
-            "Campaign dry-run: redstrike-campaign run --phase 1-3 --beachhead windows "
-            "--operator provisioning --engage demo --graph examples/campaign-graph.m1.yaml "
-            "--seed examples/seed.example.json --automation-root examples/automation",
+            (
+                "Campaign dry-run: redstrike-campaign run --phase 1-3 --beachhead windows "
+                "--operator provisioning --engage demo --graph examples/campaign-graph.m1.yaml "
+                "--seed examples/seed.example.json --automation-root examples/automation"
+            ),
             "Live --execute needs the PATH tools above, plus HITL approval.",
         ],
     }

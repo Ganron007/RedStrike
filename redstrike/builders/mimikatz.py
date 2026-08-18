@@ -8,9 +8,7 @@ class MimikatzBuilder:
         self.binary = binary
 
     def _chain(self, *commands: str) -> list[str]:
-        argv = [self.binary]
-        for cmd in commands:
-            argv.append(cmd if cmd.endswith(")") or cmd.endswith('"') else cmd)
+        argv = [self.binary, *commands]
         if not commands or commands[-1] != "exit":
             argv.append("exit")
         return argv

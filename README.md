@@ -11,6 +11,12 @@
   <img src="https://img.shields.io/badge/Version-0.6.0-blue.svg" alt="Version: 0.6.0">
 </p>
 
+> [!IMPORTANT]
+> **Authorized use only.** RedStrike is an offensive security tool. Use it **only** for
+> authorized security assessments against systems and accounts you are explicitly permitted
+> to test. Unauthorized scanning, enumeration, or access attempts are illegal. The authors
+> and contributors accept no liability for any misuse or damage.
+
 Standalone **agentic AD / ADCS** assessment API plus a generic campaign-graph engine.
 Lab graphs, seeds, and attack scripts are **not** in this repository — pass your own
 `--graph` / `--seed`, or use the bundled demo under `examples/`.
@@ -32,12 +38,6 @@ clone and treat it as Plan 01.
 
 The Python package is `redstrike`. CLI: `redstrike`, `redstrike-api`, `redstrike-mcp`,
 `redstrike-campaign`.
-
-> [!IMPORTANT]
-> **Authorized use only.** RedStrike is an offensive security tool. Use it **only** for
-> authorized security assessments against systems and accounts you are explicitly permitted
-> to test. Unauthorized scanning, enumeration, or access attempts are illegal. The authors
-> and contributors accept no liability for any misuse or damage.
 
 RedStrike is an advanced **agentic AD / ADCS pentesting and red-teaming toolset**:
 intent-level ops, typed builders (`shell=False`), scope policy, credential ledger,

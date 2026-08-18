@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import os
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 import yaml
 
@@ -50,7 +51,7 @@ def load_campaign_graph(path: Path | str) -> CampaignGraph:
     text = Path(path).read_text(encoding="utf-8")
     data = yaml.safe_load(text)
     if not isinstance(data, dict):
-        raise ValueError("campaign graph must be a mapping")
+        raise TypeError("campaign graph must be a mapping")
     raw_nodes = data.get("nodes")
     if not isinstance(raw_nodes, list) or not raw_nodes:
         raise ValueError("campaign graph requires a non-empty nodes list")
@@ -58,7 +59,7 @@ def load_campaign_graph(path: Path | str) -> CampaignGraph:
     nodes: list[CampaignNode] = []
     for index, item in enumerate(raw_nodes):
         if not isinstance(item, dict):
-            raise ValueError(f"nodes[{index}] must be a mapping")
+            raise TypeError(f"nodes[{index}] must be a mapping")
         nodes.append(_parse_node(item, index))
 
     return CampaignGraph(
@@ -188,7 +189,7 @@ def _parse_node(item: dict[str, Any], index: int) -> CampaignNode:
 
     beachheads_raw = item.get("beachheads") or ["windows", "linux"]
     if not isinstance(beachheads_raw, list):
-        raise ValueError(f"nodes[{index}].beachheads must be a list")
+        raise TypeError(f"nodes[{index}].beachheads must be a list")
     beachheads = tuple(str(b) for b in beachheads_raw)
 
     branch = str(item.get("branch") or "spine")

@@ -5,7 +5,13 @@ from pathlib import Path
 from typing import Any
 
 from redstrike.core.runner import CommandRunner, redact_argv
-from redstrike.runtime.beachhead import Beachhead, BeachheadRouter, ExecutionPath, OperatorMode, StepPlan
+from redstrike.runtime.beachhead import (
+    Beachhead,
+    BeachheadRouter,
+    ExecutionPath,
+    OperatorMode,
+    StepPlan,
+)
 from redstrike.runtime.graph import (
     CampaignGraph,
     CampaignNode,
@@ -14,11 +20,12 @@ from redstrike.runtime.graph import (
     parse_phase_filter,
     resolve_graph_path,
 )
-from redstrike.runtime.preflight import PreflightResult, preflight as run_preflight
-from redstrike.runtime.ws01_transport import argv_for_plan
 from redstrike.runtime.hitl import EngagementState, EngagementStore
 from redstrike.runtime.intents import DEFAULT_REGISTRY, IntentRegistry, UnknownIntentError
 from redstrike.runtime.ledger import Credential, CredentialLedger, MissingCredentialError
+from redstrike.runtime.preflight import PreflightResult
+from redstrike.runtime.preflight import preflight as run_preflight
+from redstrike.runtime.ws01_transport import argv_for_plan
 
 
 @dataclass

@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import argparse
 import ipaddress
-from urllib.parse import urlparse
 from typing import Any
+from urllib.parse import urlparse
 
 import requests
 
@@ -70,7 +70,7 @@ def create_mcp(api_url: str):
 
     try:
         from mcp.server.fastmcp import FastMCP
-    except Exception:
+    except ImportError:
         from fastmcp import FastMCP
 
     mcp = FastMCP("redstrike")
