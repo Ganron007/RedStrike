@@ -91,12 +91,14 @@
   <!-- ========================================================================= -->
   <g transform="translate(480, 50)">
     <!-- RedStrike Shield &amp; Lightning Bolt -->
-    <g transform="translate(-250, -26) scale(0.38)">
+    <g transform="translate(-255, -26) scale(0.38)">
       <path d="M55 0 L110 18 V62 C110 100 86 128 55 145 C24 128 0 100 0 62 V18 Z" fill="url(#crimsonGrad)" stroke="#7a0a12" stroke-width="3"/>
       <path d="M60 26 L38 74 L54 74 L46 116 L80 54 L58 54 Z" fill="#ffffff" opacity="0.95"/>
     </g>
-    <text x="-180" y="8" font-family="'Segoe UI', -apple-system, sans-serif" font-size="32" font-weight="900" fill="url(#crimsonGrad)" letter-spacing="1">REDSTRIKE</text>
-    <text x="-5" y="8" font-family="'Segoe UI', -apple-system, sans-serif" font-size="32" font-weight="800" fill="#ffffff" letter-spacing="0.8">| AGENTIC FLOW</text>
+    <text x="20" y="8" text-anchor="middle" font-family="'Segoe UI', -apple-system, sans-serif" font-size="32" font-weight="900" letter-spacing="0.5">
+      <tspan fill="url(#crimsonGrad)">REDSTRIKE</tspan>
+      <tspan fill="#ffffff" font-weight="800"> | AGENTIC FLOW</tspan>
+    </text>
     <text x="0" y="38" text-anchor="middle" font-family="'Segoe UI', -apple-system, sans-serif" font-size="15" font-weight="600" fill="#fca5a5">
       Policy-Gated Active Directory Assessment &amp; Campaign Execution Pipeline
     </text>
