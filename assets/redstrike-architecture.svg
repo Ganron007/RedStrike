@@ -80,15 +80,15 @@
     </text>
 
     <!-- Engine Mode Badges (Top Right) -->
-    <g transform="translate(1060, -2)">
-      <rect x="0" y="4" width="145" height="30" rx="6" fill="#1f070b" stroke="#e11d2a" stroke-width="1.2"/>
-      <text x="72" y="24" text-anchor="middle" font-family="sans-serif" font-size="12" font-weight="800" fill="#ff4d4d">TYPED BUILDERS ONLY</text>
+    <g transform="translate(1040, -2)">
+      <rect x="0" y="4" width="155" height="30" rx="6" fill="#1f070b" stroke="#e11d2a" stroke-width="1.2"/>
+      <text x="77" y="24" text-anchor="middle" font-family="sans-serif" font-size="12" font-weight="800" fill="#ff4d4d">TYPED BUILDERS</text>
 
-      <rect x="160" y="4" width="135" height="30" rx="6" fill="#261705" stroke="#f59e0b" stroke-width="1.2"/>
-      <text x="227" y="24" text-anchor="middle" font-family="sans-serif" font-size="12" font-weight="800" fill="#fde047">OPERATOR GATED</text>
+      <rect x="170" y="4" width="145" height="30" rx="6" fill="#261705" stroke="#f59e0b" stroke-width="1.2"/>
+      <text x="242" y="24" text-anchor="middle" font-family="sans-serif" font-size="12" font-weight="800" fill="#fde047">OPERATOR GATED</text>
 
-      <rect x="310" y="4" width="115" height="30" rx="6" fill="#081e28" stroke="#38bdf8" stroke-width="1.2"/>
-      <text x="367" y="24" text-anchor="middle" font-family="sans-serif" font-size="12" font-weight="800" fill="#38bdf8">DAG LEDGER</text>
+      <rect x="330" y="4" width="125" height="30" rx="6" fill="#081e28" stroke="#38bdf8" stroke-width="1.2"/>
+      <text x="392" y="24" text-anchor="middle" font-family="sans-serif" font-size="12" font-weight="800" fill="#38bdf8">DAG LEDGER</text>
     </g>
   </g>
 
@@ -328,15 +328,15 @@
   <!-- HIGH-VOLTAGE CREDENTIAL FEEDBACK BUS (Seamless Loop back to Column 1)     -->
   <!-- ========================================================================= -->
   <g transform="translate(0, 695)">
-    <!-- Circuit Conduit from Col 3 (x=1360) down to y=60, across to Col 1 (x=225), up into Col 1 -->
+    <!-- Circuit Conduit from Col 3 (x=1360) down to y=55, across to Col 1 (x=225), up into Col 1 -->
     <path d="M 1360 0 L 1360 55 L 225 55 L 225 15" fill="none" stroke="#e11d2a" stroke-width="4" stroke-dasharray="12 6"/>
     <!-- Upward Arrowhead entering bottom of Column 1 -->
     <polygon points="225,0 215,20 235,20" fill="#ff4d4d"/>
 
-    <!-- Center Indicator Pill (Width=720, perfectly fitting text with 80px side margins) -->
-    <rect x="440" y="36" width="720" height="38" rx="19" fill="#180407" stroke="#ff3b30" stroke-width="1.8" filter="url(#glowRed)"/>
-    <text x="800" y="60" text-anchor="middle" font-family="sans-serif" font-size="13.5" font-weight="900" fill="#fca5a5" letter-spacing="0.5">
-      ↻ CONTINUOUS AD CAMPAIGN LOOP: DISCOVERED CREDENTIALS RE-INJECTED INTO INGRESS
+    <!-- Center Indicator Pill (Width=840, perfectly fitting text with 80px side margins) -->
+    <rect x="380" y="36" width="840" height="38" rx="19" fill="#180407" stroke="#ff3b30" stroke-width="1.8" filter="url(#glowRed)"/>
+    <text x="800" y="60" text-anchor="middle" font-family="sans-serif" font-size="13" font-weight="900" fill="#fca5a5" letter-spacing="0.3">
+      ↻ CONTINUOUS ATTACK LOOP: DISCOVERED CREDENTIALS RECYCLED INTO NEXT PHASE
     </text>
   </g>
 
