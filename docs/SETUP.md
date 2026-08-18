@@ -97,7 +97,7 @@ Python import:
 python -c "import redstrike; print(redstrike.__version__)"
 ```
 
-You should see `0.6.0` (or newer). Do not `import cadre_strike` in new code.
+You should see `0.6.0` (or newer). The Python import is `redstrike`.
 
 ---
 
@@ -301,5 +301,6 @@ Do not copy lab password files into this git tree.
 ## Next reading
 
 - [SECURITY.md](SECURITY.md) — keys, gitignore, redaction
-- [README.md](../README.md) — API routes, jobs, safety model
+- [README.md](../README.md) — product overview, API, safety model
+- [CADRE-PIN.md](CADRE-PIN.md) — standalone vs CADRE campaign pin
 - [RELEASE.md](RELEASE.md) — tagging (maintainers)

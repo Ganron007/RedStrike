@@ -1,6 +1,7 @@
-# CADRE pin vs this repository
+# Standalone product vs CADRE campaign pin
 
-RedStrike has two install paths. Do not mix them.
+RedStrike is a standalone product. CADRE is an optional lab that can consume it.
+Do not mix the two install paths.
 
 ## Standalone (this GitHub repo)
 

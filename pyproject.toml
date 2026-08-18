@@ -43,7 +43,7 @@ redstrike-mcp = "redstrike.mcp.server:main"
 redstrike-campaign = "redstrike.cli.campaign:main"
 
 [tool.setuptools.packages.find]
-include = ["redstrike*", "cadre_strike*"]
+include = ["redstrike*"]
 
 [tool.ruff]
 line-length = 100

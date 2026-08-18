@@ -1,7 +1,7 @@
 # Security
 
-Authorized use only. RedStrike is an offensive-security tool. Do not point it at systems
-you are not permitted to test.
+Authorized use only. Do not point RedStrike at systems you are not permitted to test.
+See the notice at the top of the [README](../README.md).
 
 ## Never commit
 

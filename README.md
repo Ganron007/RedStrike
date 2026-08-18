@@ -17,49 +17,60 @@
 > to test. Unauthorized scanning, enumeration, or access attempts are illegal. The authors
 > and contributors accept no liability for any misuse or damage.
 
-Standalone **agentic AD / ADCS** assessment API plus a generic campaign-graph engine.
-Lab graphs, seeds, and attack scripts are **not** in this repository — pass your own
-`--graph` / `--seed`, or use the bundled demo under `examples/`.
+RedStrike is an agentic Active Directory and ADCS assessment toolkit: intent-level
+HTTP and MCP APIs, typed command builders (`shell=False`), scope policy, a credential
+ledger, human-in-the-loop gates, and a campaign-graph orchestrator.
 
-**New users:** follow **[`docs/SETUP.md`](docs/SETUP.md)** (clone → venv → install →
-`redstrike check` → `scope.yaml` → dry-run). Secrets: [`docs/SECURITY.md`](docs/SECURITY.md).
+Lab graphs, seeds, and attack scripts are **not** shipped here. Use the bundled
+`examples/` demo, or pass your own `--graph` / `--seed`.
 
-### Two tracks
+| | |
+|---|---|
+| Package | `redstrike` |
+| Commands | `redstrike` · `redstrike-api` · `redstrike-mcp` · `redstrike-campaign` |
+| Setup | [`docs/SETUP.md`](docs/SETUP.md) |
+| Secrets | [`docs/SECURITY.md`](docs/SECURITY.md) |
+| Contributing | [`CONTRIBUTING.md`](CONTRIBUTING.md) |
 
-| Track | Engine | Graph / seeds | When |
-|---|---|---|---|
-| **Standalone (this repo)** | This clone | Yours, or `examples/` | Product use, or **practice** on any authorized lab (including CADRE VMs you operate) |
-| **CADRE Plan 01** | Pin `CADRE/tools/red-strike/` | CADRE campaign files | Official CADRE campaign runs |
+## Capabilities
 
-Standalone evolves here. New features are **adopted into the CADRE pin** after they land.
-A standalone clone may target CADRE VMs with **your** graph and `scope.yaml`; that is
-practice, not the integrated campaign path. Do not set `CADRE_ROOT` on a standalone
-clone and treat it as Plan 01.
+- AD-native operations instead of a generic “run this shell string” endpoint.
+- Typed builders with `shell=False` (NetExec, Certipy, Rubeus, bloodyAD, and others).
+- Scope policy before execution (`scope.yaml` overlays a built-in profile).
+- Evidence records for every observation; JSON and Markdown reports.
+- Default **API** profile is read-only (`observe` / `assess`).
+- Campaign `--execute` is operator-gated (HITL). Privilege jumps wait for `redstrike-campaign approve`.
+- MCP and HTTP expose intent-level tools such as `enumerate_domain_users` and
+  `find_delegation`, not arbitrary command strings.
 
-The Python package is `redstrike`. CLI: `redstrike`, `redstrike-api`, `redstrike-mcp`,
-`redstrike-campaign`.
+## Quick start
 
-RedStrike is an advanced **agentic AD / ADCS pentesting and red-teaming toolset**:
-intent-level ops, typed builders (`shell=False`), scope policy, credential ledger,
-HITL gates, and a campaign-graph engine — built to beat free-form LLM shell wrappers
-on fidelity and safety. It keeps improving as a standalone product.
+Full walkthrough (Windows included): [`docs/SETUP.md`](docs/SETUP.md).
 
-## What is different
+```bash
+python -m venv .venv
+source .venv/bin/activate   # Windows: .venv\Scripts\Activate.ps1
+pip install -e ".[dev,mcp]"
+cp examples/scope.example.yaml scope.yaml   # edit; never commit
+redstrike check
+redstrike-campaign run --phase 1-3 --beachhead windows --operator provisioning --engage demo \
+  --graph examples/campaign-graph.m1.yaml \
+  --seed examples/seed.example.json \
+  --automation-root examples/automation
+```
 
-- AD-native workflows instead of one generic command execution endpoint.
-- Typed command builders with `shell=False`.
-- Scope policy before execution.
-- Evidence records for every observation.
-- Read-only first: no password spraying, dumping, persistence, or account changes in
-  the default MVP.
-- MCP and HTTP APIs expose intent-level operations such as `enumerate_domain_users`
-  and `find_delegation`, not arbitrary command strings.
+Start the API with a **local** key (do not commit it):
 
-## Tool Flow
+```bash
+export REDSTRIKE_API_KEY="$(python -c 'import secrets; print(secrets.token_urlsafe(32))')"
+redstrike-api --scope scope.yaml --profile standalone --api-key "$REDSTRIKE_API_KEY" --host 127.0.0.1 --port 8890
+curl http://127.0.0.1:8890/health
+```
 
-RedStrike runs as a single FastAPI process. Every request — whether it arrives over
-HTTP or is proxied through the MCP server — flows through the same policy-gated
-pipeline before a typed NetExec command is executed.
+## Architecture
+
+RedStrike runs as a single FastAPI process. HTTP clients and the MCP proxy share the
+same policy-gated pipeline before a typed command is executed.
 
 ```mermaid
 flowchart TD
@@ -108,62 +119,21 @@ flowchart TD
     RESP --> MD
 ```
 
-**Request lifecycle:**
+1. **Ingress** — HTTP `/ad/*`, or MCP tools that `POST` to the same routes.
+2. **Auth** — non-loopback callers must send `X-API-Key` when `--api-key` is set.
+3. **Policy** — `ScopePolicy.assert_allowed` rejects out-of-scope targets, domains, modes, or actions.
+4. **Guardrails** — per-target / per-domain concurrency and cooldown, released in `finally`.
+5. **Execute** — typed `argv`, `subprocess` with secret redaction and a timeout.
+6. **Normalize** — parsers produce entities, evidence, and optional findings.
+7. **Report** — `render_json_report` / Markdown.
 
-1. **Ingress** — HTTP clients hit `/ad/*` directly; MCP clients call intent-level
-   tools (`enumerate_domain_users`, `find_delegation`, …) that `POST` to the same
-   HTTP routes via `requests`.
-2. **Auth & throttle** — non-loopback callers must present a valid `X-API-Key` and
-   pass the in-memory sliding-window `RateLimiter`.
-3. **Policy gate** — `ScopePolicy.assert_allowed` rejects out-of-scope targets,
-   domains, modes, or non-read-only actions before anything runs.
-4. **Guardrails** — per-target/per-domain concurrency caps and cooldown windows are
-   acquired, then released in a `finally` block.
-5. **Build & execute** — `NetExecCommandBuilder` produces a typed `argv` (no shell),
-   `CommandRunner` runs it as a `subprocess` with secret redaction and a timeout.
-6. **Normalize** — `parsers.parse_for_action` turns raw output into entities; an
-   `EvidenceRecord` (and any derived `Finding`) is attached to the
-   `OperationResponse`.
-7. **Report** — responses serialize through `render_json_report` / `markdown` for
-   downstream consumption.
+The HTTP API and the in-memory job worker share one process. Do not load-balance
+multiple API replicas unless you add an external job store.
 
-Long-running work can instead be submitted to `/jobs`; `JobStore` dedupes by
-action/target/domain/mode and runs the same service method on a worker thread
-(`PENDING → RUNNING → COMPLETED`).
-
-## Quick Start
-
-Full walkthrough (Windows included): [`docs/SETUP.md`](docs/SETUP.md). Short path:
-
-```bash
-python -m venv .venv
-source .venv/bin/activate   # Windows: .venv\Scripts\Activate.ps1
-pip install -e ".[dev,mcp]"
-cp examples/scope.example.yaml scope.yaml   # edit; never commit
-redstrike check
-redstrike-campaign run --phase 1-3 --beachhead windows --operator provisioning --engage demo \
-  --graph examples/campaign-graph.m1.yaml \
-  --seed examples/seed.example.json \
-  --automation-root examples/automation
-```
-
-API (generate a **local** key; do not commit it):
-
-```bash
-export REDSTRIKE_API_KEY="$(python -c 'import secrets; print(secrets.token_urlsafe(32))')"
-redstrike-api --scope scope.yaml --profile standalone --api-key "$REDSTRIKE_API_KEY" --host 127.0.0.1 --port 8890
-```
-
-Health check:
-
-```bash
-curl http://127.0.0.1:8890/health
-```
-
-## Example API Call
+## HTTP API
 
 Replace `dc.example.lab` with a host already listed in **your** `scope.yaml`.
-`$REDSTRIKE_API_KEY` is an environment variable, not a real key in this file.
+`$REDSTRIKE_API_KEY` is an environment variable, not a committed secret.
 
 ```bash
 curl -X POST http://127.0.0.1:8890/ad/users \
@@ -177,71 +147,49 @@ curl -X POST http://127.0.0.1:8890/ad/users \
   }'
 ```
 
-## Security Defaults
-
-- Keep the API bound to `127.0.0.1` unless you have a deliberate network exposure plan.
-- When `--api-key` is configured, non-loopback callers must provide `X-API-Key`.
-- MCP rejects non-local plain HTTP API URLs; use HTTPS for remote API endpoints.
-- Execution guardrails apply by policy profile (per-target/domain concurrency and cooldown windows).
-
-## Deployment
-
-RedStrike runs as a **single process**. The HTTP API and the job worker share the same
-process and in-memory job store, so do not run multiple API replicas behind a load
-balancer unless you have an external shared store — jobs created on one replica are not
-visible to another.
+Long-running work can be submitted as jobs (`PENDING → RUNNING → COMPLETED` or `FAILED`).
+Duplicate in-flight work is deduplicated by action / target / domain / mode.
 
 ```bash
-redstrike-api --scope scope.yaml --profile standalone --api-key "$REDSTRIKE_API_KEY" --host 127.0.0.1 --port 8890
-```
-
-## Async Jobs API
-
-Long-running assessments can be submitted as jobs and polled for status:
-
-```bash
-# Submit a job
 curl -X POST http://127.0.0.1:8890/jobs \
   -H "Content-Type: application/json" \
   -H "X-API-Key: $REDSTRIKE_API_KEY" \
   -d '{"action": "domain_users", "target": "dc.example.lab", "domain": "example.lab"}'
 
-# Poll for the result
 curl http://127.0.0.1:8890/jobs/{job_id} -H "X-API-Key: $REDSTRIKE_API_KEY"
 ```
 
-A job transitions `PENDING → RUNNING → COMPLETED` (or `FAILED`). Submitting the same
-`action`/`target`/`domain`/`mode` again returns the existing in-flight or completed job
-instead of starting a duplicate; a `FAILED` job can be retried.
-
-## Campaign graph engine
-
-The orchestrator is generic. This repo ships a **demo graph** only. Point it at your
-own YAML graph and seed JSON, or use the examples:
+MCP (optional), with the API already on loopback:
 
 ```bash
-pip install -e .
-redstrike check
+redstrike-mcp --api http://127.0.0.1:8890
+```
+
+A sample client snippet is in `redstrike/api/redstrike-mcp.json`.
+
+## Campaign orchestrator
+
+This repository ships a **demo graph** only. Point the CLI at your engagement files,
+or use `examples/`:
+
+```bash
 redstrike-campaign run --phase 1-3 --beachhead windows --operator provisioning --engage demo \
   --graph examples/campaign-graph.m1.yaml \
   --seed examples/seed.example.json \
   --automation-root examples/automation
 ```
 
-SSH wrap to a Windows beachhead uses env vars (no lab defaults):
-`REDSTRIKE_WS01_HOST`, `REDSTRIKE_WS01_USER`, `REDSTRIKE_WS01_SSH_KEY`.
+- Branches: `--branch A|B|C|…` · streams: `redstrike-campaign stream E|F`
+- Privilege jumps pause until `redstrike-campaign approve --gate <name> --engage <id>`
+- Live `--execute` needs operator tools on PATH (`redstrike check --execute-ready`)
+- Optional SSH to a Windows beachhead via `REDSTRIKE_WS01_HOST`, `REDSTRIKE_WS01_USER`,
+  `REDSTRIKE_WS01_SSH_KEY` (no lab defaults in this repo)
 
-Optional: a standalone clone can load CADRE files with `CADRE_ROOT` for **practice**.
-CADRE **Plan 01** campaigns must use the pin `CADRE/tools/red-strike/` instead
-(see [`docs/CADRE-PIN.md`](docs/CADRE-PIN.md)).
-
-- `--branch …` · HITL gates (`approve --gate …`) · `--prefer-script` · `stream E|F`
-- Typed intents (Certipy / Rubeus / bloodyAD / SQL / SharpSCCM / mimikatz) via MCP `build_intent`
-- Live `--execute` is HITL-gated and needs operator tools on PATH (`redstrike check --execute-ready`)
+CADRE campaign operators install the pin at `CADRE/tools/red-strike/`, not this clone.
+Standalone RedStrike may still target CADRE VMs as **practice** with your own graph and
+scope. See [`docs/CADRE-PIN.md`](docs/CADRE-PIN.md).
 
 ## Reporting
-
-Findings and evidence can be exported as a structured report:
 
 ```python
 from redstrike.reporting.json_report import render_json_report
@@ -249,30 +197,32 @@ from redstrike.reporting.json_report import render_json_report
 report = render_json_report(findings, evidence)
 ```
 
-`render_json_report` returns a dict with `tool`, `generated_at`, `summary`, `findings`,
-and `evidence`, ready to serialize to JSON for downstream consumption.
+The result is a dict with `tool`, `generated_at`, `summary`, `findings`, and `evidence`.
+
+## Safety model
+
+Default API profile (`standalone`) allows read-only AD assessment:
+
+- Domain users, groups, and computers
+- Password policy
+- SMB shares
+- AS-REP roastability and Kerberoastability collection
+- Delegation and AdminCount discovery
+- ADCS enumeration
+
+High-risk campaign actions (DCSync, ticket forgery, ACL writes, and similar) run only
+through the orchestrator with HITL approval. Do not bypass those gates.
+
+Operational defaults:
+
+- Bind the API to `127.0.0.1` unless you have a deliberate exposure plan.
+- Non-loopback callers must send `X-API-Key` when `--api-key` is set.
+- MCP rejects non-local plain HTTP API URLs; use HTTPS off-box.
+- Command runners redact password and hash flags in logs and evidence argv.
+- Never commit `scope.yaml`, `.env`, API keys, SSH private keys, or engagement passwords.
 
 ## License
 
-RedStrike is released under the [MIT License](LICENSE). See the [LICENSE](LICENSE)
-file for the full text.
+RedStrike is released under the [MIT License](LICENSE).
 
-> Copyright (c) 2026 RedStrike
-
-## Safety Model
-
-RedStrike currently allows only read-only AD assessment actions:
-
-- Domain user enumeration
-- Domain group enumeration
-- Computer enumeration
-- Password policy enumeration
-- SMB share enumeration
-- AS-REP roastability collection
-- Kerberoastability collection
-- Delegation discovery
-- AdminCount discovery
-- ADCS enumeration
-
-Destructive or high-risk actions belong behind explicit approval gates in a later
-`validate` mode.
+Copyright (c) 2026 RedStrike
