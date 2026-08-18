@@ -325,24 +325,25 @@
   </g>
 
   <!-- ========================================================================= -->
-  <!-- HIGH-VOLTAGE CREDENTIAL FEEDBACK BUS (Right to Left)                      -->
+  <!-- HIGH-VOLTAGE CREDENTIAL FEEDBACK BUS (Seamless Loop back to Column 1)     -->
   <!-- ========================================================================= -->
-  <g transform="translate(0, 715)">
-    <!-- Glowing Circuit Conduit -->
-    <path d="M 1360 0 L 1360 60 L 220 60 L 220 0" fill="none" stroke="#e11d2a" stroke-width="4" stroke-dasharray="12 6"/>
-    <polygon points="220,0 210,18 230,18" fill="#ff4d4d"/>
+  <g transform="translate(0, 695)">
+    <!-- Circuit Conduit from Col 3 (x=1360) down to y=60, across to Col 1 (x=225), up into Col 1 -->
+    <path d="M 1360 0 L 1360 55 L 225 55 L 225 15" fill="none" stroke="#e11d2a" stroke-width="4" stroke-dasharray="12 6"/>
+    <!-- Upward Arrowhead entering bottom of Column 1 -->
+    <polygon points="225,0 215,20 235,20" fill="#ff4d4d"/>
 
-    <!-- Center Indicator Pill -->
-    <rect x="530" y="42" width="540" height="36" rx="18" fill="#180407" stroke="#ff3b30" stroke-width="1.8" filter="url(#glowRed)"/>
-    <text x="800" y="66" text-anchor="middle" font-family="sans-serif" font-size="14" font-weight="900" fill="#fca5a5">
-      ↻ CONTINUOUS AD CAMPAIGN LOOP: DISCOVERED CREDENTIALS RE-INJECTED
+    <!-- Center Indicator Pill (Width=720, perfectly fitting text with 80px side margins) -->
+    <rect x="440" y="36" width="720" height="38" rx="19" fill="#180407" stroke="#ff3b30" stroke-width="1.8" filter="url(#glowRed)"/>
+    <text x="800" y="60" text-anchor="middle" font-family="sans-serif" font-size="13.5" font-weight="900" fill="#fca5a5" letter-spacing="0.5">
+      ↻ CONTINUOUS AD CAMPAIGN LOOP: DISCOVERED CREDENTIALS RE-INJECTED INTO INGRESS
     </text>
   </g>
 
   <!-- ========================================================================= -->
   <!-- FOOTER                                                                    -->
   <!-- ========================================================================= -->
-  <g transform="translate(800, 850)">
+  <g transform="translate(800, 845)">
     <text text-anchor="middle" font-family="'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#ff4d4d">
       Python ≥ 3.10 · Policy-Aware Active Directory Engine · Typed Command Builders · Operator-Gated HITL
     </text>
