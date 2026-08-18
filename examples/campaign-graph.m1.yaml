@@ -1,12 +1,98 @@
-# Minimal demo graph for standalone RedStrike (no CADRE lab secrets).
+# Bundled demo graph — standalone RedStrike (no lab secrets, no CADRE checkout).
+# Real campaign graphs, seeds, and scripts stay in the consuming lab repo.
 version: 1
-name: redstrike-demo-m1
+name: redstrike-demo
 nodes:
-  - id: DEMO-01
+  - id: DEMO-RECON
     phase: 1
     branch: spine
-    title: Demo recon step
-    path: linux60
+    title: Demo recon
+    path: ws01
+    beachheads: [windows, linux]
+    script: campaign-a/demo-recon.sh
+    requires_cred: null
+    produces_cred: operator_user
+
+  - id: DEMO-CREDS
+    phase: 2
+    branch: spine
+    title: Demo credential step
+    path: ws01
+    beachheads: [windows, linux]
+    script: campaign-a/demo-creds.sh
+    requires_cred: operator_user
+    produces_cred: null
+
+  - id: DEMO-EXEC
+    phase: 3
+    branch: spine
+    title: Demo typed intent
+    path: ws01
+    beachheads: [windows, linux]
+    script: campaign-a/demo-exec.sh
+    intent: certipy.find
+    intent_args:
+      target: dc.example.lab
+    cred: operator_user
+    requires_cred: operator_user
+    produces_cred: null
+
+  - id: DEMO-LATERAL
+    phase: 3
+    branch: spine
+    title: Demo lateral script
+    path: ws01
+    beachheads: [windows, linux]
+    script: campaign-a/demo-lateral.sh
+    requires_cred: operator_user
+    produces_cred: null
+
+  - id: DEMO-ACL
+    phase: 4
+    branch: A
+    title: Demo branch A
+    path: ws01
+    beachheads: [windows]
+    script: attacks/demo-acl.sh
+    requires_cred: operator_user
+    produces_cred: null
+
+  - id: DEMO-HITL
+    phase: 6
+    branch: spine
+    title: Demo HITL-gated step
+    path: ws01
+    beachheads: [windows]
+    script: campaign-a/demo-gated.sh
+    hitl_gate: dcsync
+    requires_cred: operator_user
+    produces_cred: null
+
+  - id: DEMO-E
+    phase: 9
+    branch: E
+    title: Demo stream E
+    path: external60_phase0
+    beachheads: [linux]
+    script: campaign-e/demo-e.sh
+    requires_cred: null
+    produces_cred: null
+
+  - id: DEMO-F
+    phase: 10
+    branch: F
+    title: Demo stream F
+    path: external60_phase0
+    beachheads: [linux]
+    script: campaign-f/demo-f.sh
+    requires_cred: null
+    produces_cred: null
+
+  - id: DEMO-STUB
+    phase: 8
+    branch: spine
+    title: Demo stub placeholder
+    path: ws01
     beachheads: [windows, linux]
     script: ""
     stub: true

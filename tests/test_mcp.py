@@ -1,7 +1,7 @@
 import sys
 from types import ModuleType
 
-from cadre_strike.mcp import server
+from redstrike.mcp import server
 
 
 class FakeMCP:
@@ -65,7 +65,7 @@ def test_mcp_passes_integration_metadata(monkeypatch) -> None:
         engagement_id="eng-001",
         operator_id="op-1",
         run_id="run-001",
-        source_system="cadre",
+        source_system="redstrike",
         evidence_tags=["users", "phase1"],
     )
 
@@ -73,7 +73,7 @@ def test_mcp_passes_integration_metadata(monkeypatch) -> None:
     assert payload["engagement_id"] == "eng-001"
     assert payload["operator_id"] == "op-1"
     assert payload["run_id"] == "run-001"
-    assert payload["source_system"] == "cadre"
+    assert payload["source_system"] == "redstrike"
     assert payload["evidence_tags"] == ["users", "phase1"]
 
 

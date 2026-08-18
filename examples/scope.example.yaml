@@ -1,11 +1,22 @@
-# RedStrike starter scope file.
-# The MVP loader accepts this simple YAML subset: top-level keys with list values.
+# Copy this file to scope.yaml in the working directory, then edit.
+# Overlay a built-in profile with: redstrike-api --scope scope.yaml --profile standalone
+#
+# Built-in profiles:
+#   standalone      read-only AD assessment (default API)
+#   campaign        validate + high-risk allowed (HITL still gates --execute)
+#   validate-gated  same as campaign with longer cooldowns
+#   adcs-deep       ADCS-focused
+#   forest-trust-review  read-only forest/trust review
+#
+# Empty allowed_targets / allowed_domains means "no extra restriction".
+# Fill them in before pointing the API at a real network.
+
 allowed_targets:
   - 192.168.1.7
   - 192.168.1.11
 allowed_domains:
-  - ignite.local
+  - example.lab
 allowed_modes:
   - observe
   - assess
-
+allow_high_risk: false

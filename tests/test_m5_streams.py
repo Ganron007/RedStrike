@@ -4,12 +4,13 @@ from pathlib import Path
 
 import pytest
 
-from cadre_strike.cli.campaign import main as cli_main
-from cadre_strike.runtime.graph import STREAM_SPECS, load_campaign_graph, parse_branches
-from cadre_strike.runtime.preflight import preflight
-from cadre_strike.runtime.session import CampaignSession
-from cadre_strike.runtime.streams import resolve_stream, stream_help
+from redstrike.cli.campaign import main as cli_main
+from redstrike.runtime.graph import STREAM_SPECS, load_campaign_graph, parse_branches
+from redstrike.runtime.preflight import preflight
+from redstrike.runtime.session import CampaignSession
+from redstrike.runtime.streams import resolve_stream, stream_help
 
+EXAMPLES = Path(__file__).resolve().parents[1] / "examples"
 CADRE_AUTO = (
     Path(__file__).resolve().parents[2]
     / "CADRE"
@@ -33,6 +34,8 @@ def automation_root(tmp_path: Path) -> Path:
         "campaign-e/wt070-dns-txt.sh",
         "campaign-f/F01-webhook-postinstall.sh",
         "campaign-f/F10-webhook-exfil-probe.sh",
+        "campaign-e/demo-e.sh",
+        "campaign-f/demo-f.sh",
     ]:
         path = root / rel
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -51,6 +54,37 @@ def test_stream_specs() -> None:
 def test_parse_branches_includes_e_f() -> None:
     assert parse_branches("E,F") == {"E", "F"}
     assert {"E", "F"} <= parse_branches("all")
+
+
+def test_stream_e_f_dry_run_standalone(automation_root: Path, tmp_path: Path) -> None:
+    demo = EXAMPLES / "campaign-graph.m1.yaml"
+    seed = EXAMPLES / "seed.example.json"
+    e_session = CampaignSession(
+        "stream-e-demo",
+        beachhead="linux",
+        automation_root=automation_root,
+        graph_path=demo,
+        ledger_root=tmp_path / "ledgers",
+        seed_path=seed,
+        branches="E",
+    )
+    e_summary = e_session.run_phase("9", dry_run=True, include_preflight=False)
+    assert "DEMO-E" in {s["node_id"] for s in e_summary["steps"]}
+    assert "DEMO-RECON" not in {s["node_id"] for s in e_summary["steps"]}
+    assert e_summary["ws01_exec_count"] == 0
+
+    f_session = CampaignSession(
+        "stream-f-demo",
+        beachhead="linux",
+        automation_root=automation_root,
+        graph_path=demo,
+        ledger_root=tmp_path / "ledgers-f",
+        seed_path=seed,
+        branches="F",
+    )
+    f_summary = f_session.run_phase("10", dry_run=True, include_preflight=False)
+    assert "DEMO-F" in {s["node_id"] for s in f_summary["steps"]}
+    assert f_summary["ws01_exec_count"] == 0
 
 
 @pytest.mark.skipif(not GRAPH.is_file(), reason="CADRE graph missing")
@@ -114,9 +148,11 @@ def test_preflight_e_f_profiles() -> None:
     assert "linux01" in f.required_hosts
 
 
-@pytest.mark.skipif(not GRAPH.is_file() or not SEED.is_file(), reason="CADRE graph/seed missing")
-def test_cli_stream_e(automation_root: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_cli_stream_e_standalone(
+    automation_root: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     monkeypatch.setenv("REDSTRIKE_HOME", str(tmp_path / "home"))
+    monkeypatch.delenv("CADRE_ROOT", raising=False)
     rc = cli_main(
         [
             "stream",
@@ -124,11 +160,11 @@ def test_cli_stream_e(automation_root: Path, tmp_path: Path, monkeypatch: pytest
             "--engage",
             "cli-e",
             "--graph",
-            str(GRAPH),
+            str(EXAMPLES / "campaign-graph.m1.yaml"),
             "--automation-root",
             str(automation_root),
             "--seed",
-            str(SEED),
+            str(EXAMPLES / "seed.example.json"),
             "--no-preflight",
             "--json",
         ]

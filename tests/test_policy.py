@@ -1,7 +1,7 @@
 import pytest
 
-from cadre_strike.core.models import EngagementMode
-from cadre_strike.core.policy import ScopePolicy, load_scope_policy
+from redstrike.core.models import EngagementMode
+from redstrike.core.policy import ScopePolicy, load_scope_policy
 
 
 def test_policy_allows_exact_target_and_domain() -> None:
@@ -70,13 +70,21 @@ def test_load_scope_policy_rejects_orphan_list_item(tmp_path) -> None:
 
 
 def test_load_scope_policy_profile_defaults() -> None:
-    policy = load_scope_policy(path=None, profile="lab-readonly")
+    policy = load_scope_policy(path=None, profile="standalone")
 
     assert policy.allowed_modes == [EngagementMode.OBSERVE, EngagementMode.ASSESS]
     assert policy.allow_high_risk is False
     assert policy.max_concurrent_per_target == 1
     assert policy.max_concurrent_per_domain == 3
     assert policy.cooldown_seconds_per_target == 1.0
+
+
+def test_load_scope_policy_cadre_campaign_alias() -> None:
+    a = load_scope_policy(path=None, profile="campaign")
+    b = load_scope_policy(path=None, profile="cadre-campaign")
+    assert a.allow_high_risk is True
+    assert b.allow_high_risk is True
+    assert a.allowed_modes == b.allowed_modes
 
 
 def test_load_scope_policy_profile_and_scope_file_overlay(tmp_path) -> None:

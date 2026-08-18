@@ -1,18 +1,17 @@
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
 
-from cadre_strike.api.server import create_app
-from cadre_strike.mcp import server as mcp_server
-from cadre_strike.runtime.beachhead import Beachhead
-from cadre_strike.runtime.graph import load_campaign_graph, parse_phase_filter
-from cadre_strike.runtime.hitl import HitlGate
-from cadre_strike.runtime.orchestrator import CampaignOrchestrator
-from cadre_strike.runtime.session import CampaignSession
+from redstrike.api.server import create_app
+from redstrike.mcp import server as mcp_server
+from redstrike.runtime.beachhead import Beachhead
+from redstrike.runtime.graph import load_campaign_graph, parse_phase_filter
+from redstrike.runtime.hitl import HitlGate
+from redstrike.runtime.orchestrator import CampaignOrchestrator
+from redstrike.runtime.session import CampaignSession
 
 EXAMPLES = Path(__file__).resolve().parents[1] / "examples"
 CADRE_AUTO = (
@@ -44,6 +43,11 @@ def automation_root(tmp_path: Path) -> Path:
         "campaign-a/T042-clr-ws01.sh",
         "campaign-a/T028-nullsession.sh",
         "attacks/WT017-printerbug-spoolsample.sh",
+        "campaign-a/demo-recon.sh",
+        "campaign-a/demo-creds.sh",
+        "campaign-a/demo-exec.sh",
+        "campaign-a/demo-lateral.sh",
+        "campaign-a/demo-gated.sh",
     ):
         path = root / rel
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -67,6 +71,28 @@ def test_parse_phase_filter_half_phases() -> None:
     match = parse_phase_filter("0.5-3")
     assert match(0.5) and match(1) and match(3)
     assert not match(0) and not match(4)
+
+
+def test_hitl_blocks_until_approved_standalone(automation_root: Path, tmp_path: Path) -> None:
+    demo = EXAMPLES / "campaign-graph.m1.yaml"
+    seed = EXAMPLES / "seed.example.json"
+    session = CampaignSession(
+        "hitl-demo",
+        beachhead="windows",
+        automation_root=automation_root,
+        graph_path=demo,
+        ledger_root=tmp_path / "ledgers",
+        seed_path=seed,
+    )
+    summary = session.run_phase("6", dry_run=True, include_preflight=False)
+    by_id = {s["node_id"]: s for s in summary["steps"]}
+    assert by_id["DEMO-HITL"]["awaiting_approval"] is True
+
+    session.approve(HitlGate.DCSYNC.value)
+    summary2 = session.run_phase("6", dry_run=True, include_preflight=False)
+    by_id2 = {s["node_id"]: s for s in summary2["steps"]}
+    assert by_id2["DEMO-HITL"]["awaiting_approval"] is False
+    assert by_id2["DEMO-HITL"]["skipped"] is False
 
 
 @pytest.mark.skipif(not CADRE_GRAPH.is_file(), reason="CADRE graph not beside RedStrike")
@@ -94,7 +120,7 @@ def test_hitl_blocks_dcsync_until_approved(automation_root: Path, tmp_path: Path
         graph_path=CADRE_GRAPH,
         ledger_root=tmp_path / "ledgers",
     )
-    from cadre_strike.runtime.ledger import Credential
+    from redstrike.runtime.ledger import Credential
 
     orch.ledger.put(Credential(name="krbtgt", username="krbtgt", source="test"))
 
@@ -123,7 +149,7 @@ def test_execute_stops_on_first_gate(automation_root: Path, tmp_path: Path) -> N
 
 
 def test_mbr01_still_requires_flag(automation_root: Path) -> None:
-    from cadre_strike.runtime.beachhead import BeachheadRouter
+    from redstrike.runtime.beachhead import BeachheadRouter
 
     router = BeachheadRouter(automation_root=automation_root, allow_mbr01_stage=False)
     with pytest.raises(PermissionError):
@@ -132,7 +158,7 @@ def test_mbr01_still_requires_flag(automation_root: Path) -> None:
 
 def test_api_campaign_routes(automation_root: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("REDSTRIKE_HOME", str(tmp_path / "rs"))
-    client = TestClient(create_app(profile="cadre-campaign"))
+    client = TestClient(create_app(profile="campaign"))
     start = client.post(
         "/campaign/start",
         json={
@@ -140,8 +166,8 @@ def test_api_campaign_routes(automation_root: Path, tmp_path: Path, monkeypatch:
             "beachhead": "windows",
             "operator": "provisioning",
             "automation_root": str(automation_root),
-            "graph": str(CADRE_GRAPH) if CADRE_GRAPH.is_file() else str(EXAMPLES / "campaign-graph.m1.yaml"),
-            "seed": str(SEED),
+            "graph": str(EXAMPLES / "campaign-graph.m1.yaml"),
+            "seed": str(EXAMPLES / "seed.example.json"),
         },
     )
     assert start.status_code == 200
@@ -157,8 +183,8 @@ def test_api_campaign_routes(automation_root: Path, tmp_path: Path, monkeypatch:
             "phase": "1-3",
             "dry_run": True,
             "automation_root": str(automation_root),
-            "graph": str(CADRE_GRAPH) if CADRE_GRAPH.is_file() else str(EXAMPLES / "campaign-graph.m1.yaml"),
-            "seed": str(SEED),
+            "graph": str(EXAMPLES / "campaign-graph.m1.yaml"),
+            "seed": str(EXAMPLES / "seed.example.json"),
         },
     )
     assert run.status_code == 200

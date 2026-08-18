@@ -5,14 +5,33 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/CADRE-Platform/RedStrike/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/CADRE-Platform/RedStrike/ci.yml?label=CI" alt="CI"></a>
+  <a href="https://github.com/Ganron007/RedStrike/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/Ganron007/RedStrike/ci.yml?label=CI" alt="CI"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-green.svg" alt="License: MIT"></a>
   <img src="https://img.shields.io/badge/Python-%E2%89%A53.10-blue.svg" alt="Python: >=3.10">
-  <img src="https://img.shields.io/badge/Version-0.5.2-blue.svg" alt="Version: 0.5.2">
-  <img src="https://img.shields.io/badge/Status-E%2FF%20Streams-yellow.svg" alt="Status: E/F Streams">
+  <img src="https://img.shields.io/badge/Version-0.6.0-blue.svg" alt="Version: 0.6.0">
 </p>
 
-Part of the [CADRE](https://github.com/Ganron007/CADRE) platform — agentic AD/ADCS campaign orchestration (CADRE supplies graph, seeds, and profiles).
+Standalone **agentic AD / ADCS** assessment API plus a generic campaign-graph engine.
+Lab graphs, seeds, and attack scripts are **not** in this repository — pass your own
+`--graph` / `--seed`, or use the bundled demo under `examples/`.
+
+**New users:** follow **[`docs/SETUP.md`](docs/SETUP.md)** (clone → venv → install →
+`redstrike check` → `scope.yaml` → dry-run). Secrets: [`docs/SECURITY.md`](docs/SECURITY.md).
+
+### Two tracks
+
+| Track | Engine | Graph / seeds | When |
+|---|---|---|---|
+| **Standalone (this repo)** | This clone | Yours, or `examples/` | Product use, or **practice** on any authorized lab (including CADRE VMs you operate) |
+| **CADRE Plan 01** | Pin `CADRE/tools/red-strike/` | CADRE campaign files | Official CADRE campaign runs |
+
+Standalone evolves here. New features are **adopted into the CADRE pin** after they land.
+A standalone clone may target CADRE VMs with **your** graph and `scope.yaml`; that is
+practice, not the integrated campaign path. Do not set `CADRE_ROOT` on a standalone
+clone and treat it as Plan 01.
+
+The Python package is `redstrike`. CLI: `redstrike`, `redstrike-api`, `redstrike-mcp`,
+`redstrike-campaign`.
 
 > [!IMPORTANT]
 > **Authorized use only.** RedStrike is an offensive security tool. Use it **only** for
@@ -114,12 +133,25 @@ action/target/domain/mode and runs the same service method on a worker thread
 
 ## Quick Start
 
+Full walkthrough (Windows included): [`docs/SETUP.md`](docs/SETUP.md). Short path:
+
 ```bash
 python -m venv .venv
-source .venv/bin/activate
+source .venv/bin/activate   # Windows: .venv\Scripts\Activate.ps1
 pip install -e ".[dev,mcp]"
-cp examples/scope.example.yaml scope.yaml
-redstrike-api --scope scope.yaml --profile lab-readonly --api-key "change-me" --host 127.0.0.1 --port 8890
+cp examples/scope.example.yaml scope.yaml   # edit; never commit
+redstrike check
+redstrike-campaign run --phase 1-3 --beachhead windows --operator provisioning --engage demo \
+  --graph examples/campaign-graph.m1.yaml \
+  --seed examples/seed.example.json \
+  --automation-root examples/automation
+```
+
+API (generate a **local** key; do not commit it):
+
+```bash
+export REDSTRIKE_API_KEY="$(python -c 'import secrets; print(secrets.token_urlsafe(32))')"
+redstrike-api --scope scope.yaml --profile standalone --api-key "$REDSTRIKE_API_KEY" --host 127.0.0.1 --port 8890
 ```
 
 Health check:
@@ -130,15 +162,18 @@ curl http://127.0.0.1:8890/health
 
 ## Example API Call
 
+Replace `dc.example.lab` with a host already listed in **your** `scope.yaml`.
+`$REDSTRIKE_API_KEY` is an environment variable, not a real key in this file.
+
 ```bash
 curl -X POST http://127.0.0.1:8890/ad/users \
   -H "Content-Type: application/json" \
-  -H "X-API-Key: change-me" \
+  -H "X-API-Key: $REDSTRIKE_API_KEY" \
   -d '{
-    "target": "192.168.1.7",
-    "domain": "ignite.local",
-    "username": "raaz",
-    "password": "<REDACTED_PASSWORD>"
+    "target": "dc.example.lab",
+    "domain": "example.lab",
+    "username": "operator_user",
+    "password": "<REDACTED>"
   }'
 ```
 
@@ -157,7 +192,7 @@ balancer unless you have an external shared store — jobs created on one replic
 visible to another.
 
 ```bash
-redstrike-api --scope scope.yaml --profile lab-readonly --api-key "change-me" --host 127.0.0.1 --port 8890
+redstrike-api --scope scope.yaml --profile standalone --api-key "$REDSTRIKE_API_KEY" --host 127.0.0.1 --port 8890
 ```
 
 ## Async Jobs API
@@ -168,48 +203,48 @@ Long-running assessments can be submitted as jobs and polled for status:
 # Submit a job
 curl -X POST http://127.0.0.1:8890/jobs \
   -H "Content-Type: application/json" \
-  -H "X-API-Key: change-me" \
-  -d '{"action": "domain_users", "target": "192.168.1.7", "domain": "ignite.local"}'
+  -H "X-API-Key: $REDSTRIKE_API_KEY" \
+  -d '{"action": "domain_users", "target": "dc.example.lab", "domain": "example.lab"}'
 
 # Poll for the result
-curl http://127.0.0.1:8890/jobs/{job_id} -H "X-API-Key: change-me"
+curl http://127.0.0.1:8890/jobs/{job_id} -H "X-API-Key: $REDSTRIKE_API_KEY"
 ```
 
 A job transitions `PENDING → RUNNING → COMPLETED` (or `FAILED`). Submitting the same
 `action`/`target`/`domain`/`mode` again returns the existing in-flight or completed job
 instead of starting a duplicate; a `FAILED` job can be retried.
 
-## Campaign graph engine (optional CADRE consumer)
+## Campaign graph engine
+
+The orchestrator is generic. This repo ships a **demo graph** only. Point it at your
+own YAML graph and seed JSON, or use the examples:
 
 ```bash
 pip install -e .
-export CADRE_ROOT=/path/to/CADRE   # graph + seeds + automation scripts
-# Hybrid (orchestrator on Kali/.60 → SSH into ws01):
-redstrike-campaign start --beachhead windows --operator provisioning --engage lab1
-redstrike-campaign run --phase 0.5-8 --beachhead windows --operator provisioning --engage lab1
-# Native (orchestrator on domain-joined ws01 — no SSH wrap; default on win32):
-redstrike-campaign start --beachhead windows --operator ws01 --engage lab-native
-redstrike-campaign run --phase 1-3 --beachhead windows --operator ws01 --engage lab-native
-redstrike-campaign run --phase 8 --beachhead windows --engage lab1 --branch C
-redstrike-campaign stream E --engage lab1          # network-defense exercises (phase 9)
-redstrike-campaign stream F --engage lab1          # supply-chain exercises (phase 10)
-redstrike-campaign approve --gate dcsync --engage lab1
+redstrike check
+redstrike-campaign run --phase 1-3 --beachhead windows --operator provisioning --engage demo \
+  --graph examples/campaign-graph.m1.yaml \
+  --seed examples/seed.example.json \
+  --automation-root examples/automation
 ```
 
-- Lab **graph / seeds / profiles** live in CADRE `Campaign/automation/` when present
-- **Dual operators:** `provisioning` (hybrid) · `ws01` (native) — see CADRE `Red-Strike-workflow.md`
-- Typed **intents** (Certipy/Rubeus/bloodyAD/SQL/SharpSCCM/mimikatz) — MCP `build_intent`
-- `--branch …` · HITL · `--prefer-script` · `stream E|F` (no ws01 routing)
-- Plan 1.1 **complete**; engine **0.5.2**; live `--execute` is HITL-gated
+SSH wrap to a Windows beachhead uses env vars (no lab defaults):
+`REDSTRIKE_WS01_HOST`, `REDSTRIKE_WS01_USER`, `REDSTRIKE_WS01_SSH_KEY`.
 
-See [`ROADMAP.md`](ROADMAP.md) · [`CHANGELOG.md`](CHANGELOG.md).
+Optional: a standalone clone can load CADRE files with `CADRE_ROOT` for **practice**.
+CADRE **Plan 01** campaigns must use the pin `CADRE/tools/red-strike/` instead
+(see [`docs/CADRE-PIN.md`](docs/CADRE-PIN.md)).
+
+- `--branch …` · HITL gates (`approve --gate …`) · `--prefer-script` · `stream E|F`
+- Typed intents (Certipy / Rubeus / bloodyAD / SQL / SharpSCCM / mimikatz) via MCP `build_intent`
+- Live `--execute` is HITL-gated and needs operator tools on PATH (`redstrike check --execute-ready`)
 
 ## Reporting
 
 Findings and evidence can be exported as a structured report:
 
 ```python
-from cadre_strike.reporting.json_report import render_json_report
+from redstrike.reporting.json_report import render_json_report
 
 report = render_json_report(findings, evidence)
 ```

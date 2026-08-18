@@ -1,5 +1,5 @@
-from cadre_strike.ad.graph import ADKnowledgeGraph
-from cadre_strike.core.models import EvidenceRecord, Finding, RiskLevel
+from redstrike.ad.graph import ADKnowledgeGraph
+from redstrike.core.models import EvidenceRecord, Finding, RiskLevel
 
 
 def _evidence(ev_id: str, *, entities: list[dict] | None = None, confidence: float = 0.6) -> EvidenceRecord:

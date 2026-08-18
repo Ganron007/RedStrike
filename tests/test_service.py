@@ -2,10 +2,10 @@ import threading
 
 import pytest
 
-from cadre_strike.ad.service import ActiveDirectoryAssessmentService
-from cadre_strike.core.errors import GuardrailViolationError
-from cadre_strike.core.models import ADRequest, CommandResult
-from cadre_strike.core.policy import ScopePolicy
+from redstrike.ad.service import ActiveDirectoryAssessmentService
+from redstrike.core.errors import GuardrailViolationError
+from redstrike.core.models import ADRequest, CommandResult
+from redstrike.core.policy import ScopePolicy
 
 
 class FakeRunner:
@@ -59,7 +59,7 @@ def test_adcs_enum_runs_read_only_ldap_operation() -> None:
             engagement_id="eng-001",
             operator_id="op-1",
             run_id="run-001",
-            source_system="cadre",
+            source_system="redstrike",
             evidence_tags=["adcs", "phase1"],
         )
     )
@@ -71,7 +71,7 @@ def test_adcs_enum_runs_read_only_ldap_operation() -> None:
     assert response.evidence.engagement_id == "eng-001"
     assert response.evidence.operator_id == "op-1"
     assert response.evidence.run_id == "run-001"
-    assert response.evidence.source_system == "cadre"
+    assert response.evidence.source_system == "redstrike"
     assert response.evidence.evidence_tags == ["adcs", "phase1"]
     assert runner.argv == [
         "nxc",

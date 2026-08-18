@@ -1,7 +1,7 @@
 from fastapi.testclient import TestClient
 
-from cadre_strike.api import server
-from cadre_strike.core.models import OperationResponse
+from redstrike.api import server
+from redstrike.core.models import OperationResponse
 
 
 class _OkService:
@@ -80,7 +80,7 @@ def test_api_maps_permission_error_to_403(monkeypatch) -> None:
 
 
 def test_api_maps_guardrail_violation_to_429(monkeypatch) -> None:
-    from cadre_strike.core.errors import GuardrailViolationError
+    from redstrike.core.errors import GuardrailViolationError
 
     class _GuardrailService(_OkService):
         def domain_users(self, _request):
@@ -133,7 +133,7 @@ def test_api_skips_rate_limit_for_loopback(monkeypatch) -> None:
 
 
 def test_rate_limiter_isolates_keys() -> None:
-    from cadre_strike.core.errors import RateLimitExceededError
+    from redstrike.core.errors import RateLimitExceededError
 
     limiter = server.RateLimiter(max_requests=1, window_seconds=60.0)
     limiter.check("caller-a|/ad/users")

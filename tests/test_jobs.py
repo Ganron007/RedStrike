@@ -2,8 +2,8 @@ import time
 
 from fastapi.testclient import TestClient
 
-from cadre_strike.api import server
-from cadre_strike.core.models import OperationResponse
+from redstrike.api import server
+from redstrike.core.models import OperationResponse
 
 
 class _OkService:

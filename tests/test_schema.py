@@ -1,7 +1,7 @@
 import pytest
 from pydantic import ValidationError
 
-from cadre_strike.core.models import (
+from redstrike.core.models import (
     ADRequest,
     EngagementMode,
     EvidenceRecord,
@@ -21,14 +21,14 @@ def test_adrequest_accepts_and_serializes_metadata_fields() -> None:
         engagement_id="eng-1",
         operator_id="op-1",
         run_id="run-1",
-        source_system="cadre",
+        source_system="redstrike",
         evidence_tags=["adcs", "phase1"],
     )
     dumped = request.model_dump()
     assert dumped["engagement_id"] == "eng-1"
     assert dumped["operator_id"] == "op-1"
     assert dumped["run_id"] == "run-1"
-    assert dumped["source_system"] == "cadre"
+    assert dumped["source_system"] == "redstrike"
     assert dumped["evidence_tags"] == ["adcs", "phase1"]
 
 
@@ -67,7 +67,7 @@ def test_evidence_record_serializes_parsed_entities() -> None:
 
 
 def test_finding_model_includes_attack_and_remediation() -> None:
-    from cadre_strike.core.models import Finding
+    from redstrike.core.models import Finding
 
     finding = Finding(
         id="f1",

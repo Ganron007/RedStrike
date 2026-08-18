@@ -1,4 +1,4 @@
-from cadre_strike.ad.parsers import (
+from redstrike.ad.parsers import (
     parse_adcs,
     parse_admin_count,
     parse_computers,

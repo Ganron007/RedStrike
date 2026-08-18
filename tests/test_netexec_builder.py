@@ -1,7 +1,7 @@
 from pydantic import SecretStr
 
-from cadre_strike.ad.netexec import NetExecCommandBuilder
-from cadre_strike.core.runner import redact_argv
+from redstrike.ad.netexec import NetExecCommandBuilder
+from redstrike.core.runner import redact_argv
 
 
 def test_builder_returns_argument_vector_not_shell_string() -> None:

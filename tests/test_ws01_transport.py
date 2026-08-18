@@ -2,17 +2,19 @@ from __future__ import annotations
 
 import os
 
-from cadre_strike.runtime.beachhead import Beachhead, BeachheadRouter, OperatorMode
-from cadre_strike.runtime.ws01_transport import argv_for_plan, wrap_argv_for_ws01
+from redstrike.runtime.beachhead import Beachhead, BeachheadRouter, OperatorMode
+from redstrike.runtime.ws01_transport import argv_for_plan, wrap_argv_for_ws01
 
 
 def test_wrap_argv_for_ws01_builds_ssh() -> None:
     os.environ["REDSTRIKE_WS01_SSH_KEY"] = "/tmp/fake-key"
-    argv = wrap_argv_for_ws01(["certipy", "find", "-target", "dc01.cadre.local"])
+    os.environ["REDSTRIKE_WS01_HOST"] = "10.0.0.5"
+    os.environ["REDSTRIKE_WS01_USER"] = "labuser"
+    argv = wrap_argv_for_ws01(["certipy", "find", "-target", "dc.example.lab"])
     assert argv[0] == "ssh"
     assert "-i" in argv
     assert "/tmp/fake-key" in argv
-    assert argv[-2].startswith("analyst_t1@")
+    assert argv[-2] == "labuser@10.0.0.5"
     assert "powershell" in argv[-1]
     assert "certipy" in argv[-1]
 

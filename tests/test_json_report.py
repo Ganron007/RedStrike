@@ -1,5 +1,5 @@
-from cadre_strike.core.models import EvidenceRecord, Finding, RiskLevel
-from cadre_strike.reporting.json_report import render_json_report
+from redstrike.core.models import EvidenceRecord, Finding, RiskLevel
+from redstrike.reporting.json_report import render_json_report
 
 
 def test_json_report_includes_required_fields() -> None:

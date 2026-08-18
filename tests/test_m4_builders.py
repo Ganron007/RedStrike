@@ -6,8 +6,8 @@ import pytest
 from fastapi.testclient import TestClient
 from pydantic import SecretStr
 
-from cadre_strike.api.server import create_app
-from cadre_strike.builders import (
+from redstrike.api.server import create_app
+from redstrike.builders import (
     BloodyADBuilder,
     CertipyBuilder,
     MimikatzBuilder,
@@ -15,10 +15,11 @@ from cadre_strike.builders import (
     SharpSCCMBuilder,
     SqlBuilder,
 )
-from cadre_strike.core.runner import redact_argv
-from cadre_strike.runtime.intents import IntentRegistry
-from cadre_strike.runtime.session import CampaignSession
+from redstrike.core.runner import redact_argv
+from redstrike.runtime.intents import IntentRegistry
+from redstrike.runtime.session import CampaignSession
 
+EXAMPLES = Path(__file__).resolve().parents[1] / "examples"
 CADRE_AUTO = (
     Path(__file__).resolve().parents[2]
     / "CADRE"
@@ -91,8 +92,30 @@ def test_intent_registry_known() -> None:
     assert argv[0] == "certipy"
 
 
+def test_orchestrator_prefers_intent_standalone(tmp_path: Path) -> None:
+    root = tmp_path / "linux"
+    (root / "campaign-a").mkdir(parents=True)
+    for name in ("demo-recon.sh", "demo-creds.sh", "demo-exec.sh", "demo-lateral.sh"):
+        (root / "campaign-a" / name).write_text("#!/bin/bash\n", encoding="utf-8")
+    session = CampaignSession(
+        "m4-demo",
+        beachhead="windows",
+        automation_root=root,
+        graph_path=EXAMPLES / "campaign-graph.m1.yaml",
+        ledger_root=tmp_path / "ledgers",
+        seed_path=EXAMPLES / "seed.example.json",
+        branches="spine",
+    )
+    summary = session.run_phase("1-3", dry_run=True, include_preflight=False)
+    by_id = {s["node_id"]: s for s in summary["steps"]}
+    assert by_id["DEMO-EXEC"]["intent"] == "certipy.find"
+    assert by_id["DEMO-EXEC"]["mechanism"].startswith("intent:")
+    assert by_id["DEMO-EXEC"]["argv"][0] == "certipy"
+    assert summary.get("intent_count", 0) >= 1
+
+
 @pytest.mark.skipif(not GRAPH.is_file(), reason="CADRE graph missing")
-def test_orchestrator_prefers_intent(tmp_path: Path) -> None:
+def test_orchestrator_prefers_intent_cadre_graph(tmp_path: Path) -> None:
     root = tmp_path / "linux"
     (root / "campaign-a").mkdir(parents=True)
     for name in ("T003-asrep-ws01.sh", "T002-kerb-ws01.sh", "T041-xpcmd-ws01.sh", "T043-impersonate-ws01.sh"):
@@ -115,7 +138,7 @@ def test_orchestrator_prefers_intent(tmp_path: Path) -> None:
 
 
 def test_api_builders_preview() -> None:
-    client = TestClient(create_app(profile="cadre-campaign"))
+    client = TestClient(create_app(profile="campaign"))
     res = client.post(
         "/builders/preview",
         json={"intent": "sharpsccm.get_naa", "args": {"server": "mbr02.range.local"}},

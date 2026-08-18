@@ -4,10 +4,11 @@ from pathlib import Path
 
 import pytest
 
-from cadre_strike.runtime.graph import load_campaign_graph, parse_branches
-from cadre_strike.runtime.preflight import preflight
-from cadre_strike.runtime.session import CampaignSession, default_seed_path
+from redstrike.runtime.graph import load_campaign_graph, parse_branches
+from redstrike.runtime.preflight import preflight
+from redstrike.runtime.session import CampaignSession, default_seed_path
 
+EXAMPLES = Path(__file__).resolve().parents[1] / "examples"
 CADRE_AUTO = (
     Path(__file__).resolve().parents[2]
     / "CADRE"
@@ -30,6 +31,11 @@ def automation_root(tmp_path: Path) -> Path:
         "attacks/WT034-sccm-naa-extraction.sh",
         "attacks/WT040-mssql-linked-server-hop.sh",
         "attacks/WT031-password-spray.sh",
+        "campaign-a/demo-recon.sh",
+        "campaign-a/demo-creds.sh",
+        "campaign-a/demo-exec.sh",
+        "campaign-a/demo-lateral.sh",
+        "attacks/demo-acl.sh",
     ]
     for rel in scripts:
         path = root / rel
@@ -82,6 +88,7 @@ def test_branch_c_preflight_warns_for_forest(automation_root: Path, tmp_path: Pa
         beachhead="windows",
         automation_root=automation_root,
         graph_path=GRAPH,
+        cadre_root=CADRE_AUTO.parents[2],
         ledger_root=tmp_path / "ledgers",
         seed_path=SEED if SEED.is_file() else None,
         branches="C",
@@ -98,10 +105,38 @@ def test_preflight_loads_cadre_profiles() -> None:
     assert "linux01" in result.required_hosts
 
 
-def test_default_seed_prefers_cadre_not_example() -> None:
+def test_branch_filter_excludes_spine_when_only_a_standalone(
+    automation_root: Path, tmp_path: Path
+) -> None:
+    session = CampaignSession(
+        "br-a-demo",
+        beachhead="windows",
+        automation_root=automation_root,
+        graph_path=EXAMPLES / "campaign-graph.m1.yaml",
+        ledger_root=tmp_path / "ledgers",
+        seed_path=EXAMPLES / "seed.example.json",
+        branches="A",
+    )
+    summary = session.run_phase("4-5", dry_run=True, include_preflight=False)
+    ids = {s["node_id"] for s in summary["steps"]}
+    assert "DEMO-ACL" in ids
+    assert "DEMO-RECON" not in ids
+    assert summary["branches"] == ["A"]
+
+
+def test_default_seed_is_example_without_cadre_root(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("CADRE_ROOT", raising=False)
+    monkeypatch.delenv("REDSTRIKE_SEED", raising=False)
     path = default_seed_path()
     assert path is not None
-    # When CADRE sibling exists, must not be the placeholder example
-    if SEED.is_file():
-        assert path.resolve() == SEED.resolve()
-        assert "CHANGE_ME" not in path.read_text(encoding="utf-8")
+    assert path.resolve() == (EXAMPLES / "seed.example.json").resolve()
+
+
+@pytest.mark.skipif(not SEED.is_file(), reason="CADRE seed not present")
+def test_default_seed_uses_cadre_root(monkeypatch: pytest.MonkeyPatch) -> None:
+    cadre_root = Path(__file__).resolve().parents[2] / "CADRE"
+    monkeypatch.setenv("CADRE_ROOT", str(cadre_root))
+    path = default_seed_path()
+    assert path is not None
+    assert path.resolve() == SEED.resolve()
+    assert "CHANGE_ME" not in path.read_text(encoding="utf-8")
