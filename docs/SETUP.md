@@ -1,10 +1,7 @@
 # Setup (new users)
 
-This is the full install path for **standalone RedStrike**. You do not need the CADRE platform
-to complete it. Read [SECURITY.md](SECURITY.md) before you start an API or a live run.
-
-If you are running **CADRE Plan 01 campaigns**, stop: use the pin at `CADRE/tools/red-strike/`
-and CADRE's campaign workflow instead. This guide is for the public standalone product.
+This is the full install path for **standalone RedStrike**. Read [SECURITY.md](SECURITY.md)
+before you start an API or a live run.
 
 ---
 
@@ -267,20 +264,10 @@ export REDSTRIKE_WS01_SSH_KEY="/path/to/private-key"
 
 ---
 
-## Practice on a lab you own (including CADRE VMs)
+## Practice on a lab you own
 
-Standalone RedStrike can target **any authorized lab**, including CADRE virtual machines, if
-**you** write the graph, seed, and scope. That is a practice run. It is **not** the CADRE
-Plan 01 integrated campaign:
-
-| | Standalone (this repo) | CADRE Plan 01 |
-|---|---|---|
-| Engine install | This clone, `pip install -e .` | `CADRE/tools/red-strike/` pin |
-| Graph / seeds / scripts | Yours, or `examples/` | CADRE `Campaign/automation/` + `04-automation/` |
-| How to point at CADRE VMs | Your `scope.yaml` + env + `--graph` | `CADRE_ROOT` + pin install |
-| Feature source | This repository | Sync **from** this repository **into** the pin |
-
-Do not copy lab password files into this git tree.
+Standalone RedStrike can target **any authorized lab** if **you** write the graph, seed,
+and scope. Do not copy lab password files into this git tree.
 
 ---
 
@@ -294,7 +281,6 @@ Do not copy lab password files into this git tree.
 | Dry-run looks for scripts under cwd | Pass `--automation-root examples/automation` |
 | `--execute` pauses immediately | Approve the HITL gate named in `pending_gate` |
 | API `401` from another host | Send `X-API-Key` matching `--api-key`; prefer loopback |
-| Want CADRE's real campaign | Use `CADRE/tools/red-strike/`, not this clone's `CADRE_ROOT` shortcut, for Plan 01 |
 
 ---
 
@@ -302,5 +288,4 @@ Do not copy lab password files into this git tree.
 
 - [SECURITY.md](SECURITY.md) — keys, gitignore, redaction
 - [README.md](../README.md) — product overview, API, safety model
-- [CADRE-PIN.md](CADRE-PIN.md) — standalone vs CADRE campaign pin
 - [RELEASE.md](RELEASE.md) — tagging (maintainers)

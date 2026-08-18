@@ -185,10 +185,6 @@ redstrike-campaign run --phase 1-3 --beachhead windows --operator provisioning -
 - Optional SSH to a Windows beachhead via `REDSTRIKE_WS01_HOST`, `REDSTRIKE_WS01_USER`,
   `REDSTRIKE_WS01_SSH_KEY` (no lab defaults in this repo)
 
-CADRE campaign operators install the pin at `CADRE/tools/red-strike/`, not this clone.
-Standalone RedStrike may still target CADRE VMs as **practice** with your own graph and
-scope. See [`docs/CADRE-PIN.md`](docs/CADRE-PIN.md).
-
 ## Reporting
 
 ```python
