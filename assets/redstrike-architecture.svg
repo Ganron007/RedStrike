@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="880" viewBox="0 0 1600 880" role="img" aria-label="RedStrike Active Directory Assessment Circuit & Execution Pipeline">
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="880" viewBox="0 0 1600 880" role="img" aria-label="RedStrike Active Directory Assessment Circuit &amp; Execution Pipeline">
   <defs>
     <!-- Background Gradient -->
     <linearGradient id="bgGrad" x1="0" y1="0" x2="1" y2="1">
@@ -92,7 +92,7 @@
       <path d="M55 0 L110 18 V62 C110 100 86 128 55 145 C24 128 0 100 0 62 V18 Z" fill="url(#crimsonGrad)" stroke="#7a0a12" stroke-width="3"/>
       <path d="M60 26 L38 74 L54 74 L46 116 L80 54 L58 54 Z" fill="#ffffff" opacity="0.95"/>
     </g>
-    <!-- Title & Subtitle -->
+    <!-- Title &amp; Subtitle -->
     <text x="60" y="24" font-family="'Segoe UI', -apple-system, sans-serif" font-size="34" font-weight="900" fill="url(#crimsonGrad)" letter-spacing="1">REDSTRIKE</text>
     <text x="245" y="24" font-family="'Segoe UI', -apple-system, sans-serif" font-size="34" font-weight="800" fill="#ffffff" letter-spacing="1">| PIPELINE &amp; ATTACK CIRCUIT</text>
     <text x="62" y="52" font-family="'Segoe UI', -apple-system, sans-serif" font-size="16" font-weight="600" fill="#fca5a5">
@@ -117,7 +117,7 @@
   <!-- ========================================================================= -->
 
   <!-- ========================================================================= -->
-  <!-- 1. LEFT COCKPIT: INGRESS & CONTROL VALVE (x=60, w=340)                    -->
+  <!-- 1. LEFT COCKPIT: INGRESS &amp; CONTROL VALVE (x=60, w=340)                    -->
   <!-- ========================================================================= -->
   <g transform="translate(60, 120)" filter="url(#shadow)">
     <!-- Chamfered Ingress Box -->
@@ -177,7 +177,7 @@
     <text x="16" y="22" font-family="sans-serif" font-size="14" font-weight="900" fill="#ffffff">2. TYPED ATTACK RAILS</text>
     <text x="200" y="22" font-family="sans-serif" font-size="13" font-weight="700" fill="#fca5a5">Pure `shell=False` argv · Subprocess Isolation · Transport Hop</text>
 
-    <!-- ==================== RAIL A: KERBEROS & DOMAIN ==================== -->
+    <!-- ==================== RAIL A: KERBEROS &amp; DOMAIN ==================== -->
     <g transform="translate(18, 48)">
       <rect x="0" y="0" width="604" height="120" rx="10" fill="#130305" stroke="#7f1d1d" stroke-width="1.4"/>
       
@@ -201,7 +201,7 @@
       </g>
     </g>
 
-    <!-- ==================== RAIL B: CERTIFICATE & ADCS ==================== -->
+    <!-- ==================== RAIL B: CERTIFICATE &amp; ADCS ==================== -->
     <g transform="translate(18, 182)">
       <rect x="0" y="0" width="604" height="120" rx="10" fill="#130305" stroke="#7f1d1d" stroke-width="1.4"/>
       
@@ -225,7 +225,7 @@
       </g>
     </g>
 
-    <!-- ==================== RAIL C: ACCESS CONTROL & SCCM ==================== -->
+    <!-- ==================== RAIL C: ACCESS CONTROL &amp; SCCM ==================== -->
     <g transform="translate(18, 316)">
       <rect x="0" y="0" width="604" height="120" rx="10" fill="#130305" stroke="#7f1d1d" stroke-width="1.4"/>
       
@@ -249,7 +249,7 @@
       </g>
     </g>
 
-    <!-- Subprocess Runner & Beachhead Engine -->
+    <!-- Subprocess Runner &amp; Beachhead Engine -->
     <g transform="translate(18, 450)">
       <rect x="0" y="0" width="604" height="110" rx="8" fill="#200a0e" stroke="#e11d2a" stroke-width="1.4"/>
       <text x="14" y="24" font-family="sans-serif" font-size="14" font-weight="800" fill="#ffffff">⚙️ CommandRunner Subprocess Engine &amp; Beachhead Proxy</text>
@@ -276,7 +276,7 @@
   <path d="M 1120 560 L 1150 560 L 1150 410 L 1180 410" fill="none" stroke="#38bdf8" stroke-width="3.5" marker-end="url(#arrCyan)"/>
 
   <!-- ========================================================================= -->
-  <!-- 3. RIGHT: CONVERGENT ORCHESTRATION & EVIDENCE HUB (x=1180, w=360)         -->
+  <!-- 3. RIGHT: CONVERGENT ORCHESTRATION &amp; EVIDENCE HUB (x=1180, w=360)         -->
   <!-- ========================================================================= -->
   <g transform="translate(1180, 120)" filter="url(#shadow)">
     <!-- Container -->
@@ -284,7 +284,7 @@
     <path d="M 0 16 L 16 0 L 190 0 L 190 32 L 0 32 Z" fill="#082836"/>
     <text x="16" y="22" font-family="sans-serif" font-size="14" font-weight="900" fill="#38bdf8">3. GRAPH &amp; LEDGER SSoT</text>
 
-    <!-- Target Surface & Parsers -->
+    <!-- Target Surface &amp; Parsers -->
     <g transform="translate(18, 48)">
       <rect x="0" y="0" width="324" height="118" rx="8" fill="#06161f" stroke="#0284c7" stroke-width="1.2"/>
       <text x="14" y="24" font-family="sans-serif" font-size="14" font-weight="800" fill="#38bdf8">AD Target Surface &amp; Parsers</text>
@@ -293,7 +293,7 @@
       <text x="14" y="92" font-family="sans-serif" font-size="12" font-weight="700" fill="#34d399">✓ `EvidenceRecord` + Cryptographic `audit_id`</text>
     </g>
 
-    <!-- Credential & Privilege Ledger SSoT -->
+    <!-- Credential &amp; Privilege Ledger SSoT -->
     <g transform="translate(18, 180)">
       <rect x="0" y="0" width="324" height="170" rx="8" fill="#061e12" stroke="#10b981" stroke-width="1.4"/>
       <text x="14" y="24" font-family="sans-serif" font-size="14" font-weight="900" fill="#4ade80">Credential &amp; Privilege Ledger</text>
@@ -306,7 +306,7 @@
       <text x="14" y="146" font-family="sans-serif" font-size="12" font-weight="800" fill="#34d399">✓ Single Source of Truth (Zero Fabrication)</text>
     </g>
 
-    <!-- Campaign Graph & Reporting -->
+    <!-- Campaign Graph &amp; Reporting -->
     <g transform="translate(18, 364)">
       <rect x="0" y="0" width="324" height="196" rx="8" fill="#06161f" stroke="#0284c7" stroke-width="1.2"/>
       <text x="14" y="24" font-family="sans-serif" font-size="14" font-weight="800" fill="#38bdf8">Campaign Orchestrator (DAG)</text>
