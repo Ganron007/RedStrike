@@ -25,6 +25,7 @@ dependencies = [
   "pydantic>=2.7,<3.0",
   "networkx>=3.2,<4.0",
   "PyYAML>=6.0,<7.0",
+  "rich>=13.7,<14.0",
 ]
 
 [project.urls]
