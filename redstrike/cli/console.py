@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 from rich.console import Console
+from rich.layout import Layout
 from rich.panel import Panel
 from rich.table import Table
-from rich.layout import Layout
 from rich.text import Text
 
 console = Console(highlight=False)

@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Callable
 
 logger = logging.getLogger(__name__)
 
@@ -72,7 +72,7 @@ class TeardownQueue:
                     succeeded += 1
                 else:
                     failed += 1
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001
                 logger.error(f"Teardown action {action.name} failed: {exc}")
                 action.success = False
                 failed += 1

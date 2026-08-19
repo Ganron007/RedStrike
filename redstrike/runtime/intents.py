@@ -9,6 +9,7 @@ from redstrike.builders import (
     CertipyBuilder,
     MimikatzBuilder,
     RubeusBuilder,
+    ShadowCredentialsBuilder,
     SharpSCCMBuilder,
     SqlBuilder,
     WinRSBuilder,
@@ -33,11 +34,16 @@ class IntentRegistry:
         self._sccm = SharpSCCMBuilder()
         self._mimikatz = MimikatzBuilder()
         self._winrs = WinRSBuilder()
+        self._shadow = ShadowCredentialsBuilder()
         self._intents: dict[str, IntentFn] = {
             "certipy.find": self._certipy.find,
             "certipy.req": self._certipy.req,
             "certipy.auth": self._certipy.auth,
             "certipy.shadow": self._certipy.shadow,
+            "certipy.template": self._certipy.template,
+            "certipy.ca": self._certipy.ca,
+            "shadowcreds.pywhiskey": self._shadow.pywhiskey,
+            "shadowcreds.certipy_shadow": self._shadow.certipy_shadow,
             "rubeus.asreproast": self._rubeus.asreproast,
             "rubeus.kerberoast": self._rubeus.kerberoast,
             "rubeus.asktgt": self._rubeus.asktgt,
@@ -50,6 +56,10 @@ class IntentRegistry:
             "sharpsccm.get_naa": self._sccm.get_naa,
             "sharpsccm.get_pxe": self._sccm.get_pxe,
             "sharpsccm.client_push": self._sccm.client_push,
+            "sharpsccm.exec_cmpivot": self._sccm.exec_cmpivot,
+            "sharpsccm.app_deploy": self._sccm.app_deploy,
+            "sharpsccm.exec_script": self._sccm.exec_script,
+            "sharpsccm.adminservice": self._sccm.adminservice_query,
             "mimikatz.logonpasswords": self._mimikatz.logonpasswords,
             "mimikatz.dcsync": self._mimikatz.dcsync,
             "mimikatz.sam": self._mimikatz.sam,

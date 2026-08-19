@@ -84,12 +84,21 @@ def test_sharpsccm_and_mimikatz() -> None:
 def test_intent_registry_known() -> None:
     reg = IntentRegistry()
     assert "certipy.find" in reg.known()
+    assert "certipy.template" in reg.known()
+    assert "shadowcreds.pywhiskey" in reg.known()
+    assert "sharpsccm.exec_script" in reg.known()
     assert "sql.xp_cmdshell" in reg.known()
     argv = reg.build(
         "certipy.find",
         {"target": "dc01", "username": "u", "domain": "lab"},
     )
     assert argv[0] == "certipy"
+
+    shadow_argv = reg.build(
+        "shadowcreds.pywhiskey",
+        {"target": "dc01", "target_user": "admin", "username": "u", "domain": "lab"},
+    )
+    assert shadow_argv[0] == "pywhiskey"
 
 
 def test_orchestrator_prefers_intent_standalone(tmp_path: Path) -> None:
