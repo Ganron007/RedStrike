@@ -27,7 +27,7 @@ Lab graphs, seeds, and attack scripts are **not** shipped here. Use the bundled
 | | |
 |---|---|
 | Package | `redstrike` |
-| Commands | `redstrike` · `redstrike-api` · `redstrike-mcp` · `redstrike-campaign` |
+| Commands | `redstrike` · `redstrike-api` · `redstrike-mcp` · `redstrike-campaign` · `redstrike console` |
 | Practice & Study | [`docs/PRACTICE-GUIDE.md`](docs/PRACTICE-GUIDE.md) |
 | Setup | [`docs/SETUP.md`](docs/SETUP.md) |
 | Secrets | [`docs/SECURITY.md`](docs/SECURITY.md) |
@@ -36,13 +36,15 @@ Lab graphs, seeds, and attack scripts are **not** shipped here. Use the bundled
 ## Capabilities
 
 - AD-native operations instead of a generic “run this shell string” endpoint.
-- Typed builders with `shell=False` (NetExec, Certipy, Rubeus, bloodyAD, and others).
+- Typed builders with `shell=False` (NetExec, Certipy, Rubeus, bloodyAD, Shadow Credentials, SharpSCCM AdminService).
 - Scope policy before execution (`scope.yaml` overlays a built-in profile).
+- OPSEC telemetry profiler mapping techniques to expected Windows Event IDs (4662, 4769, 7045, Sysmon) and noise tiers.
+- Automated `TeardownQueue` for tracking and rolling back post-exploitation modifications.
 - Evidence records for every observation; JSON and Markdown reports.
 - Default **API** profile is read-only (`observe` / `assess`).
 - Campaign `--execute` is operator-gated (HITL). Privilege jumps wait for `redstrike-campaign approve`.
-- MCP and HTTP expose intent-level tools such as `enumerate_domain_users` and
-  `find_delegation`, not arbitrary command strings.
+- MCP and HTTP expose intent-level tools (`enumerate_domain_users`, `find_delegation`, `bloodhound_query`, `recommend_next_steps`), not arbitrary command strings.
+- Interactive terminal dashboard via `redstrike console`.
 
 ## Quick start
 
@@ -123,7 +125,9 @@ MCP (optional), with the API already on loopback:
 redstrike-mcp --api http://127.0.0.1:8890
 ```
 
-A sample client snippet is in `redstrike/api/redstrike-mcp.json`.
+1-click client configuration snippets:
+- **Cursor / VS Code**: [`.vscode/mcp.json`](.vscode/mcp.json)
+- **Claude Desktop**: [`docs/claude_desktop_config.json`](docs/claude_desktop_config.json)
 
 ## Campaign orchestrator
 

@@ -271,6 +271,23 @@ and scope. Do not copy lab password files into this git tree.
 
 ---
 
+## Docker Quickstart (Containerized)
+
+If you prefer running RedStrike inside a self-contained container with all AD dependencies pre-installed:
+
+```bash
+# Build local container
+docker build -t redstrike .
+
+# Run diagnostics
+docker run --rm -it redstrike check
+
+# Run API service
+docker run --rm -it -p 8890:8890 redstrike api --host 0.0.0.0 --port 8890
+```
+
+---
+
 ## Troubleshooting
 
 | Symptom | What to do |
@@ -286,6 +303,7 @@ and scope. Do not copy lab password files into this git tree.
 
 ## Next reading
 
+- [PRACTICE-GUIDE.md](PRACTICE-GUIDE.md) — Comprehensive hands-on field practice & study guide
 - [SECURITY.md](SECURITY.md) — keys, gitignore, redaction
 - [README.md](../README.md) — product overview, API, safety model
 - [RELEASE.md](RELEASE.md) — tagging (maintainers)

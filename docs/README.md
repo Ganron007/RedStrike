@@ -2,6 +2,7 @@
 
 | Document | Audience |
 |---|---|
+| [PRACTICE-GUIDE.md](PRACTICE-GUIDE.md) | Practice manual: hands-on modules, MCP LLM setup, DFIR synergy |
 | [SETUP.md](SETUP.md) | New users: install, scope, dry-run, API, live execute |
 | [SECURITY.md](SECURITY.md) | Secrets, API keys, what must never be committed |
 | [RELEASE.md](RELEASE.md) | Maintainers: version, tag, PyPI |
