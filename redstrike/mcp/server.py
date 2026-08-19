@@ -568,6 +568,30 @@ def create_mcp(api_url: str):
             {"intent": intent, "args": args or {}},
         )
 
+    @mcp.tool()
+    def bloodhound_query(
+        cypher_query: str,
+        limit: int = 50,
+    ) -> dict[str, Any]:
+        """Execute a BloodHound OpenCypher graph query to find attack paths to High Value Targets."""
+        return _post(
+            api_url,
+            "/bloodhound/query",
+            {"query": cypher_query, "limit": limit},
+        )
+
+    @mcp.tool()
+    def recommend_next_steps(
+        engagement_id: str,
+        objective: str = "Domain Admins",
+    ) -> dict[str, Any]:
+        """Analyze current CredentialLedger and discovered entities to recommend top 3 ranked next-best-action intents."""
+        return _post(
+            api_url,
+            "/campaign/recommend",
+            {"engagement_id": engagement_id, "objective": objective},
+        )
+
     return mcp
 
 

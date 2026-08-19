@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "redstrike": {
+      "command": "redstrike-mcp",
+      "args": [
+        "--api",
+        "http://127.0.0.1:8890"
+      ],
+      "env": {
+        "REDSTRIKE_API_KEY": "YOUR_LOCAL_API_KEY_HERE"
+      }
+    }
+  }
+}

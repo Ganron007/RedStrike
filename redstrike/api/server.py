@@ -28,6 +28,17 @@ from redstrike.api.jobs import ALLOWED_JOB_ACTIONS, Job, JobRequest, JobStore
 from redstrike.core.errors import GuardrailViolationError, RateLimitExceededError
 from redstrike.core.models import ADRequest, OperationResponse
 from redstrike.core.policy import DEFAULT_API_PROFILE, POLICY_PROFILES, load_scope_policy
+from pydantic import BaseModel
+
+
+class BloodhoundQueryRequest(BaseModel):
+    query: str
+    limit: int = 50
+
+
+class CampaignRecommendRequest(BaseModel):
+    engagement_id: str = "demo"
+    objective: str = "Domain Admins"
 
 
 def _is_loopback_host(host: str | None) -> bool:
@@ -236,6 +247,60 @@ def create_app(
             return intent_preview(payload)
         except (ValueError, KeyError, TypeError) as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    @app.post("/bloodhound/query")
+    def bloodhound_query_route(payload: BloodhoundQueryRequest) -> dict[str, object]:
+        query = payload.query
+        limit = payload.limit
+        # Structured graph mock/query response for agent DAG analysis
+        return {
+            "query": query,
+            "limit": limit,
+            "results": [
+                {
+                    "source": "DOMAIN_USERS",
+                    "edge": "MemberOf",
+                    "target": "ENGINEERING_DEPT",
+                    "escalation_vector": "DCSync_ACL",
+                }
+            ],
+            "status": "ok",
+        }
+
+    @app.post("/campaign/recommend")
+    def campaign_recommend_route(payload: CampaignRecommendRequest) -> dict[str, object]:
+        engagement_id = payload.engagement_id
+        objective = payload.objective
+        return {
+            "engagement_id": engagement_id,
+            "objective": objective,
+            "recommendations": [
+                {
+                    "rank": 1,
+                    "intent": "find_delegation",
+                    "target": "dc01.cadre.local",
+                    "rationale": "Identify unconstrained delegation targets for TGT extraction",
+                    "estimated_noise": "stealth",
+                    "success_probability": 0.9,
+                },
+                {
+                    "rank": 2,
+                    "intent": "certipy_find",
+                    "target": "dc01.cadre.local",
+                    "rationale": "Audit ADCS Certificate Templates for ESC1/ESC4 escalation",
+                    "estimated_noise": "stealth",
+                    "success_probability": 0.85,
+                },
+                {
+                    "rank": 3,
+                    "intent": "request_tgt",
+                    "target": "dc01.cadre.local",
+                    "rationale": "Kerberoast SPNs discovered from domain user enumeration",
+                    "estimated_noise": "balanced",
+                    "success_probability": 0.7,
+                },
+            ],
+        }
 
     return app
 

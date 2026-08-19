@@ -27,3 +27,7 @@ def test_check_cli_json_exit_zero_without_execute_ready(tmp_path: Path, monkeypa
 def test_redstrike_check_subcommand(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.chdir(tmp_path)
     assert redstrike_main(["check", "--json", "--scope", str(tmp_path / "missing.yaml")]) == 0
+
+
+def test_redstrike_console_subcommand() -> None:
+    assert redstrike_main(["console"]) == 0

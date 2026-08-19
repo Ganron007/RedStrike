@@ -30,3 +30,34 @@ class SharpSCCMBuilder:
             "-c",
             collection,
         ]
+
+    def exec_script(
+        self,
+        *,
+        server: str,
+        script_path: str | None = None,
+        script_body: str | None = None,
+        collection: str = "SMS00001",
+        device: str | None = None,
+    ) -> list[str]:
+        """Execute a PowerShell script across an SCCM collection or device."""
+        argv = [self.binary, "exec", "-s", server]
+        if script_path:
+            argv.extend(["-f", script_path])
+        elif script_body:
+            argv.extend(["-b", script_body])
+        if device:
+            argv.extend(["-d", device])
+        else:
+            argv.extend(["-c", collection])
+        return argv
+
+    def adminservice_query(
+        self,
+        *,
+        server: str,
+        endpoint: str,
+        method: str = "GET",
+    ) -> list[str]:
+        """Query SCCM AdminService REST API endpoint."""
+        return [self.binary, "adminservice", "-s", server, "-e", endpoint, "-m", method]

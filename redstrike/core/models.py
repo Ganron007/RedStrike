@@ -23,6 +23,20 @@ class RiskLevel(str, Enum):
     CRITICAL = "critical"
 
 
+class OpsecTier(str, Enum):
+    STEALTH = "stealth"
+    BALANCED = "balanced"
+    LOUD = "loud"
+
+
+class OpsecProfile(BaseModel):
+    tier: OpsecTier = OpsecTier.BALANCED
+    mitre_attack: list[str] = Field(default_factory=list)
+    expected_event_ids: list[int] = Field(default_factory=list)
+    noise_score: float = Field(default=0.5, ge=0.0, le=1.0)
+    detection_vectors: list[str] = Field(default_factory=list)
+
+
 class ADRequest(BaseModel):
     target: str = Field(..., description="Domain controller, host, or allowed IP target")
     domain: str | None = Field(default=None, description="AD DNS domain name")
@@ -65,6 +79,7 @@ class EvidenceRecord(BaseModel):
     raw_output: str
     parsed: dict[str, Any] = Field(default_factory=dict)
     confidence: float = Field(default=0.6, ge=0.0, le=1.0)
+    opsec: OpsecProfile | None = None
     engagement_id: str | None = None
     operator_id: str | None = None
     run_id: str | None = None
@@ -80,6 +95,7 @@ class Finding(BaseModel):
     summary: str
     evidence_ids: list[str] = Field(default_factory=list)
     mitre_attack: list[str] = Field(default_factory=list)
+    opsec: OpsecProfile | None = None
     remediation: list[str] = Field(default_factory=list)
 
 

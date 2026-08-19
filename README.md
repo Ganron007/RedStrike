@@ -28,6 +28,7 @@ Lab graphs, seeds, and attack scripts are **not** shipped here. Use the bundled
 |---|---|
 | Package | `redstrike` |
 | Commands | `redstrike` · `redstrike-api` · `redstrike-mcp` · `redstrike-campaign` |
+| Practice & Study | [`docs/PRACTICE-GUIDE.md`](docs/PRACTICE-GUIDE.md) |
 | Setup | [`docs/SETUP.md`](docs/SETUP.md) |
 | Secrets | [`docs/SECURITY.md`](docs/SECURITY.md) |
 | Contributing | [`CONTRIBUTING.md`](CONTRIBUTING.md) |

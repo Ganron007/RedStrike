@@ -17,6 +17,7 @@ def main(argv: list[str] | None = None) -> int:
 
     sub.add_parser("campaign", help="Campaign orchestrator (same as redstrike-campaign)")
     sub.add_parser("api", help="HTTP API (same as redstrike-api)")
+    sub.add_parser("console", help="Interactive TUI campaign dashboard")
 
     args, rest = parser.parse_known_args(argv)
     if args.command == "check":
@@ -32,6 +33,10 @@ def main(argv: list[str] | None = None) -> int:
 
         api_main()
         return 0
+    if args.command == "console":
+        from redstrike.cli.console import run_console
+
+        return run_console()
     parser.error(f"unknown command: {args.command}")
     return 2
 
