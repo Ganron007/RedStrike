@@ -52,12 +52,12 @@ Open `scope.yaml` and configure your targets:
 ```yaml
 version: "1.0"
 allowed_targets:
-  - "192.168.77.10"
-  - "192.168.77.11"
-  - "dc01.cadre.local"
+  - "192.168.1.10"
+  - "192.168.1.11"
+  - "dc01.example.lab"
 allowed_domains:
-  - "cadre.local"
-  - "range.local"
+  - "example.lab"
+  - "corp.local"
 allow_high_risk: false    # Set true only for active exploitation campaigns
 ```
 
@@ -147,9 +147,9 @@ Add to `.vscode/mcp.json` in your workspace root:
 **Objective**: Instruct your AI agent to discover Active Directory attack surfaces.
 
 1. In Claude Desktop / Cursor, prompt the agent:
-   > *"Enumerate the domain users and Kerberos delegation settings for target `dc01.cadre.local` under domain `cadre.local`."*
+   > *"Enumerate the domain users and Kerberos delegation settings for target `dc01.example.lab` under domain `example.lab`."*
 2. **What RedStrike Executes**:
-   - Validates `dc01.cadre.local` against `scope.yaml`.
+   - Validates `dc01.example.lab` against `scope.yaml`.
    - Calls typed `NetExec` builders (`nxc ldap ... --users` and `nxc ldap ... --delegation`).
    - Parses stdout into typed entities (`UserEntity`, `DelegationEntity`).
    - Returns structured `EvidenceRecord` JSON back to the AI.
@@ -160,10 +160,10 @@ Add to `.vscode/mcp.json` in your workspace root:
 **Objective**: Audit Certificate Templates and identify misconfigured enrollment policies.
 
 1. Prompt the agent:
-   > *"Run a Certipy find assessment on the CA at `192.168.77.10` and check for ESC1 through ESC4 misconfigurations."*
+   > *"Run a Certipy find assessment on the CA at `192.168.1.10` and check for ESC1 through ESC4 misconfigurations."*
 2. **What RedStrike Executes**:
    - Calls `redstrike/builders/certipy.py:find`.
-   - Returns discovered vulnerable templates (`CADRE-ESC1`, `CADRE-ESC4`).
+   - Returns discovered vulnerable templates (`ESC1-SmartCard`, `ESC4-Template`).
    - Normalizes certificate attributes (`EnrolleeSuppliesSubject`, `ClientAuthentication`, `EnrollmentRights`).
 
 ---

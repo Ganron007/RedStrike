@@ -162,11 +162,11 @@ def test_shadowcreds_builder() -> None:
     from redstrike.builders import ShadowCredentialsBuilder
 
     argv = ShadowCredentialsBuilder().pywhiskey(
-        target="dc01.cadre.local",
+        target="dc01.example.lab",
         target_user="Administrator",
         username="hunter",
         password=SecretStr("pass123"),
-        domain="cadre.local",
+        domain="example.lab",
         action="add",
     )
     assert argv[:2] == ["pywhiskey", "-target"]
@@ -176,27 +176,27 @@ def test_shadowcreds_builder() -> None:
 
 def test_certipy_unpac_and_template() -> None:
     builder = CertipyBuilder()
-    auth_argv = builder.auth(pfx="admin.pfx", unpac_hash=True, dc_ip="192.168.77.10")
+    auth_argv = builder.auth(pfx="admin.pfx", unpac_hash=True, dc_ip="10.0.0.10")
     assert "-unpac-hash" in auth_argv
     assert "-pfx" in auth_argv
 
     tmpl_argv = builder.template(
-        template="CADRE-ESC4",
+        template="ESC4-Template",
         username="lead_eng",
         password=SecretStr("pass"),
-        domain="cadre.local",
+        domain="example.lab",
         write_default=True,
     )
     assert "-write-default-configuration" in tmpl_argv
 
     ca_argv = builder.ca(
-        ca="cadre-CA",
+        ca="corp-CA",
         username="lead_eng",
         password=SecretStr("pass"),
-        domain="cadre.local",
-        add_officer="analyst_t1",
+        domain="example.lab",
+        add_officer="operator_user",
     )
-    assert "-add-officer" in ca_argv and "analyst_t1" in ca_argv
+    assert "-add-officer" in ca_argv and "operator_user" in ca_argv
 
 
 def test_sharpsccm_extensions() -> None:

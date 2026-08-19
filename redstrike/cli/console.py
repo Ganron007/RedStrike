@@ -38,11 +38,11 @@ def run_console(scope_path: str = "scope.yaml", engagement_id: str = "demo") -> 
     campaign_table.add_column("OPSEC", style="green")
     campaign_table.add_column("Status", style="bold green")
 
-    campaign_table.add_row("P1-RECON", "enumerate_domain_users", "dc01.cadre.local", "STEALTH", "[OK] COMPLETE")
-    campaign_table.add_row("P1-DELEGATION", "find_delegation", "dc01.cadre.local", "STEALTH", "[OK] COMPLETE")
-    campaign_table.add_row("P2-ADCS", "certipy_find", "dc01.cadre.local", "STEALTH", "[OK] COMPLETE")
-    campaign_table.add_row("P3-TGT", "request_tgt", "dc01.cadre.local", "BALANCED", "[..] PENDING")
-    campaign_table.add_row("P4-DA-JUMP", "certipy_req (ESC1)", "dc01.cadre.local", "BALANCED", "[!!] HITL GATED")
+    campaign_table.add_row("P1-RECON", "enumerate_domain_users", "dc01.example.lab", "STEALTH", "[OK] COMPLETE")
+    campaign_table.add_row("P1-DELEGATION", "find_delegation", "dc01.example.lab", "STEALTH", "[OK] COMPLETE")
+    campaign_table.add_row("P2-ADCS", "certipy_find", "dc01.example.lab", "STEALTH", "[OK] COMPLETE")
+    campaign_table.add_row("P3-TGT", "request_tgt", "dc01.example.lab", "BALANCED", "[..] PENDING")
+    campaign_table.add_row("P4-DA-JUMP", "certipy_req (ESC1)", "dc01.example.lab", "BALANCED", "[!!] HITL GATED")
 
     layout["left"].update(Panel(campaign_table, title="Execution Engine", style="dim"))
 

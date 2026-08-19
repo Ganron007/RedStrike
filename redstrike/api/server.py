@@ -278,7 +278,7 @@ def create_app(
                 {
                     "rank": 1,
                     "intent": "find_delegation",
-                    "target": "dc01.cadre.local",
+                    "target": "dc01.example.lab",
                     "rationale": "Identify unconstrained delegation targets for TGT extraction",
                     "estimated_noise": "stealth",
                     "success_probability": 0.9,
@@ -286,7 +286,7 @@ def create_app(
                 {
                     "rank": 2,
                     "intent": "certipy_find",
-                    "target": "dc01.cadre.local",
+                    "target": "dc01.example.lab",
                     "rationale": "Audit ADCS Certificate Templates for ESC1/ESC4 escalation",
                     "estimated_noise": "stealth",
                     "success_probability": 0.85,
@@ -294,7 +294,7 @@ def create_app(
                 {
                     "rank": 3,
                     "intent": "request_tgt",
-                    "target": "dc01.cadre.local",
+                    "target": "dc01.example.lab",
                     "rationale": "Kerberoast SPNs discovered from domain user enumeration",
                     "estimated_noise": "balanced",
                     "success_probability": 0.7,
