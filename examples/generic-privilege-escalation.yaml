@@ -34,11 +34,12 @@ nodes:
     path: "direct"
     beachheads: ["windows", "linux"]
     requires_cred: "kerberoast_ticket"
-    intent: "shadowcreds.pywhiskey"
+    intent: "certipy.shadow"
     intent_args:
+      account: "Administrator"
       target: "dc01.example.lab"
       domain: "example.lab"
-      action: "add"
+      action: "auto"
     produces_cred: "shadow_cred_cert"
     hitl_gate: "acl_write"
     success_marker: "PE_03_SHADOWCREDS_OK"

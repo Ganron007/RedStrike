@@ -109,7 +109,8 @@ class CertipyBuilder:
         username: str | None = None,
         domain: str | None = None,
         dc_ip: str | None = None,
-        unpac_hash: bool = False,
+        unpac_hash: bool = True,
+        no_hash: bool = False,
         ldap_shell: bool = False,
     ) -> list[str]:
         argv = [self.tool, "auth", "-pfx", pfx]
@@ -119,8 +120,8 @@ class CertipyBuilder:
             argv.extend(["-domain", domain])
         if dc_ip:
             argv.extend(["-dc-ip", dc_ip])
-        if unpac_hash:
-            argv.append("-unpac-hash")
+        if no_hash:
+            argv.append("-no-hash")
         if ldap_shell:
             argv.append("-ldap-shell")
         return argv

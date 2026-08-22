@@ -26,7 +26,7 @@ RedStrike is a modular, policy-gated Active Directory, ADCS, and Hybrid Identity
   - Repeatable, scripted red team scenarios.
 - **Starter Templates (`examples/`):**
   - `generic-ad-recon.yaml`: LDAP user/group enumeration, AS-REP roasting, Kerberoasting, and ADCS discovery.
-  - `generic-adcs-audit.yaml`: ESC1–ESC13 template auditing, vulnerable certificate request, and PKINIT UnPAC NT hash recovery.
+  - `generic-adcs-audit.yaml`: ESC1–ESC13 template auditing, vulnerable certificate request, and PKINIT NT hash recovery.
   - `generic-privilege-escalation.yaml`: Multi-hop attack chain from initial discovery to Shadow Credentials, ESC4 template ACL takeover, and DRS DCSync.
 
 ### 1B. Autonomous LLM Agent (FastMCP / REST API)
@@ -34,7 +34,7 @@ RedStrike is a modular, policy-gated Active Directory, ADCS, and Hybrid Identity
 - **Capabilities Exposed to AI Models:**
   - `bloodhound_query`: Executes parameterized Cypher queries against BloodHound Neo4j databases.
   - `recommend_next_steps`: Heuristic graph-based suggestions for reachable Active Directory privilege paths.
-  - `execute_intent`: Atomic execution of typed tool intents (`certipy.find`, `rubeus.kerberoast`, `bloodyad.get_object`, `shadowcreds.pywhiskey`, `sharpsccm.get_naa`).
+  - `execute_intent`: Atomic execution of typed tool intents (`certipy.find`, `rubeus.kerberoast`, `bloodyad.get_object`, `certipy.shadow`, `sharpsccm.get_naa`).
 - **Safety Boundary:** AI agents cannot pass arbitrary shell commands. Every request is parsed as a typed Pydantic intent validated by the policy engine.
 
 ---
@@ -71,7 +71,7 @@ RedStrike eliminates shell injection vulnerabilities by constructing argument ve
 | `CertipyBuilder` | Active Directory Certificate Services (ADCS) | ESC1–ESC13 discovery (`find`), certificate request (`req`), PKINIT auth (`auth`), template takeover (`template`), shadow credentials (`shadow`) |
 | `RubeusBuilder` | Kerberos Authentication | AS-REP roasting, Kerberoasting, TGT request (`asktgt`), Golden Ticket (`golden`) |
 | `BloodyADBuilder` | LDAP & Active Directory Objects | Object query (`get_object`), password reset (`set_password`), DACL grant (`add_generic_all`) |
-| `ShadowCredentialsBuilder` | Key Credential Links | PyWhiskey and Certipy shadow credential injection |
+| `ShadowCredentialsBuilder` | Key Credential Links | Certipy and KeyCredentialLink shadow credential injection |
 | `SharpSCCMBuilder` | Microsoft Configuration Manager (SCCM/MECM) | NAA credential recovery, PXE boot media extraction, CMPivot queries, Application deployment |
 | `SqlBuilder` | MSSQL Database Instances | Linked database queries, `xp_cmdshell` execution |
 | `WinRSBuilder` | Windows Remote Management | WinRM / WinRS command execution |

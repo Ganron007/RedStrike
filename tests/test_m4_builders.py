@@ -179,11 +179,11 @@ def test_shadowcreds_builder() -> None:
 def test_certipy_unpac_and_template() -> None:
     builder = CertipyBuilder()
     auth_argv = builder.auth(pfx="admin.pfx", username="admin", domain="example.lab", unpac_hash=True, dc_ip="10.0.0.10")
-    assert "-unpac-hash" in auth_argv
-    assert "-pfx" in auth_argv
+    assert "-pfx" in auth_argv and "admin.pfx" in auth_argv
     assert "-domain" in auth_argv and "example.lab" in auth_argv
     assert "--domain" not in auth_argv
     assert "-username" in auth_argv and "admin" in auth_argv
+    assert "-unpac-hash" not in auth_argv
 
     tmpl_argv = builder.template(
         template="ESC4-Template",
