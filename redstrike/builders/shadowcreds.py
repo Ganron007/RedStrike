@@ -49,12 +49,15 @@ class ShadowCredentialsBuilder:
         action: str = "auto",
     ) -> list[str]:
         """Build certipy shadow command."""
-        if action not in {"auto", "add", "list", "clear", "remove"}:
-            raise ValueError(f"unsupported shadow action: {action}")
-        argv = ["certipy", "shadow", action, "-account", account, "-target", target]
-        argv = extend_user_pass(
-            argv, username=username, password=password, nt_hash=nt_hash, domain=domain
+        from redstrike.builders.certipy import CertipyBuilder
+
+        return CertipyBuilder().shadow(
+            account=account,
+            target=target,
+            username=username,
+            password=password,
+            nt_hash=nt_hash,
+            domain=domain,
+            dc_ip=dc_ip,
+            action=action,
         )
-        if dc_ip:
-            argv.extend(["-dc-ip", dc_ip])
-        return argv

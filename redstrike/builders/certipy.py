@@ -5,6 +5,29 @@ from pydantic import SecretStr
 from redstrike.builders._auth import extend_user_pass, secret_value
 
 
+def _extend_certipy_auth(
+    argv: list[str],
+    *,
+    username: str | None = None,
+    password: str | SecretStr | None = None,
+    nt_hash: str | SecretStr | None = None,
+    domain: str | None = None,
+) -> list[str]:
+    user = username
+    if user and domain and "@" not in user:
+        user = f"{user}@{domain}"
+    return extend_user_pass(
+        argv,
+        username=user,
+        password=password,
+        nt_hash=nt_hash,
+        domain=None,
+        user_flag="-u",
+        pass_flag="-p",
+        hash_flag="-hashes",
+    )
+
+
 class CertipyBuilder:
     """Typed Certipy argv builder (ADCS)."""
 
@@ -23,8 +46,12 @@ class CertipyBuilder:
         stdout: bool = True,
     ) -> list[str]:
         argv = [self.tool, "find", "-target", target]
-        argv = extend_user_pass(
-            argv, username=username, password=password, nt_hash=nt_hash, domain=domain
+        argv = _extend_certipy_auth(
+            argv,
+            username=username,
+            password=password,
+            nt_hash=nt_hash,
+            domain=domain,
         )
         if dc_ip:
             argv.extend(["-dc-ip", dc_ip])
@@ -54,8 +81,12 @@ class CertipyBuilder:
         argv = [self.tool, "req", "-ca", ca, "-template", template]
         if target:
             argv.extend(["-target", target])
-        argv = extend_user_pass(
-            argv, username=username, password=password, nt_hash=nt_hash, domain=domain
+        argv = _extend_certipy_auth(
+            argv,
+            username=username,
+            password=password,
+            nt_hash=nt_hash,
+            domain=domain,
         )
         if dc_ip:
             argv.extend(["-dc-ip", dc_ip])
@@ -110,8 +141,12 @@ class CertipyBuilder:
         argv = [self.tool, "template", "-template", template]
         if target:
             argv.extend(["-target", target])
-        argv = extend_user_pass(
-            argv, username=username, password=password, nt_hash=nt_hash, domain=domain
+        argv = _extend_certipy_auth(
+            argv,
+            username=username,
+            password=password,
+            nt_hash=nt_hash,
+            domain=domain,
         )
         if dc_ip:
             argv.extend(["-dc-ip", dc_ip])
@@ -137,8 +172,12 @@ class CertipyBuilder:
         argv = [self.tool, "ca", "-ca", ca]
         if target:
             argv.extend(["-target", target])
-        argv = extend_user_pass(
-            argv, username=username, password=password, nt_hash=nt_hash, domain=domain
+        argv = _extend_certipy_auth(
+            argv,
+            username=username,
+            password=password,
+            nt_hash=nt_hash,
+            domain=domain,
         )
         if dc_ip:
             argv.extend(["-dc-ip", dc_ip])
@@ -163,10 +202,14 @@ class CertipyBuilder:
         if action not in {"auto", "add", "list", "clear", "remove"}:
             raise ValueError(f"unsupported shadow action: {action}")
         argv = [self.tool, "shadow", action, "-account", account, "-target", target]
-        argv = extend_user_pass(
-            argv, username=username, password=password, nt_hash=nt_hash, domain=domain
+        argv = _extend_certipy_auth(
+            argv,
+            username=username,
+            password=password,
+            nt_hash=nt_hash,
+            domain=domain,
         )
         if dc_ip:
             argv.extend(["-dc-ip", dc_ip])
-        _ = secret_value(password)  # keep import used for typing clarity
+        _ = secret_value(password)
         return argv

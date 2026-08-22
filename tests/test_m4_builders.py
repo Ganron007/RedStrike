@@ -34,7 +34,20 @@ def test_certipy_find_builder() -> None:
     )
     assert argv[:2] == ["certipy", "find"]
     assert "-vulnerable" in argv
+    assert "-u" in argv and "u@lab" in argv
     assert "-p" in argv and "p" in argv
+    assert "--domain" not in argv
+    assert "-domain" not in argv
+    assert "-d" not in argv
+
+    hash_argv = CertipyBuilder().find(
+        target="dc01.lab",
+        username="u@lab",
+        nt_hash=SecretStr("31d6cfe0d16ae931b73c59d7e0c089c0"),
+    )
+    assert "-hashes" in hash_argv
+    assert "31d6cfe0d16ae931b73c59d7e0c089c0" in hash_argv
+    assert "-H" not in hash_argv
 
 
 def test_rubeus_asktgt_requires_secret() -> None:
@@ -165,9 +178,12 @@ def test_shadowcreds_builder() -> None:
 
 def test_certipy_unpac_and_template() -> None:
     builder = CertipyBuilder()
-    auth_argv = builder.auth(pfx="admin.pfx", unpac_hash=True, dc_ip="10.0.0.10")
+    auth_argv = builder.auth(pfx="admin.pfx", username="admin", domain="example.lab", unpac_hash=True, dc_ip="10.0.0.10")
     assert "-unpac-hash" in auth_argv
     assert "-pfx" in auth_argv
+    assert "-domain" in auth_argv and "example.lab" in auth_argv
+    assert "--domain" not in auth_argv
+    assert "-username" in auth_argv and "admin" in auth_argv
 
     tmpl_argv = builder.template(
         template="ESC4-Template",
@@ -177,6 +193,8 @@ def test_certipy_unpac_and_template() -> None:
         write_default=True,
     )
     assert "-write-default-configuration" in tmpl_argv
+    assert "-u" in tmpl_argv and "lead_eng@example.lab" in tmpl_argv
+    assert "--domain" not in tmpl_argv and "-domain" not in tmpl_argv
 
     ca_argv = builder.ca(
         ca="corp-CA",
@@ -186,6 +204,21 @@ def test_certipy_unpac_and_template() -> None:
         add_officer="operator_user",
     )
     assert "-add-officer" in ca_argv and "operator_user" in ca_argv
+    assert "-u" in ca_argv and "lead_eng@example.lab" in ca_argv
+    assert "--domain" not in ca_argv and "-domain" not in ca_argv
+
+    shadow_argv = builder.shadow(
+        account="svc_admin",
+        target="dc01.example.lab",
+        username="lead_eng",
+        domain="example.lab",
+        nt_hash=SecretStr("31d6cfe0d16ae931b73c59d7e0c089c0"),
+    )
+    assert "-account" in shadow_argv and "svc_admin" in shadow_argv
+    assert "-u" in shadow_argv and "lead_eng@example.lab" in shadow_argv
+    assert "-hashes" in shadow_argv and "31d6cfe0d16ae931b73c59d7e0c089c0" in shadow_argv
+    assert "-H" not in shadow_argv
+    assert "--domain" not in shadow_argv and "-domain" not in shadow_argv
 
 
 def test_sharpsccm_extensions() -> None:
