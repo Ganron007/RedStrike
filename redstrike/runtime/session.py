@@ -1,46 +1,39 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from typing import Any
 
 from redstrike.runtime.beachhead import Beachhead, OperatorMode, detect_default_operator
-from redstrike.runtime.hitl import KNOWN_GATES, EngagementStore
+from redstrike.runtime.hitl import KNOWN_GATES, EngagementStore, hitl_required
 from redstrike.runtime.orchestrator import CampaignOrchestrator, StepResult
 
 
 def default_automation_root() -> Path:
-    import os
-
-    env_raw = os.environ.get("REDSTRIKE_AUTOMATION_ROOT", "").strip() or os.environ.get(
-        "CADRE_AUTOMATION_ROOT", ""
-    ).strip()
+    env_raw = os.environ.get("REDSTRIKE_AUTOMATION_ROOT", "").strip()
     if env_raw:
         env = Path(env_raw)
         if env.is_dir():
             return env
-    env_cadre = os.environ.get("CADRE_ROOT", "").strip()
-    if env_cadre:
-        candidate = Path(env_cadre) / "attack-matrix" / "04-automation" / "linux"
-        if candidate.is_dir():
-            return candidate
+    local_auto = Path.cwd() / "automation"
+    if local_auto.is_dir():
+        return local_auto
     return Path.cwd()
 
 
 def default_seed_path() -> Path | None:
-    """REDSTRIKE_SEED, then CADRE_ROOT lab seed (optional), then bundled placeholder."""
-    import os
-
+    """REDSTRIKE_SEED, then bundled example."""
     env = os.environ.get("REDSTRIKE_SEED", "").strip()
     if env and Path(env).is_file():
         return Path(env)
-    env_cadre = os.environ.get("CADRE_ROOT", "").strip()
-    if env_cadre:
-        candidate = Path(env_cadre) / "attack-matrix" / "Campaign" / "automation" / "lab-seed-creds.json"
-        if candidate.is_file():
-            return candidate
     example = Path(__file__).resolve().parents[2] / "examples" / "seed.example.json"
     return example if example.is_file() else None
+
+
+def default_prefer_script() -> bool:
+    val = os.environ.get("REDSTRIKE_PREFER_SCRIPT", "").strip().lower()
+    return val in {"1", "true", "yes"}
 
 
 class CampaignSession:
@@ -54,21 +47,23 @@ class CampaignSession:
         operator: str | OperatorMode | None = None,
         automation_root: Path | str | None = None,
         graph_path: Path | str | None = None,
-        cadre_root: Path | str | None = None,
         ledger_root: Path | None = None,
         allow_mbr01_stage: bool = False,
         seed_path: Path | str | None = None,
         branches: str | None = None,
         prefer_script: bool = False,
+        node_ids: str | tuple[str, ...] | None = None,
+        profile: str | None = None,
     ) -> None:
         self.engagement_id = engagement_id
         self.operator = OperatorMode(operator) if operator else detect_default_operator()
         self.automation_root = Path(automation_root) if automation_root else default_automation_root()
         self.graph_path = graph_path
-        self.cadre_root = cadre_root
         self.ledger_root = ledger_root
         self.branches = branches
-        self.prefer_script = prefer_script
+        self.prefer_script = prefer_script or default_prefer_script()
+        self.node_ids = node_ids
+        self.profile = profile
         self.store = EngagementStore(engagement_id, root=ledger_root)
         self.state = self.store.get_or_create(
             beachhead=beachhead,
@@ -78,6 +73,9 @@ class CampaignSession:
         self.state.beachhead = beachhead
         self.state.operator = self.operator.value
         self.state.allow_mbr01_stage = allow_mbr01_stage
+        if not hitl_required(profile):
+            for gate in sorted(KNOWN_GATES):
+                self.state.approve(gate, note="HITL auto-approved (autonomous profile or ungated)")
         self.store.save(self.state)
         self._seed(seed_path)
 
@@ -94,12 +92,12 @@ class CampaignSession:
             operator=self.operator,
             automation_root=self.automation_root,
             graph_path=self.graph_path,
-            cadre_root=self.cadre_root,
             ledger_root=self.ledger_root,
             allow_mbr01_stage=self.state.allow_mbr01_stage,
             engagement_state=self.state,
             branches=self.branches,
             prefer_script=self.prefer_script,
+            node_ids=self.node_ids,
         )
 
     def start(self) -> dict[str, Any]:
@@ -113,6 +111,7 @@ class CampaignSession:
             "allow_mbr01_stage": self.state.allow_mbr01_stage,
             "approved_gates": list(self.state.approved_gates),
             "known_gates": sorted(KNOWN_GATES),
+            "hitl_required": hitl_required(),
             "branches": self.branches or "spine",
         }
 
@@ -136,6 +135,8 @@ class CampaignSession:
         profile: str | None = None,
         include_preflight: bool = True,
     ) -> dict[str, Any]:
+        if not hitl_required():
+            stop_on_hitl = False
         orch = self._orchestrator()
         results = orch.run(phase, dry_run=dry_run, stop_on_hitl=stop_on_hitl)
         self.state = orch.state

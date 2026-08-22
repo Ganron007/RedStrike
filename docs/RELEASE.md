@@ -10,7 +10,7 @@ Do not tag or upload to PyPI until the operator asks. Deployment tests come late
 2. `pytest -q`
 3. `redstrike check` — core must be `ok`
 4. README version badge matches `pyproject.toml`
-5. Secret scan on **tracked** files: no lab IPs (`192.168.77`), no `cadre-ws01-key`, no live API keys, no real passwords
+5. Secret scan on **tracked** files: no lab IPs, no private SSH keys, no live API keys, no real passwords
 6. `scope.yaml` is gitignored and untracked
 7. Docs: [SETUP.md](SETUP.md) + [SECURITY.md](SECURITY.md) still match the CLIs
 

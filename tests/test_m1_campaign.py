@@ -37,13 +37,13 @@ def automation_root(tmp_path: Path) -> Path:
 
 
 def test_campaign_and_standalone_profiles_registered() -> None:
+    assert "gated" in POLICY_PROFILES
+    assert "autonomous" in POLICY_PROFILES
     assert "standalone" in POLICY_PROFILES
     assert "campaign" in POLICY_PROFILES
-    assert "cadre-campaign" in POLICY_PROFILES
 
 
-def test_resolve_graph_uses_bundled_example(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.delenv("CADRE_ROOT", raising=False)
+def test_resolve_graph_uses_bundled_example() -> None:
     path = resolve_graph_path()
     assert path.resolve() == GRAPH.resolve()
 
@@ -70,6 +70,14 @@ def test_windows_beachhead_uses_ws01_exec(automation_root: Path, tmp_path: Path)
         for r in results
         if not r.skipped
     )
+    payload = next(r.to_dict() for r in results if not r.skipped)
+    assert payload["started_at"] and payload["started_at"].endswith("Z")
+    assert payload["finished_at"] and payload["finished_at"].endswith("Z")
+    assert "T" in payload["started_at"]
+    assert summary["started_at"]
+    assert summary["finished_at"]
+    assert payload["verified"] is False
+    assert payload["verify_status"] == "dry_run"
 
 
 def test_ws01_operator_uses_local_mechanism(automation_root: Path, tmp_path: Path) -> None:
@@ -178,7 +186,6 @@ def test_cli_dry_run_windows(automation_root: Path, tmp_path: Path, monkeypatch:
     from redstrike.cli import campaign as campaign_cli
 
     monkeypatch.setenv("REDSTRIKE_HOME", str(tmp_path / "redstrike"))
-    monkeypatch.delenv("CADRE_ROOT", raising=False)
     code = campaign_cli.main(
         [
             "run",
@@ -200,3 +207,53 @@ def test_cli_dry_run_windows(automation_root: Path, tmp_path: Path, monkeypatch:
         ]
     )
     assert code == 0
+
+
+def test_parse_node_ids_order_and_dedupe() -> None:
+    from redstrike.runtime.graph import parse_node_ids
+
+    assert parse_node_ids(None) is None
+    assert parse_node_ids("") is None
+    assert parse_node_ids(" T009, T013,T009 ;T014 ") == ("T009", "T013", "T014")
+
+
+def test_select_nodes_by_id_ignores_phase_and_branch(automation_root: Path, tmp_path: Path) -> None:
+    orch = CampaignOrchestrator(
+        engagement_id="nodes-filter",
+        beachhead=Beachhead.WINDOWS,
+        operator=OperatorMode.PROVISIONING,
+        automation_root=automation_root,
+        graph_path=GRAPH,
+        ledger_root=tmp_path / "ledgers",
+        branches="spine",
+        node_ids="DEMO-ACL,DEMO-RECON",
+    )
+    orch.ledger.seed(json.loads(SEED.read_text(encoding="utf-8")))
+    selected = orch.select_nodes("1-3")
+    assert [n.id for n in selected] == ["DEMO-ACL", "DEMO-RECON"]
+
+
+def test_select_nodes_unknown_id_fails_closed(automation_root: Path, tmp_path: Path) -> None:
+    orch = CampaignOrchestrator(
+        engagement_id="nodes-bad",
+        beachhead=Beachhead.WINDOWS,
+        automation_root=automation_root,
+        graph_path=GRAPH,
+        ledger_root=tmp_path / "ledgers",
+        node_ids="NO-SUCH",
+    )
+    with pytest.raises(ValueError, match="unknown node id"):
+        orch.select_nodes("1-3")
+
+
+def test_select_nodes_wrong_beachhead_fails_closed(automation_root: Path, tmp_path: Path) -> None:
+    orch = CampaignOrchestrator(
+        engagement_id="nodes-bh",
+        beachhead=Beachhead.LINUX,
+        automation_root=automation_root,
+        graph_path=GRAPH,
+        ledger_root=tmp_path / "ledgers",
+        node_ids="DEMO-ACL",
+    )
+    with pytest.raises(ValueError, match="not valid for beachhead linux"):
+        orch.select_nodes("1-3")

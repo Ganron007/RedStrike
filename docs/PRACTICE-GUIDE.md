@@ -176,7 +176,7 @@ Add to `.vscode/mcp.json` in your workspace root:
 3. **Operator Approval**:
    On your terminal, inspect the pending intent and approve:
    ```bash
-   redstrike-campaign approve --gate-id <GATE_ID>
+   redstrike graph approve --gate dcsync --engage default
    ```
 4. **Resumed Execution**: The command executes, masks secrets, and returns execution proof.
 

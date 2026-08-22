@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -31,18 +30,12 @@ class PreflightResult:
 def resolve_profiles_path(
     *,
     explicit: Path | str | None = None,
-    cadre_root: Path | str | None = None,
 ) -> Path | None:
     if explicit is not None:
         path = Path(explicit)
         return path if path.is_file() else None
-    if cadre_root is not None:
-        candidate = Path(cadre_root) / "attack-matrix" / "Campaign" / "automation" / "lab-profiles.yaml"
-        if candidate.is_file():
-            return candidate
-    env_raw = os.environ.get("CADRE_ROOT", "").strip()
-    if env_raw:
-        candidate = Path(env_raw) / "attack-matrix" / "Campaign" / "automation" / "lab-profiles.yaml"
+    for candidate_name in ("lab-profiles.yaml", "profiles.yaml", "examples/profiles.yaml"):
+        candidate = Path(candidate_name)
         if candidate.is_file():
             return candidate
     return None
@@ -67,8 +60,9 @@ def resolve_profile_for_branches(
             raise ValueError(f"unknown profile '{explicit_profile}'")
         return explicit_profile
     defaults = data.get("branch_defaults") or {}
-    # Highest-demand wins: P-FULL > P-FOREST > P-LINUX/P-NETDEF/P-SUPPLY > P-CHILD
+    # Highest-demand wins: P-DFIR > P-FULL > P-FOREST > P-LINUX/P-NETDEF/P-SUPPLY > P-CHILD
     rank = {
+        "P-DFIR": 5,
         "P-FULL": 4,
         "P-FOREST": 3,
         "P-LINUX": 2,
@@ -94,21 +88,20 @@ def preflight(
     *,
     profile: str | None = None,
     profiles_path: Path | str | None = None,
-    cadre_root: Path | str | None = None,
     require_file: bool = False,
 ) -> PreflightResult:
-    """Advisory preflight from CADRE lab-profiles.yaml (no live ping by default)."""
-    path = resolve_profiles_path(explicit=profiles_path, cadre_root=cadre_root)
+    """Advisory preflight from lab profiles yaml (no live ping by default)."""
+    path = resolve_profiles_path(explicit=profiles_path)
     if path is None:
         if require_file:
-            raise FileNotFoundError("lab-profiles.yaml not found (CADRE automation glue)")
+            raise FileNotFoundError("profiles.yaml not found")
         return PreflightResult(
             profile=profile or "unknown",
             required_hosts=[],
             host_ips={},
             ok=True,
-            warnings=["lab-profiles.yaml not found — skipping lab preflight"],
-            notes="Standalone RedStrike has no lab inventory; set CADRE_ROOT or pass --cadre-root for checks.",
+            warnings=["profiles.yaml not found — skipping preflight checks"],
+            notes="No profiles.yaml found; pass --profiles for environment inventory checks.",
         )
 
     data = load_lab_profiles(path)
@@ -119,9 +112,9 @@ def preflight(
     hosts = data.get("hosts") or {}
     host_ips = {h: str(hosts[h]) for h in required if h in hosts}
     warnings: list[str] = []
-    if "C" in branches and chosen != "P-FOREST" and chosen != "P-FULL":
+    if "C" in branches and chosen not in {"P-FOREST", "P-FULL", "P-DFIR"}:
         warnings.append("Branch C (SCCM) typically needs P-FOREST (dc03 + mbr02)")
-    if "D" in branches and chosen not in {"P-LINUX", "P-FULL"}:
+    if "D" in branches and chosen not in {"P-LINUX", "P-FULL", "P-DFIR"}:
         warnings.append("Branch D typically needs P-LINUX (linux01)")
     notes = (
         f"Power on required hosts for {chosen} before --execute. "

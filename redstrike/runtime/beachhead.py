@@ -27,6 +27,7 @@ class OperatorMode(str, Enum):
 class ExecutionPath(str, Enum):
     WS01 = "ws01"
     LINUX60 = "linux60"
+    DIRECT = "direct"
     STAGE_MBR01 = "stage_mbr01"
     EXTERNAL60_PHASE0 = "external60_phase0"
 

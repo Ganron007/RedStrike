@@ -20,10 +20,17 @@ READ_ONLY_ACTIONS = {
     "adcs_enum",
 }
 
-DEFAULT_API_PROFILE = "standalone"
-DEFAULT_CAMPAIGN_PROFILE = "campaign"
+DEFAULT_API_PROFILE = "gated"
+DEFAULT_CAMPAIGN_PROFILE = "gated"
 
-_READONLY_PROFILE: dict[str, object] = {
+_ALL_MODES = [
+    EngagementMode.OBSERVE,
+    EngagementMode.ASSESS,
+    EngagementMode.VALIDATE,
+    EngagementMode.REPORT,
+]
+
+_GATED_PROFILE: dict[str, object] = {
     "allowed_modes": [EngagementMode.OBSERVE, EngagementMode.ASSESS],
     "allow_high_risk": False,
     "max_concurrent_per_target": 1,
@@ -32,12 +39,8 @@ _READONLY_PROFILE: dict[str, object] = {
     "cooldown_seconds_per_domain": 0.0,
 }
 
-_CAMPAIGN_PROFILE: dict[str, object] = {
-    "allowed_modes": [
-        EngagementMode.OBSERVE,
-        EngagementMode.ASSESS,
-        EngagementMode.VALIDATE,
-    ],
+_AUTONOMOUS_PROFILE: dict[str, object] = {
+    "allowed_modes": list(_ALL_MODES),
     "allow_high_risk": True,
     "max_concurrent_per_target": 1,
     "max_concurrent_per_domain": 2,
@@ -45,12 +48,25 @@ _CAMPAIGN_PROFILE: dict[str, object] = {
     "cooldown_seconds_per_domain": 0.5,
 }
 
+_LAB_UNGATED_PROFILE: dict[str, object] = {
+    "allowed_modes": list(_ALL_MODES),
+    "allow_high_risk": True,
+    "require_scope": True,
+    "ungated": True,
+    "max_concurrent_per_target": 1,
+    "max_concurrent_per_domain": 4,
+    "cooldown_seconds_per_target": 0.0,
+    "cooldown_seconds_per_domain": 0.0,
+}
+
 # User overlay: copy examples/scope.example.yaml → scope.yaml and pass --scope.
 POLICY_PROFILES: dict[str, dict[str, object]] = {
-    "standalone": dict(_READONLY_PROFILE),
-    "lab-readonly": dict(_READONLY_PROFILE),
-    "campaign": dict(_CAMPAIGN_PROFILE),
-    "cadre-campaign": dict(_CAMPAIGN_PROFILE),  # deprecated alias
+    "gated": dict(_GATED_PROFILE),
+    "autonomous": dict(_AUTONOMOUS_PROFILE),
+    "standalone": dict(_GATED_PROFILE),  # alias for gated
+    "campaign": dict(_AUTONOMOUS_PROFILE),  # alias for autonomous
+    "lab-readonly": dict(_GATED_PROFILE),
+    "lab-ungated": dict(_LAB_UNGATED_PROFILE),
     "validate-gated": {
         "allowed_modes": [
             EngagementMode.OBSERVE,
@@ -82,8 +98,7 @@ POLICY_PROFILES: dict[str, dict[str, object]] = {
 }
 
 PROFILE_ALIASES = {
-    "cadre-campaign": "campaign",
-    "lab-readonly": "standalone",
+    "ungated": "lab-ungated",
 }
 
 
@@ -94,6 +109,8 @@ class ScopePolicy(BaseModel):
         default_factory=lambda: [EngagementMode.OBSERVE, EngagementMode.ASSESS]
     )
     allow_high_risk: bool = False
+    require_scope: bool = False
+    ungated: bool = False
     max_concurrent_per_target: int = Field(default=1, ge=1)
     max_concurrent_per_domain: int = Field(default=3, ge=1)
     cooldown_seconds_per_target: float = Field(default=0.0, ge=0.0)
@@ -101,7 +118,25 @@ class ScopePolicy(BaseModel):
     rate_limit_requests: int = Field(default=60, ge=1)
     rate_limit_window_seconds: float = Field(default=60.0, ge=1.0)
 
+    def require_scope_ready(self) -> None:
+        """Fail closed when ungated/lab mode has no targets or domains."""
+        if not self.allowed_targets:
+            raise PermissionError(
+                "scope required: allowed_targets must list hosts or CIDRs before any run"
+            )
+        if not self.allowed_domains:
+            raise PermissionError(
+                "scope required: allowed_domains must list AD DNS names before any run"
+            )
+
     def assert_allowed(self, *, action: str, target: str, domain: str | None, mode: EngagementMode) -> None:
+        if self.require_scope:
+            self.require_scope_ready()
+            if not (target or "").strip():
+                raise PermissionError("Target is required by scope policy")
+            if not (domain or "").strip():
+                raise PermissionError("Domain is required by scope policy")
+
         if mode not in self.allowed_modes:
             raise PermissionError(f"Mode '{mode.value}' is not allowed by scope policy")
 
@@ -111,13 +146,43 @@ class ScopePolicy(BaseModel):
         if action not in READ_ONLY_ACTIONS and not self.allow_high_risk:
             raise PermissionError(f"Action '{action}' requires high-risk approval")
 
-        if self.allowed_targets and not _target_matches_any(target, self.allowed_targets):
+        if (self.allowed_targets or self.require_scope) and not _target_in_scope(
+            target, self.allowed_targets, self.allowed_domains
+        ):
             raise PermissionError(f"Target '{target}' is outside allowed scope")
 
-        if domain and self.allowed_domains and domain.lower() not in {
-            item.lower() for item in self.allowed_domains
-        }:
+        if domain and (self.allowed_domains or self.require_scope) and not _domain_in_scope(
+            domain, self.allowed_domains
+        ):
             raise PermissionError(f"Domain '{domain}' is outside allowed scope")
+
+
+def apply_ungated_overrides(policy: ScopePolicy) -> ScopePolicy:
+    """Force lab-ungated behaviour after a YAML overlay (cannot turn gates back on)."""
+    policy.ungated = True
+    policy.require_scope = True
+    policy.allow_high_risk = True
+    seen = {mode.value: mode for mode in policy.allowed_modes}
+    for mode in _ALL_MODES:
+        seen.setdefault(mode.value, mode)
+    policy.allowed_modes = list(seen.values())
+    return policy
+
+
+def _domain_in_scope(domain: str, allowed: list[str]) -> bool:
+    needle = domain.lower().rstrip(".")
+    for item in allowed:
+        hay = item.lower().rstrip(".")
+        if needle == hay or needle.endswith("." + hay):
+            return True
+    return False
+
+
+def _target_in_scope(target: str, allowed_targets: list[str], allowed_domains: list[str]) -> bool:
+    if _target_matches_any(target, allowed_targets):
+        return True
+    # FQDN under an allowed DNS suffix (CIDR alone cannot match hostnames).
+    return bool(allowed_domains and _domain_in_scope(target, allowed_domains))
 
 
 def _target_matches_any(target: str, allowed: list[str]) -> bool:

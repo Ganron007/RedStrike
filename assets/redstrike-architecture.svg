@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="960" height="1120" viewBox="0 0 960 1120" role="img" aria-label="RedStrike Agentic Active Directory Assessment Architecture Flow">
+<svg xmlns="http://www.w3.org/2000/svg" width="980" height="1160" viewBox="0 0 980 1160" role="img" aria-label="RedStrike Dual-Engine Active Directory Assessment Architecture">
   <defs>
     <!-- Background Gradient -->
     <linearGradient id="bgGrad" x1="0" y1="0" x2="0" y2="1">
@@ -19,9 +19,9 @@
       <stop offset="100%" stop-color="#140407"/>
     </linearGradient>
 
-    <linearGradient id="cardMcp" x1="0" y1="0" x2="1" y2="0">
-      <stop offset="0%" stop-color="#24080e"/>
-      <stop offset="100%" stop-color="#150408"/>
+    <linearGradient id="cardGraph" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#1e0c1f"/>
+      <stop offset="100%" stop-color="#120614"/>
     </linearGradient>
 
     <linearGradient id="cardHitl" x1="0" y1="0" x2="1" y2="0">
@@ -44,6 +44,11 @@
       <stop offset="0%" stop-color="#ff5a5a"/>
       <stop offset="50%" stop-color="#e11d2a"/>
       <stop offset="100%" stop-color="#a30d18"/>
+    </linearGradient>
+
+    <linearGradient id="purpleGrad" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#c084fc"/>
+      <stop offset="100%" stop-color="#9333ea"/>
     </linearGradient>
 
     <linearGradient id="goldGrad" x1="0" y1="0" x2="1" y2="0">
@@ -83,176 +88,195 @@
   </defs>
 
   <!-- Background Base -->
-  <rect width="960" height="1120" fill="url(#bgGrad)"/>
-  <rect width="960" height="400" fill="url(#topGlow)"/>
+  <rect width="980" height="1160" fill="url(#bgGrad)"/>
+  <rect width="980" height="420" fill="url(#topGlow)"/>
 
   <!-- ========================================================================= -->
   <!-- HEADER &amp; LOGO                                                             -->
   <!-- ========================================================================= -->
-  <g transform="translate(480, 50)">
+  <g transform="translate(490, 48)">
     <!-- RedStrike Shield &amp; Lightning Bolt -->
-    <g transform="translate(-280, -26) scale(0.38)">
+    <g transform="translate(-360, -26) scale(0.38)">
       <path d="M55 0 L110 18 V62 C110 100 86 128 55 145 C24 128 0 100 0 62 V18 Z" fill="url(#crimsonGrad)" stroke="#7a0a12" stroke-width="3"/>
       <path d="M60 26 L38 74 L54 74 L46 116 L80 54 L58 54 Z" fill="#ffffff" opacity="0.95"/>
     </g>
-    <text x="24" y="8" text-anchor="middle" font-family="'Segoe UI', -apple-system, sans-serif" font-size="32" font-weight="900" letter-spacing="0.5">
+    <text x="-300" y="8" text-anchor="start" font-family="'Segoe UI', -apple-system, sans-serif" font-size="28" font-weight="900" letter-spacing="0.5">
       <tspan fill="url(#crimsonGrad)">REDSTRIKE</tspan>
-      <tspan fill="#ffffff" font-weight="800"> | AGENTIC FLOW</tspan>
+      <tspan fill="#ffffff" font-weight="800"> | DUAL-ENGINE ARCHITECTURE</tspan>
     </text>
-    <text x="0" y="38" text-anchor="middle" font-family="'Segoe UI', -apple-system, sans-serif" font-size="15" font-weight="600" fill="#fca5a5">
-      Policy-Gated Active Directory Assessment &amp; Campaign Execution Pipeline
+    <text x="0" y="36" text-anchor="middle" font-family="'Segoe UI', -apple-system, sans-serif" font-size="14" font-weight="600" fill="#fca5a5">
+      Deterministic Attack Graphs &amp; Autonomous AI Agency for Active Directory, ADCS &amp; Cloud
     </text>
   </g>
 
   <!-- ========================================================================= -->
-  <!-- STEP 1: THE BRAIN (LLM Agent) (y=115, h=145)                              -->
+  <!-- STEP 1: DUAL EXECUTION INTERFACE (DAG GRAPH + LLM AGENT) (y=105, h=160)   -->
   <!-- ========================================================================= -->
-  <g transform="translate(90, 115)" filter="url(#shadow)">
-    <rect x="0" y="0" width="780" height="145" rx="14" fill="url(#cardBrain)" stroke="#991b1b" stroke-width="2"/>
-    
-    <!-- Stage Header Badge -->
-    <circle cx="28" cy="28" r="16" fill="#e11d2a"/>
-    <text x="28" y="34" text-anchor="middle" font-family="sans-serif" font-size="16" font-weight="900" fill="#ffffff">1</text>
-    
-    <text x="56" y="34" font-family="sans-serif" font-size="19" font-weight="900" fill="#ffffff">THE BRAIN (LLM Agent &amp; Cognitive Decision Engine)</text>
-    <rect x="635" y="14" width="130" height="28" rx="6" fill="#360a10" stroke="#e11d2a" stroke-width="1.2"/>
-    <text x="700" y="32" text-anchor="middle" font-family="sans-serif" font-size="12" font-weight="800" fill="#ff4d4d">AUTONOMOUS</text>
+  <!-- 1A: Deterministic DAG Graph Engine -->
+  <g transform="translate(80, 105)" filter="url(#shadow)">
+    <rect x="0" y="0" width="395" height="160" rx="14" fill="url(#cardGraph)" stroke="#a855f7" stroke-width="1.8"/>
+    <circle cx="26" cy="26" r="14" fill="url(#purpleGrad)"/>
+    <text x="26" y="31" text-anchor="middle" font-family="sans-serif" font-size="14" font-weight="900" fill="#ffffff">1A</text>
+    <text x="50" y="31" font-family="sans-serif" font-size="15" font-weight="900" fill="#ffffff">DETERMINISTIC DAG GRAPH ENGINE</text>
+    <g transform="translate(18, 52)">
+      <text x="0" y="16" font-family="sans-serif" font-size="13" font-weight="600" fill="#e9d5ff">• <strong>CLI Command:</strong> `redstrike graph run / campaign run`</text>
+      <text x="0" y="38" font-family="sans-serif" font-size="13" font-weight="600" fill="#e9d5ff">• <strong>DAG Attack Plans:</strong> YAML attack dependency graphs</text>
+      <text x="0" y="60" font-family="sans-serif" font-size="13" font-weight="600" fill="#e9d5ff">• <strong>Starter Templates:</strong> Recon, ADCS Audit, PrivEsc</text>
+      <text x="0" y="82" font-family="sans-serif" font-size="13" font-weight="700" fill="#34d399">• Deterministic, repeatable BAS &amp; compliance runs</text>
+    </g>
+  </g>
 
-    <!-- Sub-bullets -->
-    <g transform="translate(24, 60)">
-      <text x="0" y="16" font-family="sans-serif" font-size="14.5" font-weight="600" fill="#fecaca">• <strong>Agent Clients:</strong> Claude Desktop · Cursor · Cline · OpenHands · Custom Agent Swarms</text>
-      <text x="0" y="42" font-family="sans-serif" font-size="14.5" font-weight="600" fill="#fecaca">• <strong>Strategy Reasoning:</strong> Evaluates Active Directory attack graph, delegation paths &amp; kill-chain</text>
-      <text x="0" y="68" font-family="sans-serif" font-size="14.5" font-weight="700" fill="#34d399">• Calls Structured Intent Tools: `find_delegation` · `enumerate_domain_users` · `certipy_find`</text>
+  <!-- 1B: Autonomous LLM Agent MCP -->
+  <g transform="translate(505, 105)" filter="url(#shadow)">
+    <rect x="0" y="0" width="395" height="160" rx="14" fill="url(#cardBrain)" stroke="#e11d2a" stroke-width="1.8"/>
+    <circle cx="26" cy="26" r="14" fill="#e11d2a"/>
+    <text x="26" y="31" text-anchor="middle" font-family="sans-serif" font-size="14" font-weight="900" fill="#ffffff">1B</text>
+    <text x="50" y="31" font-family="sans-serif" font-size="15" font-weight="900" fill="#ffffff">AUTONOMOUS LLM AGENT (MCP)</text>
+    <g transform="translate(18, 52)">
+      <text x="0" y="16" font-family="sans-serif" font-size="13" font-weight="600" fill="#fecaca">• <strong>AI Clients:</strong> Claude Desktop · Cursor · Cline · Agents</text>
+      <text x="0" y="38" font-family="sans-serif" font-size="13" font-weight="600" fill="#fecaca">• <strong>FastMCP Server:</strong> Typed tools &amp; BloodHound cypher</text>
+      <text x="0" y="60" font-family="sans-serif" font-size="13" font-weight="600" fill="#fecaca">• <strong>Heuristic Guidance:</strong> Next-step recommendations</text>
+      <text x="0" y="82" font-family="sans-serif" font-size="13" font-weight="700" fill="#38bdf8">• Adaptive, goal-directed multi-hop exploration</text>
     </g>
   </g>
 
   <!-- Connector 1 -> 2 -->
-  <g transform="translate(480, 260)">
-    <line x1="0" y1="0" x2="0" y2="35" stroke="#ff4d4d" stroke-width="3.5" marker-end="url(#arrDownRed)"/>
-    <rect x="-140" y="8" width="280" height="22" rx="4" fill="#200609" stroke="#7f1d1d" stroke-width="1"/>
-    <text x="0" y="24" text-anchor="middle" font-family="sans-serif" font-size="11.5" font-weight="800" fill="#ff8080">JSON-RPC (Model Context Protocol)</text>
+  <g transform="translate(490, 265)">
+    <line x1="0" y1="0" x2="0" y2="35" stroke="#f59e0b" stroke-width="3.5" marker-end="url(#arrDownGold)"/>
+    <rect x="-145" y="8" width="290" height="22" rx="4" fill="#200609" stroke="#7f1d1d" stroke-width="1"/>
+    <text x="0" y="24" text-anchor="middle" font-family="sans-serif" font-size="11.5" font-weight="800" fill="#fde047">Execution Plan &amp; Typed Intent Dispatch</text>
   </g>
 
   <!-- ========================================================================= -->
-  <!-- STEP 2: REDSTRIKE MCP SERVER &amp; FASTAPI (y=300, h=135)                     -->
+  <!-- STEP 2: 2-TIER POLICY ENGINE &amp; HITL OPERATOR GATE (y=305, h=175)           -->
   <!-- ========================================================================= -->
-  <g transform="translate(90, 300)" filter="url(#shadow)">
-    <rect x="0" y="0" width="780" height="135" rx="14" fill="url(#cardMcp)" stroke="#e11d2a" stroke-width="2" filter="url(#glowRed)"/>
+  <g transform="translate(80, 305)" filter="url(#shadow)">
+    <rect x="0" y="0" width="820" height="175" rx="14" fill="url(#cardHitl)" stroke="#f59e0b" stroke-width="2.2" filter="url(#glowGold)"/>
     
-    <!-- Stage Header Badge -->
-    <circle cx="28" cy="28" r="16" fill="#e11d2a"/>
-    <text x="28" y="34" text-anchor="middle" font-family="sans-serif" font-size="16" font-weight="900" fill="#ffffff">2</text>
+    <circle cx="28" cy="28" r="16" fill="url(#goldGrad)"/>
+    <text x="28" y="34" text-anchor="middle" font-family="sans-serif" font-size="16" font-weight="900" fill="#0c0701">2</text>
     
-    <text x="56" y="34" font-family="sans-serif" font-size="19" font-weight="900" fill="#ffffff">REDSTRIKE MCP SERVER &amp; FASTAPI INGRESS</text>
-    <rect x="635" y="14" width="130" height="28" rx="6" fill="#360a10" stroke="#e11d2a" stroke-width="1.2"/>
-    <text x="700" y="32" text-anchor="middle" font-family="sans-serif" font-size="12" font-weight="800" fill="#ff4d4d">CONTROL PLANE</text>
+    <text x="56" y="34" font-family="sans-serif" font-size="18.5" font-weight="900" fill="#ffffff">2-TIER POLICY ENGINE &amp; FAIL-CLOSED GUARDRAILS</text>
+    <rect x="675" y="14" width="130" height="28" rx="6" fill="#382006" stroke="#f59e0b" stroke-width="1.2"/>
+    <text x="740" y="32" text-anchor="middle" font-family="sans-serif" font-size="12" font-weight="900" fill="#fde047">POLICY CORE</text>
 
     <!-- Sub-bullets -->
-    <g transform="translate(24, 60)">
-      <text x="0" y="16" font-family="sans-serif" font-size="14.5" font-weight="600" fill="#fecaca">• <strong>Local Authentication:</strong> Validates internal operator `REDSTRIKE_API_KEY` (Loopback trust)</text>
-      <text x="0" y="42" font-family="sans-serif" font-size="14.5" font-weight="600" fill="#fecaca">• <strong>No Raw Shell Allowed:</strong> Ingests typed intent parameters; rejects arbitrary command strings</text>
-      <text x="0" y="66" font-family="sans-serif" font-size="14" font-weight="700" fill="#38bdf8">• Dispatches structured requests to `ScopePolicy` and async `/jobs` queue</text>
+    <g transform="translate(24, 58)">
+      <text x="0" y="16" font-family="sans-serif" font-size="14" font-weight="600" fill="#fef08a">• <strong>[GATED Mode — Safe / Default]:</strong> Read-only discovery runs freely. High-risk actions (DCSync, Cert Forging, ACL writes, Password resets) <strong>PAUSE for HITL approval</strong>.</text>
+      <text x="0" y="42" font-family="sans-serif" font-size="14" font-weight="600" fill="#fef08a">• <strong>[AUTONOMOUS Mode — Unrestricted]:</strong> Full autonomous AI agency strictly bounded by `scope.yaml` IP/CIDRs and allowed domain suffixes.</text>
+      <text x="0" y="68" font-family="sans-serif" font-size="14" font-weight="700" fill="#fde047">• <strong>Fail-Closed Verification:</strong> Cryptographic success markers, return codes, and output pattern audits.</text>
+      <text x="0" y="92" font-family="sans-serif" font-size="14" font-weight="700" fill="#34d399">• Concurrency throttling, target cooldowns, and automatic teardown queue for modified objects.</text>
     </g>
   </g>
 
   <!-- Connector 2 -> 3 -->
-  <g transform="translate(480, 435)">
-    <line x1="0" y1="0" x2="0" y2="35" stroke="#f59e0b" stroke-width="3.5" marker-end="url(#arrDownGold)"/>
-    <rect x="-130" y="8" width="260" height="22" rx="4" fill="#241403" stroke="#f59e0b" stroke-width="1"/>
-    <text x="0" y="24" text-anchor="middle" font-family="sans-serif" font-size="11.5" font-weight="800" fill="#fde047">Policy &amp; Gate Evaluation</text>
-  </g>
-
-  <!-- ========================================================================= -->
-  <!-- STEP 3: POLICY &amp; HITL OPERATOR GATE (y=475, h=180)                        -->
-  <!-- ========================================================================= -->
-  <g transform="translate(90, 475)" filter="url(#shadow)">
-    <rect x="0" y="0" width="780" height="180" rx="14" fill="url(#cardHitl)" stroke="#f59e0b" stroke-width="2.2" filter="url(#glowGold)"/>
-    
-    <!-- Stage Header Badge -->
-    <circle cx="28" cy="28" r="16" fill="url(#goldGrad)"/>
-    <text x="28" y="34" text-anchor="middle" font-family="sans-serif" font-size="16" font-weight="900" fill="#0c0701">3</text>
-    
-    <text x="56" y="34" font-family="sans-serif" font-size="19" font-weight="900" fill="#ffffff">POLICY &amp; HITL OPERATOR GATEKEEPER</text>
-    <rect x="635" y="14" width="130" height="28" rx="6" fill="#382006" stroke="#f59e0b" stroke-width="1.2"/>
-    <text x="700" y="32" text-anchor="middle" font-family="sans-serif" font-size="12" font-weight="900" fill="#fde047">SAFETY GATES</text>
-
-    <!-- Sub-bullets -->
-    <g transform="translate(24, 60)">
-      <text x="0" y="16" font-family="sans-serif" font-size="14.5" font-weight="600" fill="#fef08a">• <strong>[1] Scope Validation:</strong> Verifies target IP/domain against `scope.yaml` — <strong>Auto-rejects out-of-scope</strong></text>
-      <text x="0" y="42" font-family="sans-serif" font-size="14.5" font-weight="600" fill="#fef08a">• <strong>[2] Mode Enforcement:</strong> Enforces `observe` (read-only audit) vs `exploit` permissions</text>
-      <text x="0" y="68" font-family="sans-serif" font-size="14.5" font-weight="800" fill="#fde047">• <strong>[3] ✋ Human-in-the-Loop Gate:</strong> High-risk jumps PAUSE for operator: `redstrike-campaign approve`</text>
-      <text x="0" y="94" font-family="sans-serif" font-size="14" font-weight="700" fill="#34d399">• Concurrency limits &amp; domain cooldowns prevent DC lockouts and runaway exploitation</text>
-    </g>
-  </g>
-
-  <!-- Connector 3 -> 4 -->
-  <g transform="translate(480, 655)">
+  <g transform="translate(490, 480)">
     <line x1="0" y1="0" x2="0" y2="35" stroke="#34d399" stroke-width="3.5" marker-end="url(#arrDownGreen)"/>
     <rect x="-140" y="8" width="280" height="22" rx="4" fill="#09281a" stroke="#10b981" stroke-width="1"/>
     <text x="0" y="24" text-anchor="middle" font-family="sans-serif" font-size="11.5" font-weight="800" fill="#34d399">✓ Gate Approved: Safe Execution</text>
   </g>
 
   <!-- ========================================================================= -->
-  <!-- STEP 4: TYPED EXECUTION LAYER (y=695, h=165)                              -->
+  <!-- STEP 3: TYPED INTENT BUILDERS (`shell=False` ARGV) (y=520, h=165)          -->
   <!-- ========================================================================= -->
-  <g transform="translate(90, 695)" filter="url(#shadow)">
-    <rect x="0" y="0" width="780" height="165" rx="14" fill="url(#cardExec)" stroke="#ff4d4d" stroke-width="2.2" filter="url(#glowRed)"/>
+  <g transform="translate(80, 520)" filter="url(#shadow)">
+    <rect x="0" y="0" width="820" height="165" rx="14" fill="url(#cardExec)" stroke="#ff4d4d" stroke-width="2.2" filter="url(#glowRed)"/>
     
-    <!-- Stage Header Badge -->
+    <circle cx="28" cy="28" r="16" fill="#e11d2a"/>
+    <text x="28" y="34" text-anchor="middle" font-family="sans-serif" font-size="16" font-weight="900" fill="#ffffff">3</text>
+    
+    <text x="56" y="34" font-family="sans-serif" font-size="18.5" font-weight="900" fill="#ffffff">TYPED COMMAND BUILDERS (`shell=False` ARGV)</text>
+    <rect x="675" y="14" width="130" height="28" rx="6" fill="#360a10" stroke="#ff4d4d" stroke-width="1.2"/>
+    <text x="740" y="32" text-anchor="middle" font-family="sans-serif" font-size="12" font-weight="800" fill="#ff8080">SUBPROCESS</text>
+
+    <!-- Sub-bullets -->
+    <g transform="translate(24, 58)">
+      <text x="0" y="16" font-family="sans-serif" font-size="14" font-weight="600" fill="#fecaca">• <strong>Active Directory &amp; ACLs:</strong> `NetExec` · `BloodyAD` (Object/ACL/Password) · `SqlBuilder` (xp_cmdshell)</text>
+      <text x="0" y="42" font-family="sans-serif" font-size="14" font-weight="600" fill="#fecaca">• <strong>Kerberos &amp; ADCS:</strong> `Certipy` (ESC1–13) · `Rubeus` (AS-REP/Kerberoast/PKINIT/S4U) · `ShadowCredentials`</text>
+      <text x="0" y="68" font-family="sans-serif" font-size="14" font-weight="700" fill="#34d399">• <strong>Zero Shell Injection:</strong> Strictly structured argument vectors (`list[str]`) with real-time secret redaction.</text>
+      <text x="0" y="92" font-family="sans-serif" font-size="14" font-weight="600" fill="#fca5a5">• <strong>Management &amp; Lateral:</strong> `SharpSCCM` (NAA/PXE/CMPivot/Scripts) · `Mimikatz` · `WinRS`</text>
+    </g>
+  </g>
+
+  <!-- Connector 3 -> 4 -->
+  <g transform="translate(490, 685)">
+    <line x1="0" y1="0" x2="0" y2="35" stroke="#ff4d4d" stroke-width="3.5" marker-end="url(#arrDownRed)"/>
+    <rect x="-140" y="8" width="280" height="22" rx="4" fill="#200609" stroke="#7f1d1d" stroke-width="1"/>
+    <text x="0" y="24" text-anchor="middle" font-family="sans-serif" font-size="11.5" font-weight="800" fill="#ff8080">Multi-Platform Execution Transport</text>
+  </g>
+
+  <!-- ========================================================================= -->
+  <!-- STEP 4: CROSS-PLATFORM TRANSPORT (LINUX, WINDOWS &amp; CLOUD) (y=725, h=155)  -->
+  <!-- ========================================================================= -->
+  <g transform="translate(80, 725)" filter="url(#shadow)">
+    <rect x="0" y="0" width="820" height="155" rx="14" fill="url(#cardMcp)" stroke="#e11d2a" stroke-width="2"/>
+    
     <circle cx="28" cy="28" r="16" fill="#e11d2a"/>
     <text x="28" y="34" text-anchor="middle" font-family="sans-serif" font-size="16" font-weight="900" fill="#ffffff">4</text>
     
-    <text x="56" y="34" font-family="sans-serif" font-size="19" font-weight="900" fill="#ffffff">TYPED EXECUTION LAYER (`shell=False` ARGV)</text>
-    <rect x="635" y="14" width="130" height="28" rx="6" fill="#360a10" stroke="#ff4d4d" stroke-width="1.2"/>
-    <text x="700" y="32" text-anchor="middle" font-family="sans-serif" font-size="12" font-weight="800" fill="#ff8080">SUBPROCESS</text>
+    <text x="56" y="34" font-family="sans-serif" font-size="18.5" font-weight="900" fill="#ffffff">CROSS-PLATFORM EXECUTION TRANSPORT</text>
+    <rect x="675" y="14" width="130" height="28" rx="6" fill="#360a10" stroke="#e11d2a" stroke-width="1.2"/>
+    <text x="740" y="32" text-anchor="middle" font-family="sans-serif" font-size="12" font-weight="800" fill="#ff4d4d">TRANSPORT</text>
 
-    <!-- Sub-bullets -->
-    <g transform="translate(24, 60)">
-      <text x="0" y="16" font-family="sans-serif" font-size="14.5" font-weight="600" fill="#fecaca">• <strong>Typed Builders:</strong> `NetExec` · `Certipy` (ESC1–13) · `Rubeus` (PKINIT/S4U) · `BloodyAD` · `SharpSCCM`</text>
-      <text x="0" y="42" font-family="sans-serif" font-size="14.5" font-weight="600" fill="#fecaca">• <strong>CommandRunner:</strong> Pure list-form `argv` subprocess — <strong>Zero shell injection / No `shell=True`</strong></text>
-      <text x="0" y="68" font-family="sans-serif" font-size="14.5" font-weight="700" fill="#34d399">• <strong>Real-time Redaction:</strong> Automatically masks NT hashes &amp; passwords in logs and streams</text>
-      <text x="0" y="92" font-family="sans-serif" font-size="14" font-weight="600" fill="#fca5a5">• Multi-Hop Transport: Direct Kali Linux execution or Windows WS01 remote proxy</text>
+    <!-- 3 Transport Columns -->
+    <g transform="translate(24, 58)">
+      <!-- Linux Box -->
+      <rect x="0" y="0" width="245" height="82" rx="8" fill="#170508" stroke="#7f1d1d" stroke-width="1"/>
+      <text x="122" y="22" text-anchor="middle" font-family="sans-serif" font-size="13.5" font-weight="800" fill="#ff8080">Linux / Kali Local</text>
+      <text x="122" y="44" text-anchor="middle" font-family="sans-serif" font-size="12" font-weight="600" fill="#fca5a5">`netexec` · `certipy` · `bloodyAD`</text>
+      <text x="122" y="64" text-anchor="middle" font-family="sans-serif" font-size="12" font-weight="600" fill="#fca5a5">`pywhiskey` · `impacket`</text>
+
+      <!-- Windows Box -->
+      <rect x="265" y="0" width="245" height="82" rx="8" fill="#170508" stroke="#7f1d1d" stroke-width="1"/>
+      <text x="387" y="22" text-anchor="middle" font-family="sans-serif" font-size="13.5" font-weight="800" fill="#ff8080">Windows Beachhead</text>
+      <text x="387" y="44" text-anchor="middle" font-family="sans-serif" font-size="12" font-weight="600" fill="#fca5a5">OpenSSH / Native Beachhead</text>
+      <text x="387" y="64" text-anchor="middle" font-family="sans-serif" font-size="12" font-weight="600" fill="#fca5a5">`Rubeus` · `SharpSCCM` · `Mimikatz`</text>
+
+      <!-- Cloud Box -->
+      <rect x="530" y="0" width="245" height="82" rx="8" fill="#170508" stroke="#7f1d1d" stroke-width="1"/>
+      <text x="652" y="22" text-anchor="middle" font-family="sans-serif" font-size="13.5" font-weight="800" fill="#ff8080">Cloud / Entra ID</text>
+      <text x="652" y="44" text-anchor="middle" font-family="sans-serif" font-size="12" font-weight="600" fill="#fca5a5">Microsoft Graph API · Azure CLI</text>
+      <text x="652" y="64" text-anchor="middle" font-family="sans-serif" font-size="12" font-weight="600" fill="#fca5a5">Hybrid Identity &amp; Token Replay</text>
     </g>
   </g>
 
   <!-- Connector 4 -> 5 -->
-  <g transform="translate(480, 860)">
+  <g transform="translate(490, 880)">
     <line x1="0" y1="0" x2="0" y2="35" stroke="#38bdf8" stroke-width="3.5" marker-end="url(#arrDownCyan)"/>
-    <rect x="-140" y="8" width="280" height="22" rx="4" fill="#082230" stroke="#0284c7" stroke-width="1"/>
-    <text x="0" y="24" text-anchor="middle" font-family="sans-serif" font-size="11.5" font-weight="800" fill="#38bdf8">Stdout / Entity Normalization</text>
+    <rect x="-145" y="8" width="290" height="22" rx="4" fill="#082230" stroke="#0284c7" stroke-width="1"/>
+    <text x="0" y="24" text-anchor="middle" font-family="sans-serif" font-size="11.5" font-weight="800" fill="#38bdf8">Normalized Telemetry &amp; Credential Ingest</text>
   </g>
 
   <!-- ========================================================================= -->
-  <!-- STEP 5: STRUCTURED EVIDENCE &amp; LEDGER (y=900, h=165)                       -->
+  <!-- STEP 5: STRUCTURED EVIDENCE &amp; CREDENTIAL LEDGER SSoT (y=920, h=165)        -->
   <!-- ========================================================================= -->
-  <g transform="translate(90, 900)" filter="url(#shadow)">
-    <rect x="0" y="0" width="780" height="165" rx="14" fill="url(#cardEvidence)" stroke="#38bdf8" stroke-width="2.2"/>
+  <g transform="translate(80, 920)" filter="url(#shadow)">
+    <rect x="0" y="0" width="820" height="165" rx="14" fill="url(#cardEvidence)" stroke="#38bdf8" stroke-width="2.2"/>
     
-    <!-- Stage Header Badge -->
     <circle cx="28" cy="28" r="16" fill="url(#cyanGrad)"/>
     <text x="28" y="34" text-anchor="middle" font-family="sans-serif" font-size="16" font-weight="900" fill="#041c26">5</text>
     
-    <text x="56" y="34" font-family="sans-serif" font-size="19" font-weight="900" fill="#ffffff">STRUCTURED EVIDENCE &amp; CREDENTIAL LEDGER SSoT</text>
-    <rect x="635" y="14" width="130" height="28" rx="6" fill="#0a2a3a" stroke="#38bdf8" stroke-width="1.2"/>
-    <text x="700" y="32" text-anchor="middle" font-family="sans-serif" font-size="12" font-weight="800" fill="#38bdf8">DELIVERABLES</text>
+    <text x="56" y="34" font-family="sans-serif" font-size="18.5" font-weight="900" fill="#ffffff">STRUCTURED EVIDENCE &amp; CREDENTIAL LEDGER SSoT</text>
+    <rect x="675" y="14" width="130" height="28" rx="6" fill="#0a2a3a" stroke="#38bdf8" stroke-width="1.2"/>
+    <text x="740" y="32" text-anchor="middle" font-family="sans-serif" font-size="12" font-weight="800" fill="#38bdf8">DELIVERABLES</text>
 
     <!-- Sub-bullets -->
-    <g transform="translate(24, 60)">
-      <text x="0" y="16" font-family="sans-serif" font-size="14.5" font-weight="600" fill="#bae6fd">• <strong>Evidence Normalization:</strong> Output transformed into Pydantic `EvidenceRecord` models</text>
-      <text x="0" y="42" font-family="sans-serif" font-size="14.5" font-weight="600" fill="#bae6fd">• <strong>Credential Ledger (SSoT):</strong> Tracks discovered NT hashes, Kerberos TGTs &amp; DA privileges</text>
-      <text x="0" y="68" font-family="sans-serif" font-size="14.5" font-weight="700" fill="#34d399">• <strong>Audit Provenance:</strong> Cryptographic `audit_id` linkage on every observation (Zero fabrication)</text>
-      <text x="0" y="92" font-family="sans-serif" font-size="14" font-weight="700" fill="#38bdf8">• Returns structured JSON telemetry to the LLM Brain for next-step campaign decisions</text>
+    <g transform="translate(24, 58)">
+      <text x="0" y="16" font-family="sans-serif" font-size="14" font-weight="600" fill="#bae6fd">• <strong>Evidence Normalization:</strong> Raw command outputs parsed into typed Pydantic `EvidenceRecord` models.</text>
+      <text x="0" y="42" font-family="sans-serif" font-size="14" font-weight="600" fill="#bae6fd">• <strong>Credential Ledger (SSoT):</strong> Automatically captures and indexes NT hashes, Kerberos tickets, and DA privileges.</text>
+      <text x="0" y="68" font-family="sans-serif" font-size="14" font-weight="700" fill="#34d399">• <strong>Audit Provenance:</strong> Cryptographic `audit_id` linkage on every observation (Zero hallucination / Zero fabrication).</text>
+      <text x="0" y="92" font-family="sans-serif" font-size="14" font-weight="700" fill="#38bdf8">• Continuous telemetry and state stream returned to the DAG Graph Runner and LLM Agent Brain.</text>
     </g>
   </g>
 
   <!-- ========================================================================= -->
   <!-- LEFT RETURN CONDUIT (Credential Recycling Loop: Step 5 -> Step 1)         -->
   <!-- ========================================================================= -->
-  <path d="M 90 985 L 35 985 L 35 185 L 85 185" fill="none" stroke="#e11d2a" stroke-width="3.5" stroke-dasharray="10 5"/>
-  <polygon points="85,185 70,175 70,195" fill="#ff4d4d"/>
+  <path d="M 80 1005 L 30 1005 L 30 185 L 75 185" fill="none" stroke="#e11d2a" stroke-width="3.5" stroke-dasharray="10 5"/>
+  <polygon points="75,185 60,175 60,195" fill="#ff4d4d"/>
 
   <!-- Vertical Feedback Tag -->
-  <g transform="translate(25, 580) rotate(-90)">
+  <g transform="translate(20, 600) rotate(-90)">
     <rect x="-160" y="-12" width="320" height="24" rx="4" fill="#1c070a" stroke="#e11d2a" stroke-width="1.2"/>
     <text x="0" y="4" text-anchor="middle" font-family="sans-serif" font-size="11.5" font-weight="800" fill="#fca5a5" letter-spacing="0.5">
       ↻ DISCOVERED CREDENTIALS RECYCLED
@@ -262,9 +286,9 @@
   <!-- ========================================================================= -->
   <!-- FOOTER                                                                    -->
   <!-- ========================================================================= -->
-  <g transform="translate(480, 1095)">
+  <g transform="translate(490, 1130)">
     <text text-anchor="middle" font-family="'Segoe UI', sans-serif" font-size="13.5" font-weight="600" fill="#ff4d4d">
-      Python ≥ 3.10 · Policy-Aware Active Directory Engine · Typed Command Builders · Operator-Gated HITL
+      Python ≥ 3.10 · Policy-Gated Active Directory &amp; ADCS Engine · Typed Command Builders · FastMCP &amp; REST API
     </text>
   </g>
 </svg>

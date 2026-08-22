@@ -1,0 +1,25 @@
+version: 1
+name: verify-fixture
+nodes:
+  - id: T028
+    phase: 0
+    branch: spine
+    title: Null session expect blocked
+    path: linux60
+    beachheads: [linux]
+    script: campaign-a/t028.sh
+    success_marker: T028_OK
+    expected_errors:
+      - NT_STATUS_ACCESS_DENIED
+    requires_cred: null
+    produces_cred: null
+
+  - id: T013
+    phase: 4
+    branch: spine
+    title: ACL WriteDacl
+    path: linux60
+    beachheads: [linux]
+    script: campaign-a/t013.sh
+    requires_cred: null
+    produces_cred: null

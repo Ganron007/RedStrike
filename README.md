@@ -12,172 +12,191 @@
 </p>
 
 > [!IMPORTANT]
-> **Authorized use only.** RedStrike is an offensive security tool. Use it **only** for
+> **Authorized use only.** RedStrike is an offensive security assessment framework. Use it **only** for
 > authorized security assessments against systems and accounts you are explicitly permitted
 > to test. Unauthorized scanning, enumeration, or access attempts are illegal. The authors
 > and contributors accept no liability for any misuse or damage.
 
-RedStrike is an agentic Active Directory and ADCS assessment toolkit: intent-level
-HTTP and MCP APIs, typed command builders (`shell=False`), scope policy, a credential
-ledger, human-in-the-loop gates, and a campaign-graph orchestrator.
+RedStrike is an agentic Active Directory, ADCS, and Hybrid Identity assessment framework combining a **deterministic DAG attack-graph engine** with an **autonomous LLM agent (FastMCP)**, typed command builders (`shell=False`), scope policy, a cryptographic credential ledger, human-in-the-loop safety gates, and cross-platform transport (Linux, Windows beachheads, and Cloud).
 
-Lab graphs, seeds, and attack scripts are **not** shipped here. Use the bundled
-`examples/` demo, or pass your own `--graph` / `--seed`.
+Bring your own target environments, attack graphs, and seeds. RedStrike ships fully standalone with generic starter templates in `examples/`.
 
 | | |
 |---|---|
 | Package | `redstrike` |
-| Commands | `redstrike` · `redstrike-api` · `redstrike-mcp` · `redstrike-campaign` · `redstrike console` |
-| Practice & Study | [`docs/PRACTICE-GUIDE.md`](docs/PRACTICE-GUIDE.md) |
-| Setup | [`docs/SETUP.md`](docs/SETUP.md) |
-| Secrets | [`docs/SECURITY.md`](docs/SECURITY.md) |
+| Commands | `redstrike` (`graph` / `campaign` / `console` / `check`) · `redstrike-api` · `redstrike-mcp` |
+| Generic Graph Templates | [`examples/generic-ad-recon.yaml`](examples/generic-ad-recon.yaml) · [`examples/generic-adcs-audit.yaml`](examples/generic-adcs-audit.yaml) · [`examples/generic-privilege-escalation.yaml`](examples/generic-privilege-escalation.yaml) |
+| Architecture & Modes | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) |
+| Practice & Operator Guide | [`docs/PRACTICE-GUIDE.md`](docs/PRACTICE-GUIDE.md) |
+| Setup & Toolchain | [`docs/SETUP.md`](docs/SETUP.md) |
+| Security & OPSEC | [`docs/SECURITY.md`](docs/SECURITY.md) |
 | Contributing | [`CONTRIBUTING.md`](CONTRIBUTING.md) |
 
-## Capabilities
+---
 
-- AD-native operations instead of a generic “run this shell string” endpoint.
-- Typed builders with `shell=False` (NetExec, Certipy, Rubeus, bloodyAD, Shadow Credentials, SharpSCCM AdminService).
-- Scope policy before execution (`scope.yaml` overlays a built-in profile).
-- OPSEC telemetry profiler mapping techniques to expected Windows Event IDs (4662, 4769, 7045, Sysmon) and noise tiers.
-- Automated `TeardownQueue` for tracking and rolling back post-exploitation modifications.
-- Evidence records for every observation; JSON and Markdown reports.
-- Default **API** profile is read-only (`observe` / `assess`).
-- Campaign `--execute` is operator-gated (HITL). Privilege jumps wait for `redstrike-campaign approve`.
-- MCP and HTTP expose intent-level tools (`enumerate_domain_users`, `find_delegation`, `bloodhound_query`, `recommend_next_steps`), not arbitrary command strings.
-- Interactive terminal dashboard via `redstrike console`.
+## Dual Execution Engine & 2-Tier Safety Profiles
 
-## Quick start
+RedStrike bridges deterministic reproducibility with adaptive AI agency through two execution interfaces and two execution policy profiles:
 
-Full walkthrough (Windows included): [`docs/SETUP.md`](docs/SETUP.md).
-
-```bash
-python -m venv .venv
-source .venv/bin/activate   # Windows: .venv\Scripts\Activate.ps1
-pip install -e ".[dev,mcp]"
-cp examples/scope.example.yaml scope.yaml   # edit; never commit
-redstrike check
-redstrike-campaign run --phase 1-3 --beachhead windows --operator provisioning --engage demo \
-  --graph examples/campaign-graph.m1.yaml \
-  --seed examples/seed.example.json \
-  --automation-root examples/automation
+```
+                          ┌────────────────────────────────────────────────────────┐
+                          │                  REDSTRIKE INTERFACES                  │
+                          └───────────────────────────┬────────────────────────────┘
+                                                      │
+                         ┌────────────────────────────┴────────────────────────────┐
+                         ▼                                                         ▼
+         ┌──────────────────────────────┐                          ┌──────────────────────────────┐
+         │ 1A. Deterministic DAG Engine │                          │ 1B. Autonomous LLM Agent     │
+         │  • redstrike graph run       │                          │  • FastMCP / REST API        │
+         │  • YAML attack graphs        │                          │  • BloodHound Cypher queries │
+         │  • Repeatable BAS & audits   │                          │  • Adaptive multi-hop goals  │
+         └───────────────┬──────────────┘                          └──────────────┬───────────────┘
+                         │                                                         │
+                         └────────────────────────────┬────────────────────────────┘
+                                                      ▼
+                          ┌────────────────────────────────────────────────────────┐
+                          │               2-TIER POLICY ENGINE                     │
+                          │                                                        │
+                          │  [GATED Profile] (Default / Safe)                      │
+                          │   • Read-only discovery runs freely                    │
+                          │   • High-risk jumps PAUSE for operator approval (HITL) │
+                          │                                                        │
+                          │  [AUTONOMOUS Profile] (Unrestricted Agency)            │
+                          │   • AI explores multi-hop paths toward objectives      │
+                          │   • Strictly bounded by scope.yaml IP/domain rules     │
+                          └───────────────────────────┬────────────────────────────┘
+                                                      ▼
+                          ┌────────────────────────────────────────────────────────┐
+                          │           TYPED BUILDERS & CROSS-PLATFORM              │
+                          │   • Linux Kali: netexec, certipy, bloodyAD, impacket   │
+                          │   • Windows Beachhead: Rubeus, SharpSCCM, Mimikatz     │
+                          │   • Cloud / Entra ID: Microsoft Graph API, Az CLI      │
+                          └────────────────────────────────────────────────────────┘
 ```
 
-Start the API with a **local** key (do not commit it):
+### 1. Execution Profiles
+- **`GATED` Mode (Default / Safe):** Reconnaissance, discovery, and non-intrusive checks execute freely. High-risk operations (**DCSync**, **Ticket/Certificate Forgery**, **ACL Writes**, **Password Resets**) pause execution and wait for human operator approval (`redstrike graph approve --gate <name>`).
+- **`AUTONOMOUS` Mode (Unrestricted under Scope):** Allows AI agents (or automated pipelines) to explore and chain multi-hop paths without manual pauses, strictly enforced by `scope.yaml` IP/CIDR blocks, domain suffixes, and cooldown limits.
 
-```bash
-export REDSTRIKE_API_KEY="$(python -c 'import secrets; print(secrets.token_urlsafe(32))')"
-redstrike-api --scope scope.yaml --profile standalone --api-key "$REDSTRIKE_API_KEY" --host 127.0.0.1 --port 8890
-curl http://127.0.0.1:8890/health
-```
+### 2. Execution Interfaces
+- **Deterministic DAG Graph Engine:** Run predefined or custom YAML attack graphs with dependency tracking, condition evaluation, and fail-closed verification (`redstrike graph run --graph <file.yaml>`).
+- **Autonomous LLM Agent (FastMCP):** Connect AI coding assistants (Claude Desktop, Cursor, Cline, custom agent swarms) via FastMCP to query BloodHound graphs, request next-step recommendations, and invoke typed intent tools.
+
+---
 
 ## Architecture
-
-RedStrike runs as a single FastAPI process. HTTP clients and the MCP proxy share the
-same policy-gated pipeline before a typed command is executed.
 
 <p align="center">
   <img src="assets/redstrike-architecture.svg" alt="RedStrike Architecture" width="100%">
 </p>
 
-1. **Ingress** — HTTP `/ad/*`, or MCP tools that `POST` to the same routes.
-2. **Auth** — non-loopback callers must send `X-API-Key` when `--api-key` is set.
-3. **Policy** — `ScopePolicy.assert_allowed` rejects out-of-scope targets, domains, modes, or actions.
-4. **Guardrails** — per-target / per-domain concurrency and cooldown, released in `finally`.
-5. **Execute** — typed `argv`, `subprocess` with secret redaction and a timeout.
-6. **Normalize** — parsers produce entities, evidence, and optional findings.
-7. **Report** — `render_json_report` / Markdown.
+1. **Ingress** — CLI (`redstrike graph`), HTTP (`/ad/*`, `/jobs`), or FastMCP tools (`redstrike-mcp`).
+2. **Auth & Trust** — Local loopback trust by default; `X-API-Key` required for remote interfaces.
+3. **Policy & Scope** — `ScopePolicy.assert_allowed` validates target IP/CIDRs and domains against `scope.yaml`.
+4. **HITL Gatekeeper** — Pauses high-risk operations in `gated` profile until cryptographically approved.
+5. **Typed Builders (`shell=False`)** — Generates secure `list[str]` argument vectors; eliminates shell injection.
+6. **Cross-Platform Transport** — Direct Kali execution, OpenSSH to domain-joined Windows beachheads, or Cloud Graph APIs.
+7. **Verification & Teardown** — Validates exit codes, output patterns, and success markers; tracks modified objects in `TeardownQueue` for cleanup.
+8. **Credential Ledger (SSoT)** — Automatically indexes discovered NT hashes, Kerberos tickets, and privileges.
 
-The HTTP API and the in-memory job worker share one process. Do not load-balance
-multiple API replicas unless you add an external job store.
+---
 
-## HTTP API
+## Quick Start
 
-Replace `dc.example.lab` with a host already listed in **your** `scope.yaml`.
-`$REDSTRIKE_API_KEY` is an environment variable, not a committed secret.
+### 1. Installation
 
 ```bash
-curl -X POST http://127.0.0.1:8890/ad/users \
-  -H "Content-Type: application/json" \
-  -H "X-API-Key: $REDSTRIKE_API_KEY" \
-  -d '{
-    "target": "dc.example.lab",
-    "domain": "example.lab",
-    "username": "operator_user",
-    "password": "<REDACTED>"
-  }'
+git clone https://github.com/Ganron007/RedStrike.git
+cd RedStrike
+python -m venv .venv
+source .venv/bin/activate   # Windows: .venv\Scripts\Activate.ps1
+pip install -e ".[dev,mcp]"
 ```
 
-Long-running work can be submitted as jobs (`PENDING → RUNNING → COMPLETED` or `FAILED`).
-Duplicate in-flight work is deduplicated by action / target / domain / mode.
+### 2. Configure Scope
+
+Copy the template and define your authorized targets:
 
 ```bash
-curl -X POST http://127.0.0.1:8890/jobs \
-  -H "Content-Type: application/json" \
-  -H "X-API-Key: $REDSTRIKE_API_KEY" \
-  -d '{"action": "domain_users", "target": "dc.example.lab", "domain": "example.lab"}'
-
-curl http://127.0.0.1:8890/jobs/{job_id} -H "X-API-Key: $REDSTRIKE_API_KEY"
+cp examples/scope.example.yaml scope.yaml
+# Edit scope.yaml to include your lab domain and domain controller IPs
 ```
 
-MCP (optional), with the API already on loopback:
+### 3. Verify Environment
 
 ```bash
+redstrike check
+```
+
+---
+
+## Usage Examples
+
+### Option A: Run a Generic Attack Graph
+
+Execute one of the bundled generic Active Directory graphs:
+
+```bash
+# 1. Run Active Directory Reconnaissance Graph (Dry-run)
+redstrike graph run --graph examples/generic-ad-recon.yaml --phase 1.0
+
+# 2. Run ADCS Audit & Template Escalation Graph
+redstrike graph run --graph examples/generic-adcs-audit.yaml --phase 2-3
+
+# 3. Approve a paused HITL gate (in Gated mode)
+redstrike graph approve --gate ticket --engage default
+```
+
+### Option B: Start Autonomous LLM FastMCP Server
+
+Connect RedStrike to Claude Desktop, Cursor, or your agent swarm:
+
+```bash
+# 1. Start the RedStrike API
+export REDSTRIKE_API_KEY="$(python -c 'import secrets; print(secrets.token_urlsafe(32))')"
+redstrike-api --scope scope.yaml --profile autonomous --api-key "$REDSTRIKE_API_KEY" --host 127.0.0.1 --port 8890
+
+# 2. Launch the FastMCP Bridge
 redstrike-mcp --api http://127.0.0.1:8890
 ```
 
-1-click client configuration snippets:
-- **Cursor / VS Code**: [`.vscode/mcp.json`](.vscode/mcp.json)
-- **Claude Desktop**: [`docs/claude_desktop_config.json`](docs/claude_desktop_config.json)
+#### FastMCP Client Configuration
 
-## Campaign orchestrator
-
-This repository ships a **demo graph** only. Point the CLI at your engagement files,
-or use `examples/`:
-
-```bash
-redstrike-campaign run --phase 1-3 --beachhead windows --operator provisioning --engage demo \
-  --graph examples/campaign-graph.m1.yaml \
-  --seed examples/seed.example.json \
-  --automation-root examples/automation
+**Claude Desktop (`claude_desktop_config.json`):**
+```json
+{
+  "mcpServers": {
+    "redstrike": {
+      "command": "redstrike-mcp",
+      "args": ["--api", "http://127.0.0.1:8890"]
+    }
+  }
+}
 ```
 
-- Branches: `--branch A|B|C|…` · streams: `redstrike-campaign stream E|F`
-- Privilege jumps pause until `redstrike-campaign approve --gate <name> --engage <id>`
-- Live `--execute` needs operator tools on PATH (`redstrike check --execute-ready`)
-- Optional SSH to a Windows beachhead via `REDSTRIKE_WS01_HOST`, `REDSTRIKE_WS01_USER`,
-  `REDSTRIKE_WS01_SSH_KEY` (no lab defaults in this repo)
-
-## Reporting
-
-```python
-from redstrike.reporting.json_report import render_json_report
-
-report = render_json_report(findings, evidence)
+**Cursor / VS Code (`.vscode/mcp.json`):**
+```json
+{
+  "mcpServers": {
+    "redstrike": {
+      "command": "redstrike-mcp",
+      "args": ["--api", "http://127.0.0.1:8890"]
+    }
+  }
+}
 ```
 
-The result is a dict with `tool`, `generated_at`, `summary`, `findings`, and `evidence`.
+---
 
-## Safety model
+## Safety & Operational Guardrails
 
-Default API profile (`standalone`) allows read-only AD assessment:
+- **Default Profile (`gated`):** High-risk actions require explicit human operator approval.
+- **Strict Scope Enforcement:** Out-of-scope targets and domains are rejected before any network traffic is generated.
+- **Fail-Closed Verification:** Steps require non-zero return codes, expected markers, and absence of failure patterns.
+- **Teardown Queue:** Tracks created certificates, shadow credentials, and ACL modifications for automated post-assessment cleanup.
+- **Zero Shell Injection:** All tool invocations use structured argument lists (`shell=False`) with real-time credential redaction in logs and streams.
 
-- Domain users, groups, and computers
-- Password policy
-- SMB shares
-- AS-REP roastability and Kerberoastability collection
-- Delegation and AdminCount discovery
-- ADCS enumeration
-
-High-risk campaign actions (DCSync, ticket forgery, ACL writes, and similar) run only
-through the orchestrator with HITL approval. Do not bypass those gates.
-
-Operational defaults:
-
-- Bind the API to `127.0.0.1` unless you have a deliberate exposure plan.
-- Non-loopback callers must send `X-API-Key` when `--api-key` is set.
-- MCP rejects non-local plain HTTP API URLs; use HTTPS off-box.
-- Command runners redact password and hash flags in logs and evidence argv.
-- Never commit `scope.yaml`, `.env`, API keys, SSH private keys, or engagement passwords.
+---
 
 ## License
 

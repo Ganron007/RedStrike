@@ -31,7 +31,7 @@ def test_mcp_exposes_admin_count_and_adcs_tools(monkeypatch) -> None:
     monkeypatch.setattr(
         server,
         "_post",
-        lambda api_url, path, payload: {"api_url": api_url, "path": path, "payload": payload},
+        lambda api_url, path, payload, **_kwargs: {"api_url": api_url, "path": path, "payload": payload},
     )
 
     mcp = server.create_mcp("http://127.0.0.1:8890")
@@ -56,7 +56,7 @@ def test_mcp_passes_integration_metadata(monkeypatch) -> None:
     monkeypatch.setattr(
         server,
         "_post",
-        lambda api_url, path, payload: {"api_url": api_url, "path": path, "payload": payload},
+        lambda api_url, path, payload, **_kwargs: {"api_url": api_url, "path": path, "payload": payload},
     )
 
     mcp = server.create_mcp("http://127.0.0.1:8890")
@@ -75,6 +75,43 @@ def test_mcp_passes_integration_metadata(monkeypatch) -> None:
     assert payload["run_id"] == "run-001"
     assert payload["source_system"] == "redstrike"
     assert payload["evidence_tags"] == ["users", "phase1"]
+
+
+def test_mcp_campaign_tools_dispatch(monkeypatch) -> None:
+    mcp_module = ModuleType("mcp")
+    mcp_server_module = ModuleType("mcp.server")
+    mcp_fastmcp_module = ModuleType("mcp.server.fastmcp")
+    mcp_fastmcp_module.FastMCP = FakeMCP
+    fastmcp_module = ModuleType("fastmcp")
+    fastmcp_module.FastMCP = FakeMCP
+    monkeypatch.setitem(sys.modules, "mcp", mcp_module)
+    monkeypatch.setitem(sys.modules, "mcp.server", mcp_server_module)
+    monkeypatch.setitem(sys.modules, "mcp.server.fastmcp", mcp_fastmcp_module)
+    monkeypatch.setitem(sys.modules, "fastmcp", fastmcp_module)
+    monkeypatch.setattr(
+        server,
+        "_post",
+        lambda api_url, path, payload, timeout=300: {
+            "api_url": api_url,
+            "path": path,
+            "payload": payload,
+            "timeout": timeout,
+        },
+    )
+
+    mcp = server.create_mcp("http://127.0.0.1:8890")
+    started = mcp.tools["campaign_start"]("llm-lab", beachhead="windows", profile="gated")["payload"]
+    assert started["engagement_id"] == "llm-lab"
+    assert started["beachhead"] == "windows"
+    assert started["profile"] == "gated"
+    assert started["branches"] == "all"
+
+    ran = mcp.tools["campaign_run_phase"]("llm-lab", phase="1-3", beachhead="windows")
+    assert ran["timeout"] == 7200
+    payload = ran["payload"]
+    assert payload["engagement_id"] == "llm-lab"
+    assert payload["phase"] == "1-3"
+    assert payload["beachhead"] == "windows"
 
 
 def test_mcp_rejects_non_local_http_api() -> None:

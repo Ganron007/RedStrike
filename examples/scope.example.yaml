@@ -4,12 +4,13 @@
 # Built-in profiles:
 #   standalone      read-only AD assessment (default API)
 #   campaign        validate + high-risk allowed (HITL still gates --execute)
+#   lab-ungated     no HITL, all modes; MUST have non-empty targets AND domains
 #   validate-gated  same as campaign with longer cooldowns
 #   adcs-deep       ADCS-focused
 #   forest-trust-review  read-only forest/trust review
 #
-# Empty allowed_targets / allowed_domains means "no extra restriction".
-# Fill them in before pointing the API at a real network.
+# Empty allowed_targets / allowed_domains means "no extra restriction" on standalone.
+# lab-ungated / --ungated refuses to start if either list is empty.
 
 allowed_targets:
   - 192.168.1.7

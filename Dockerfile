@@ -4,7 +4,7 @@
 
 FROM python:3.12-slim-bookworm
 
-LABEL maintainer="CADRE Platform <https://github.com/Ganron007/RedStrike>"
+LABEL maintainer="RedStrike <https://github.com/Ganron007/RedStrike>"
 LABEL description="Policy-gated agentic Active Directory assessment & campaign engine"
 
 ENV PYTHONUNBUFFERED=1 \

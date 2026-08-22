@@ -7,7 +7,27 @@ from shutil import which
 
 from redstrike.core.models import CommandResult
 
-_UNIX_FALLBACKS = ("/usr/bin", "/bin", "/usr/local/bin")
+_UNIX_FALLBACKS = (
+    "/usr/bin",
+    "/bin",
+    "/usr/local/bin",
+    os.path.expanduser("~/.local/bin"),
+)
+
+
+def decode_captured(data: bytes | str | None) -> str:
+    """Decode tool output without crashing the campaign.
+
+    Mimikatz / Windows console tools often emit CP437/CP1252 (byte 0x83).
+    ``text=True`` + UTF-8 locales raise UnicodeDecodeError and abort the phase.
+    """
+    if data is None:
+        return ""
+    if isinstance(data, str):
+        return data
+    if not data:
+        return ""
+    return data.decode("utf-8", errors="replace")
 
 
 def resolve_executable(name: str) -> str:
@@ -42,15 +62,14 @@ class CommandRunner:
                 shell=False,
                 check=False,
                 capture_output=True,
-                text=True,
                 timeout=self.timeout_seconds,
             )
             duration = time.monotonic() - started
             return CommandResult(
                 command=redact_argv(argv),
                 return_code=completed.returncode,
-                stdout=completed.stdout,
-                stderr=completed.stderr,
+                stdout=decode_captured(completed.stdout),
+                stderr=decode_captured(completed.stderr),
                 duration_seconds=duration,
             )
         except subprocess.TimeoutExpired as exc:
@@ -58,8 +77,8 @@ class CommandRunner:
             return CommandResult(
                 command=redact_argv(argv),
                 return_code=124,
-                stdout=exc.stdout or "",
-                stderr=exc.stderr or "",
+                stdout=decode_captured(exc.stdout),
+                stderr=decode_captured(exc.stderr),
                 duration_seconds=duration,
                 timed_out=True,
             )

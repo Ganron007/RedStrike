@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import ipaddress
+import os
 import threading
 import time
 from collections.abc import Callable
@@ -17,18 +18,29 @@ from redstrike.api.campaign import (
     CampaignStartRequest,
     CampaignStatusRequest,
     CampaignStreamRequest,
+    IntentExecuteRequest,
     IntentPreviewRequest,
     campaign_approve,
     campaign_run_phase,
     campaign_start,
     campaign_status,
     campaign_stream,
+    intent_execute,
     intent_preview,
 )
 from redstrike.api.jobs import ALLOWED_JOB_ACTIONS, Job, JobRequest, JobStore
 from redstrike.core.errors import GuardrailViolationError, RateLimitExceededError
 from redstrike.core.models import ADRequest, OperationResponse
-from redstrike.core.policy import DEFAULT_API_PROFILE, POLICY_PROFILES, load_scope_policy
+from redstrike.core.policy import (
+    DEFAULT_API_PROFILE,
+    POLICY_PROFILES,
+    PROFILE_ALIASES,
+    apply_ungated_overrides,
+    load_scope_policy,
+    resolve_profile_name,
+)
+from redstrike.core.runner import CommandRunner
+from redstrike.runtime.hitl import hitl_required
 
 
 class BloodhoundQueryRequest(BaseModel):
@@ -97,16 +109,32 @@ def create_app(
     scope_path: str | None = None,
     api_key: str | None = None,
     profile: str | None = DEFAULT_API_PROFILE,
+    ungated: bool = False,
 ) -> FastAPI:
-    policy = load_scope_policy(scope_path, profile=profile)
+    resolved = resolve_profile_name(profile) or DEFAULT_API_PROFILE
+    if ungated:
+        resolved = "lab-ungated"
+    policy = load_scope_policy(scope_path, profile=resolved)
+    if ungated or policy.ungated:
+        apply_ungated_overrides(policy)
+        if not scope_path:
+            raise ValueError(
+                "--ungated / lab-ungated requires --scope with non-empty "
+                "allowed_targets and allowed_domains"
+            )
+        policy.require_scope_ready()
+        os.environ["REDSTRIKE_UNGATED"] = "1"
     service = ActiveDirectoryAssessmentService(policy)
     limiter = RateLimiter(policy.rate_limit_requests, policy.rate_limit_window_seconds)
     job_store = JobStore()
+    runner = CommandRunner()
     app = FastAPI(
         title="RedStrike",
         version=__version__,
         description="Policy-aware AD assessment service for authorized testing",
     )
+    app.state.policy = policy
+    app.state.ungated = bool(policy.ungated)
 
     @app.get("/health")
     def health() -> dict[str, object]:
@@ -116,7 +144,11 @@ def create_app(
             "allowed_modes": [mode.value for mode in policy.allowed_modes],
             "allowed_targets": policy.allowed_targets,
             "allowed_domains": policy.allowed_domains,
-            "policy_profile": profile,
+            "policy_profile": resolved,
+            "ungated": policy.ungated,
+            "require_scope": policy.require_scope,
+            "allow_high_risk": policy.allow_high_risk,
+            "hitl_required": hitl_required(),
             "guardrails": {
                 "max_concurrent_per_target": policy.max_concurrent_per_target,
                 "max_concurrent_per_domain": policy.max_concurrent_per_domain,
@@ -219,7 +251,7 @@ def create_app(
     @app.post("/campaign/run_phase")
     def campaign_run_phase_route(payload: CampaignRunRequest) -> dict[str, object]:
         try:
-            return campaign_run_phase(payload)
+            return campaign_run_phase(payload, ungated=bool(policy.ungated))
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
         except FileNotFoundError as exc:
@@ -235,7 +267,7 @@ def create_app(
     @app.post("/campaign/stream")
     def campaign_stream_route(payload: CampaignStreamRequest) -> dict[str, object]:
         try:
-            return campaign_stream(payload)
+            return campaign_stream(payload, ungated=bool(policy.ungated))
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
         except FileNotFoundError as exc:
@@ -247,6 +279,17 @@ def create_app(
             return intent_preview(payload)
         except (ValueError, KeyError, TypeError) as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    @app.post("/builders/execute")
+    def builders_execute_route(payload: IntentExecuteRequest) -> dict[str, object]:
+        try:
+            return intent_execute(payload, policy=policy, runner=runner)
+        except PermissionError as extra:
+            raise HTTPException(status_code=403, detail=str(extra)) from extra
+        except (ValueError, KeyError, TypeError) as extra:
+            raise HTTPException(status_code=422, detail=str(extra)) from extra
+        except FileNotFoundError as extra:
+            raise HTTPException(status_code=503, detail=str(extra)) from extra
 
     @app.post("/bloodhound/query")
     def bloodhound_query_route(payload: BloodhoundQueryRequest) -> dict[str, object]:
@@ -305,23 +348,35 @@ def create_app(
     return app
 
 
-def main() -> None:
+def main(argv: list[str] | None = None) -> None:
+    profile_choices = sorted(set(POLICY_PROFILES) | set(PROFILE_ALIASES))
     parser = argparse.ArgumentParser(description="Run the RedStrike API")
     parser.add_argument("--scope", default=None, help="Path to scope policy YAML")
     parser.add_argument(
         "--profile",
         default=DEFAULT_API_PROFILE,
-        choices=sorted(POLICY_PROFILES.keys()),
+        choices=profile_choices,
         help="Built-in scope profile (overlay your YAML with --scope)",
+    )
+    parser.add_argument(
+        "--ungated",
+        action="store_true",
+        help="Lab mode: no HITL, all actions, VALIDATE allowed. Requires --scope with targets and domains.",
     )
     parser.add_argument("--api-key", default=None, help="Optional API key for non-local callers")
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", default=8890, type=int)
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
+    if args.ungated and not args.scope:
+        parser.error("--ungated requires --scope with non-empty allowed_targets and allowed_domains")
 
     import uvicorn
 
-    uvicorn.run(create_app(args.scope, args.api_key, args.profile), host=args.host, port=args.port)
+    try:
+        app = create_app(args.scope, args.api_key, args.profile, ungated=bool(args.ungated))
+    except (ValueError, PermissionError) as extra:
+        parser.error(str(extra))
+    uvicorn.run(app, host=args.host, port=args.port)
 
 
 if __name__ == "__main__":

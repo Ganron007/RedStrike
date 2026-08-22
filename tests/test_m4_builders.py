@@ -20,15 +20,8 @@ from redstrike.runtime.intents import IntentRegistry
 from redstrike.runtime.session import CampaignSession
 
 EXAMPLES = Path(__file__).resolve().parents[1] / "examples"
-CADRE_AUTO = (
-    Path(__file__).resolve().parents[2]
-    / "CADRE"
-    / "attack-matrix"
-    / "Campaign"
-    / "automation"
-)
-GRAPH = CADRE_AUTO / "campaign-graph.yaml"
-SEED = CADRE_AUTO / "lab-seed-creds.json"
+DEFAULT_GRAPH = EXAMPLES / "campaign-graph.m1.yaml"
+SEED = EXAMPLES / "seed.example.json"
 
 
 def test_certipy_find_builder() -> None:
@@ -123,26 +116,22 @@ def test_orchestrator_prefers_intent_standalone(tmp_path: Path) -> None:
     assert summary.get("intent_count", 0) >= 1
 
 
-@pytest.mark.skipif(not GRAPH.is_file(), reason="CADRE graph missing")
-def test_orchestrator_prefers_intent_cadre_graph(tmp_path: Path) -> None:
-    root = tmp_path / "linux"
-    (root / "campaign-a").mkdir(parents=True)
-    for name in ("T003-asrep-ws01.sh", "T002-kerb-ws01.sh", "T041-xpcmd-ws01.sh", "T043-impersonate-ws01.sh"):
-        (root / "campaign-a" / name).write_text("#!/bin/bash\n", encoding="utf-8")
+def test_orchestrator_prefers_intent_generic_recon_graph(tmp_path: Path) -> None:
     session = CampaignSession(
         "m4-int",
         beachhead="windows",
-        automation_root=root,
-        graph_path=GRAPH,
+        automation_root=tmp_path / "linux",
+        graph_path=EXAMPLES / "generic-ad-recon.yaml",
         ledger_root=tmp_path / "ledgers",
-        seed_path=SEED if SEED.is_file() else None,
+        seed_path=SEED,
         branches="spine",
     )
-    summary = session.run_phase("1-3", dry_run=True, include_preflight=False)
+    summary = session.run_phase("1.0", dry_run=True, include_preflight=False)
     by_id = {s["node_id"]: s for s in summary["steps"]}
-    assert by_id["T003"]["intent"] == "rubeus.asreproast"
-    assert by_id["T003"]["mechanism"].startswith("intent:")
-    assert by_id["T003"]["argv"][0] == "Rubeus.exe"
+    assert by_id["RECON-01-CERTIPY"]["intent"] == "certipy.find"
+    assert by_id["RECON-01-CERTIPY"]["mechanism"].startswith("intent:")
+    assert by_id["RECON-02-ASREP"]["intent"] == "rubeus.asreproast"
+    assert by_id["RECON-02-ASREP"]["mechanism"].startswith("intent:")
     assert summary.get("intent_count", 0) >= 3
 
 

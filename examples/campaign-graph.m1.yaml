@@ -1,5 +1,6 @@
-# Bundled demo graph — standalone RedStrike (no lab secrets, no CADRE checkout).
-# Real campaign graphs, seeds, and scripts stay in the consuming lab repo.
+# Bundled demo graph — standalone RedStrike starter example.
+# Live --execute verifies each step inside the engine: rc==0 is not enough.
+# Default success marker is {id with '-'→'_'}_OK unless success_marker is set.
 version: 1
 name: redstrike-demo
 nodes:

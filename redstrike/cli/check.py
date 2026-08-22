@@ -7,7 +7,12 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 
 from redstrike import __version__
-from redstrike.core.policy import DEFAULT_API_PROFILE, POLICY_PROFILES
+from redstrike.core.policy import (
+    DEFAULT_API_PROFILE,
+    POLICY_PROFILES,
+    apply_ungated_overrides,
+    load_scope_policy,
+)
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 EXAMPLES = REPO_ROOT / "examples"
@@ -39,7 +44,7 @@ def _which_any(names: tuple[str, ...]) -> str | None:
     return None
 
 
-def collect_checks(*, scope_path: Path) -> list[CheckItem]:
+def collect_checks(*, scope_path: Path, ungated: bool = False) -> list[CheckItem]:
     items: list[CheckItem] = [
         CheckItem("python", True, f"{sys.version.split()[0]} (>=3.10)"),
         CheckItem("redstrike", True, f"v{__version__} import ok"),
@@ -66,7 +71,7 @@ def collect_checks(*, scope_path: Path) -> list[CheckItem]:
                 if scope_path.is_file()
                 else f"missing {scope_path} -> copy examples/scope.example.yaml and edit targets"
             ),
-            required_for_core=False,
+            required_for_core=ungated,
         ),
         CheckItem(
             "api-profile",
@@ -74,6 +79,24 @@ def collect_checks(*, scope_path: Path) -> list[CheckItem]:
             f"default API profile '{DEFAULT_API_PROFILE}' (overlay with --scope)",
         ),
     ]
+    if ungated:
+        detail = "lab-ungated not ready"
+        ok = False
+        if scope_path.is_file():
+            try:
+                policy = load_scope_policy(str(scope_path), profile="lab-ungated")
+                apply_ungated_overrides(policy)
+                policy.require_scope_ready()
+                ok = True
+                detail = (
+                    f"ungated ok: {len(policy.allowed_targets)} targets, "
+                    f"{len(policy.allowed_domains)} domains"
+                )
+            except (OSError, PermissionError, ValueError) as extra:
+                detail = str(extra)
+        else:
+            detail = f"--ungated requires {scope_path} with allowed_targets and allowed_domains"
+        items.append(CheckItem("ungated-scope", ok, detail, required_for_core=True))
     for names, purpose, hint in _EXECUTE_TOOLS:
         found = _which_any(names)
         items.append(
@@ -88,8 +111,8 @@ def collect_checks(*, scope_path: Path) -> list[CheckItem]:
     return items
 
 
-def run_check(*, scope: str = "scope.yaml", execute_ready: bool = False, as_json: bool = False) -> int:
-    items = collect_checks(scope_path=Path(scope))
+def run_check(*, scope: str = "scope.yaml", execute_ready: bool = False, as_json: bool = False, ungated: bool = False) -> int:
+    items = collect_checks(scope_path=Path(scope), ungated=ungated)
     core = [i for i in items if i.required_for_core]
     tools = [i for i in items if i.required_for_execute]
     core_ok = all(i.ok for i in core)
@@ -102,13 +125,14 @@ def run_check(*, scope: str = "scope.yaml", execute_ready: bool = False, as_json
         "items": [asdict(i) for i in items],
         "next": [
             "Copy examples/scope.example.yaml to scope.yaml and set your targets/domains.",
-            "API: redstrike-api --scope scope.yaml --profile standalone",
+            "API (read-only): redstrike-api --scope scope.yaml --profile standalone",
+            "API (lab ungated): redstrike-api --ungated --scope scope.yaml",
             (
                 "Campaign dry-run: redstrike-campaign run --phase 1-3 --beachhead windows "
                 "--operator provisioning --engage demo --graph examples/campaign-graph.m1.yaml "
                 "--seed examples/seed.example.json --automation-root examples/automation"
             ),
-            "Live --execute needs the PATH tools above, plus HITL approval.",
+            "Live standalone --execute needs PATH tools plus HITL. Lab: --ungated --scope (no HITL).",
         ],
     }
     if as_json:

@@ -22,6 +22,30 @@ class HitlGate(str, Enum):
 KNOWN_GATES = {g.value for g in HitlGate}
 
 
+def ungated_requested() -> bool:
+    """Opt-in ungated mode: ``REDSTRIKE_UNGATED=1``, ``REDSTRIKE_PROFILE=autonomous``, or CLI/API ``--profile autonomous``."""
+    if os.environ.get("REDSTRIKE_UNGATED", "").strip().lower() in {"1", "true", "yes"}:
+        return True
+    profile = os.environ.get("REDSTRIKE_PROFILE", "").strip().lower()
+    return profile in {"autonomous", "campaign", "lab-ungated"}
+
+
+def hitl_required(profile: str | None = None) -> bool:
+    """HITL is active for 'gated' profile (default). 'autonomous' profile runs ungated under scope.
+
+    Set ``REDSTRIKE_REQUIRE_HITL=1`` to force human approval gates unconditionally.
+    """
+    if os.environ.get("REDSTRIKE_REQUIRE_HITL", "").strip() == "1":
+        return True
+    if profile is not None:
+        p = profile.strip().lower()
+        if p in {"autonomous", "campaign", "lab-ungated"}:
+            return False
+        if p in {"gated", "standalone", "lab-readonly"}:
+            return True
+    return not ungated_requested()
+
+
 @dataclass
 class EngagementState:
     engagement_id: str

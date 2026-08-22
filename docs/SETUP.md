@@ -150,11 +150,12 @@ Built-in profiles (passed with `--profile`; your YAML overlays them):
 
 | Profile | Default use |
 |---|---|
-| `standalone` | API. Read-only observe/assess. **Start here.** |
-| `campaign` | Orchestrator. Validate allowed; live `--execute` is still HITL-gated. |
-| `validate-gated` | Like `campaign` with longer cooldowns |
-| `adcs-deep` | ADCS-focused |
-| `forest-trust-review` | Read-only trust review |
+| `gated` | Safe profile (Default). Read-only observe/assess. High-risk jumps pause for HITL approval. **Start here.** |
+| `autonomous` | Unrestricted AI agency under `scope.yaml` IP/CIDRs. |
+| `standalone` | Alias for `gated`. |
+| `campaign` | Alias for `autonomous`. |
+| `lab-ungated` | Opt-in fully ungated execution. **Requires** non-empty targets and domains in `scope.yaml` (`--ungated --scope`). |
+| `validate-gated` | Like `gated` with longer cooldowns and validation mode enabled. |
 
 After you save `scope.yaml`:
 
@@ -249,10 +250,17 @@ redstrike check --execute-ready
 4. Run with `--execute`. Privilege jumps pause until:
 
 ```bash
-redstrike-campaign approve --gate dcsync --engage YOUR_ENGAGE_ID
+redstrike graph approve --gate dcsync --engage YOUR_ENGAGE_ID
 ```
 
-Do not bypass HITL.
+Do not bypass HITL on public or shared infrastructure.
+
+Autonomous / Ungated option (scope is mandatory):
+
+```bash
+redstrike-api --ungated --scope scope.yaml --host 127.0.0.1 --port 8890
+redstrike graph run --profile autonomous --scope scope.yaml --execute ...
+```
 
 Optional SSH to a Windows beachhead (no defaults in this repo):
 

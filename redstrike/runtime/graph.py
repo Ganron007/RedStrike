@@ -35,6 +35,9 @@ class CampaignNode:
     cred: str | None = None  # ledger name merged into intent args
     pivot_to: str | None = None  # target machine/role for lateral movement
     produces_beachhead: str | None = None  # credential/beachhead this node creates
+    success_marker: str | None = None  # regex; default {id with '-'→'_'}_OK
+    fail_patterns: tuple[str, ...] = ()
+    expected_errors: tuple[str, ...] = ()  # waived default fail patterns (e.g. T028)
 
 
 @dataclass(frozen=True)
@@ -72,35 +75,32 @@ def load_campaign_graph(path: Path | str) -> CampaignGraph:
 def resolve_graph_path(
     *,
     explicit: Path | str | None = None,
-    cadre_root: Path | str | None = None,
     package_examples: Path | None = None,
 ) -> Path:
-    """Prefer explicit --graph → CADRE_ROOT (optional consumer) → bundled demo."""
+    """Prefer explicit --graph → REDSTRIKE_GRAPH env var → bundled generic graph."""
     if explicit is not None:
         path = Path(explicit)
         if not path.is_file():
             raise FileNotFoundError(f"campaign graph not found: {path}")
         return path
 
-    if cadre_root is not None:
-        candidate = Path(cadre_root) / "attack-matrix" / "Campaign" / "automation" / "campaign-graph.yaml"
+    env_graph = os.environ.get("REDSTRIKE_GRAPH", "").strip()
+    if env_graph and Path(env_graph).is_file():
+        return Path(env_graph)
+
+    cadre = os.environ.get("CADRE_ROOT", "").strip()
+    if cadre:
+        candidate = Path(cadre) / "attack-matrix" / "Campaign" / "automation" / "campaign-graph.yaml"
         if candidate.is_file():
             return candidate
 
-    env_raw = os.environ.get("CADRE_ROOT", "").strip()
-    if env_raw:
-        env_cadre = Path(env_raw)
-        if env_cadre.is_dir():
-            candidate = env_cadre / "attack-matrix" / "Campaign" / "automation" / "campaign-graph.yaml"
-            if candidate.is_file():
-                return candidate
-
     examples = package_examples or Path(__file__).resolve().parents[2] / "examples"
-    fallback = examples / "campaign-graph.m1.yaml"
-    if fallback.is_file():
-        return fallback
+    for name in ("campaign-graph.m1.yaml", "generic-ad-recon.yaml"):
+        fallback = examples / name
+        if fallback.is_file():
+            return fallback
     raise FileNotFoundError(
-        "No campaign graph found (pass --graph, set CADRE_ROOT, or install examples/)"
+        "No campaign graph found (pass --graph, set REDSTRIKE_GRAPH, or check examples/)"
     )
 
 
@@ -163,6 +163,26 @@ def parse_branches(branch_spec: str | None) -> set[str]:
     return selected
 
 
+def parse_node_ids(node_spec: str | None) -> tuple[str, ...] | None:
+    """Comma/semicolon-separated graph ids. Empty/None means no id filter."""
+    if node_spec is None:
+        return None
+    raw = str(node_spec).strip()
+    if not raw:
+        return None
+    seen: set[str] = set()
+    ordered: list[str] = []
+    for part in raw.replace(";", ",").split(","):
+        node_id = part.strip()
+        if not node_id or node_id in seen:
+            continue
+        seen.add(node_id)
+        ordered.append(node_id)
+    if not ordered:
+        raise ValueError("no node ids selected")
+    return tuple(ordered)
+
+
 def _parse_node(item: dict[str, Any], index: int) -> CampaignNode:
     try:
         node_id = str(item["id"])
@@ -203,6 +223,8 @@ def _parse_node(item: dict[str, Any], index: int) -> CampaignNode:
     gate = item.get("hitl_gate")
     pivot_to = item.get("pivot_to")
     produces_beachhead = item.get("produces_beachhead")
+    marker_raw = item.get("success_marker")
+    success_marker = None if marker_raw in (None, "null", "") else str(marker_raw)
     return CampaignNode(
         id=node_id,
         phase=phase,
@@ -220,4 +242,17 @@ def _parse_node(item: dict[str, Any], index: int) -> CampaignNode:
         cred=cred,
         pivot_to=None if pivot_to in (None, "null") else str(pivot_to),
         produces_beachhead=None if produces_beachhead in (None, "null") else str(produces_beachhead),
+        success_marker=success_marker,
+        fail_patterns=_parse_string_tuple(item.get("fail_patterns"), index, "fail_patterns"),
+        expected_errors=_parse_string_tuple(item.get("expected_errors"), index, "expected_errors"),
     )
+
+
+def _parse_string_tuple(raw: Any, index: int, field: str) -> tuple[str, ...]:
+    if raw in (None, "null", ""):
+        return ()
+    if isinstance(raw, str):
+        return (raw,)
+    if not isinstance(raw, list):
+        raise TypeError(f"nodes[{index}].{field} must be a string or list of strings")
+    return tuple(str(item) for item in raw if item not in (None, ""))

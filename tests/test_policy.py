@@ -79,12 +79,13 @@ def test_load_scope_policy_profile_defaults() -> None:
     assert policy.cooldown_seconds_per_target == 1.0
 
 
-def test_load_scope_policy_cadre_campaign_alias() -> None:
-    a = load_scope_policy(path=None, profile="campaign")
-    b = load_scope_policy(path=None, profile="cadre-campaign")
-    assert a.allow_high_risk is True
-    assert b.allow_high_risk is True
-    assert a.allowed_modes == b.allowed_modes
+def test_load_scope_policy_gated_and_autonomous_profiles() -> None:
+    gated = load_scope_policy(path=None, profile="gated")
+    auto = load_scope_policy(path=None, profile="autonomous")
+    assert gated.allow_high_risk is False
+    assert auto.allow_high_risk is True
+    assert EngagementMode.OBSERVE in gated.allowed_modes
+    assert EngagementMode.VALIDATE in auto.allowed_modes
 
 
 def test_load_scope_policy_profile_and_scope_file_overlay(tmp_path) -> None:
@@ -114,3 +115,74 @@ def test_load_scope_policy_profile_and_scope_file_overlay(tmp_path) -> None:
 def test_load_scope_policy_unknown_profile_rejected() -> None:
     with pytest.raises(ValueError, match="Unknown scope policy profile"):
         load_scope_policy(path=None, profile="not-a-profile")
+
+
+def test_lab_ungated_profile_defaults() -> None:
+    policy = load_scope_policy(path=None, profile="lab-ungated")
+    assert policy.ungated is True
+    assert policy.require_scope is True
+    assert policy.allow_high_risk is True
+    assert EngagementMode.VALIDATE in policy.allowed_modes
+
+
+def test_require_scope_fails_without_targets_and_domains() -> None:
+    policy = ScopePolicy(require_scope=True, allow_high_risk=True, allowed_modes=[EngagementMode.VALIDATE])
+    with pytest.raises(PermissionError, match="allowed_targets"):
+        policy.assert_allowed(
+            action="intent_execute",
+            target="192.168.1.7",
+            domain="ignite.local",
+            mode=EngagementMode.VALIDATE,
+        )
+    policy.allowed_targets = ["192.168.1.0/24"]
+    with pytest.raises(PermissionError, match="allowed_domains"):
+        policy.assert_allowed(
+            action="intent_execute",
+            target="192.168.1.7",
+            domain="ignite.local",
+            mode=EngagementMode.VALIDATE,
+        )
+
+
+def test_require_scope_matches_fqdn_under_allowed_domain() -> None:
+    policy = ScopePolicy(
+        require_scope=True,
+        allow_high_risk=True,
+        ungated=True,
+        allowed_targets=["10.10.10.0/24"],
+        allowed_domains=["example.lab"],
+        allowed_modes=[EngagementMode.OBSERVE, EngagementMode.VALIDATE],
+    )
+    policy.assert_allowed(
+        action="intent_execute",
+        target="dc01.example.lab",
+        domain="example.lab",
+        mode=EngagementMode.VALIDATE,
+    )
+    policy.assert_allowed(
+        action="domain_users",
+        target="10.10.10.10",
+        domain="child.example.lab",
+        mode=EngagementMode.OBSERVE,
+    )
+    with pytest.raises(PermissionError, match="Domain"):
+        policy.assert_allowed(
+            action="domain_users",
+            target="10.10.10.10",
+            domain="evil.example",
+            mode=EngagementMode.OBSERVE,
+        )
+    with pytest.raises(PermissionError, match="Target"):
+        policy.assert_allowed(
+            action="domain_users",
+            target="172.16.0.1",
+            domain="example.lab",
+            mode=EngagementMode.OBSERVE,
+        )
+    with pytest.raises(PermissionError, match="Domain is required"):
+        policy.assert_allowed(
+            action="domain_users",
+            target="10.10.10.10",
+            domain=None,
+            mode=EngagementMode.OBSERVE,
+        )

@@ -2,10 +2,24 @@ from __future__ import annotations
 
 import argparse
 import ipaddress
+import os
 from typing import Any
 from urllib.parse import urlparse
 
 import requests
+
+
+def cadre_remote_paths() -> dict[str, str]:
+    """Linux paths for the API host. CADRE_ROOT need not exist on the MCP client."""
+    root = os.environ.get("CADRE_ROOT", "").strip().rstrip("/").rstrip("\\")
+    if not root:
+        return {}
+    auto = f"{root}/attack-matrix"
+    return {
+        "graph": f"{auto}/Campaign/automation/campaign-graph.yaml",
+        "seed": f"{auto}/Campaign/automation/lab-seed-creds.json",
+        "automation_root": f"{auto}/04-automation/linux",
+    }
 
 
 def _is_local_host(host: str | None) -> bool:
@@ -28,9 +42,15 @@ def _validate_api_url(api_url: str) -> None:
         raise ValueError("Refusing non-local HTTP API URL; use HTTPS for remote API endpoints")
 
 
-def _post(api_url: str, path: str, payload: dict[str, Any]) -> dict[str, Any]:
+def _post(
+    api_url: str,
+    path: str,
+    payload: dict[str, Any],
+    *,
+    timeout: int = 300,
+) -> dict[str, Any]:
     _validate_api_url(api_url)
-    response = requests.post(f"{api_url.rstrip('/')}{path}", json=payload, timeout=300)
+    response = requests.post(f"{api_url.rstrip('/')}{path}", json=payload, timeout=timeout)
     response.raise_for_status()
     return response.json()
 
@@ -433,24 +453,25 @@ def create_mcp(api_url: str):
         allow_mbr01_stage: bool = False,
         graph: str = "",
         automation_root: str = "",
-        cadre_root: str = "",
         seed: str = "",
-        branches: str = "spine",
+        branches: str = "all",
+        profile: str = "",
     ) -> dict[str, Any]:
-        """Start a campaign engagement (seed ledger, set beachhead/operator/branches)."""
+        """Start a campaign engagement (seed ledger, set beachhead/operator/branches/profile)."""
+        paths = cadre_remote_paths()
         return _post(
             api_url,
             "/campaign/start",
             {
                 "engagement_id": engagement_id,
                 "beachhead": beachhead,
-                "operator": operator or None,
+                "operator": operator or ("provisioning" if paths else None),
                 "allow_mbr01_stage": allow_mbr01_stage,
-                "graph": graph or None,
-                "automation_root": automation_root or None,
-                "cadre_root": cadre_root or None,
-                "seed": seed or None,
+                "graph": graph or paths.get("graph"),
+                "automation_root": automation_root or paths.get("automation_root"),
+                "seed": seed or paths.get("seed"),
                 "branches": branches,
+                "profile": profile or ("autonomous" if paths else None),
             },
         )
 
@@ -480,36 +501,40 @@ def create_mcp(api_url: str):
         engagement_id: str,
         beachhead: str = "windows",
         operator: str = "",
-        phase: str = "1-3",
-        dry_run: bool = True,
-        stop_on_hitl: bool = True,
+        phase: str = "0-10",
+        dry_run: bool | None = None,
+        stop_on_hitl: bool | None = None,
         allow_mbr01_stage: bool = False,
         graph: str = "",
         automation_root: str = "",
-        cadre_root: str = "",
         seed: str = "",
-        branches: str = "spine",
+        branches: str = "all",
         profile: str = "",
+        nodes: str = "",
+        prefer_script: bool = False,
     ) -> dict[str, Any]:
-        """Run (or dry-run) phases/branches; pauses on unapproved HITL gates when executing."""
+        """Run phases/branches. Omit dry_run on an ungated API to execute. CADRE fills Linux graph/seed paths."""
+        paths = cadre_remote_paths()
         return _post(
             api_url,
             "/campaign/run_phase",
             {
                 "engagement_id": engagement_id,
                 "beachhead": beachhead,
-                "operator": operator or None,
+                "operator": operator or ("provisioning" if paths else None),
                 "phase": phase,
                 "dry_run": dry_run,
                 "stop_on_hitl": stop_on_hitl,
                 "allow_mbr01_stage": allow_mbr01_stage,
-                "graph": graph or None,
-                "automation_root": automation_root or None,
-                "cadre_root": cadre_root or None,
-                "seed": seed or None,
+                "graph": graph or paths.get("graph"),
+                "automation_root": automation_root or paths.get("automation_root"),
+                "seed": seed or paths.get("seed"),
                 "branches": branches,
-                "profile": profile or None,
+                "profile": profile or ("autonomous" if paths else None),
+                "nodes": nodes or None,
+                "prefer_script": prefer_script or bool(paths),
             },
+            timeout=7200,
         )
 
     @mcp.tool()
@@ -532,14 +557,14 @@ def create_mcp(api_url: str):
         engagement_id: str,
         stream: str,
         beachhead: str = "linux",
-        dry_run: bool = True,
+        dry_run: bool | None = None,
         graph: str = "",
         automation_root: str = "",
-        cadre_root: str = "",
         seed: str = "",
         profile: str = "",
     ) -> dict[str, Any]:
         """Run Campaign E (phase 9) or F (phase 10) thin stream — no ws01 routing."""
+        paths = cadre_remote_paths()
         return _post(
             api_url,
             "/campaign/stream",
@@ -548,12 +573,12 @@ def create_mcp(api_url: str):
                 "stream": stream,
                 "beachhead": beachhead,
                 "dry_run": dry_run,
-                "graph": graph or None,
-                "automation_root": automation_root or None,
-                "cadre_root": cadre_root or None,
-                "seed": seed or None,
-                "profile": profile or None,
+                "graph": graph or paths.get("graph"),
+                "automation_root": automation_root or paths.get("automation_root"),
+                "seed": seed or paths.get("seed"),
+                "profile": profile or ("autonomous" if paths else None),
             },
+            timeout=7200,
         )
 
     @mcp.tool()
@@ -566,6 +591,19 @@ def create_mcp(api_url: str):
             api_url,
             "/builders/preview",
             {"intent": intent, "args": args or {}},
+        )
+
+    @mcp.tool()
+    def execute_intent(
+        intent: str,
+        args: dict[str, Any] | None = None,
+        mode: str = "validate",
+    ) -> dict[str, Any]:
+        """Execute a typed builder intent. Requires ungated/high-risk API plus in-scope host and domain."""
+        return _post(
+            api_url,
+            "/builders/execute",
+            {"intent": intent, "args": args or {}, "mode": mode},
         )
 
     @mcp.tool()

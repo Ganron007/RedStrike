@@ -4,11 +4,16 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
-from redstrike.core.runner import redact_argv
+from redstrike.core.models import EngagementMode
+from redstrike.core.policy import ScopePolicy
+from redstrike.core.runner import CommandRunner, redact_argv
 from redstrike.runtime.hitl import KNOWN_GATES
 from redstrike.runtime.intents import DEFAULT_REGISTRY
 from redstrike.runtime.session import CampaignSession
 from redstrike.runtime.streams import resolve_stream
+
+_INTENT_TARGET_KEYS = ("host", "dc", "server", "kdc_host", "kdc", "ca", "target")
+_INTENT_DOMAIN_KEYS = ("domain",)
 
 
 class CampaignStartRequest(BaseModel):
@@ -18,9 +23,9 @@ class CampaignStartRequest(BaseModel):
     allow_mbr01_stage: bool = False
     graph: str | None = None
     automation_root: str | None = None
-    cadre_root: str | None = None
     seed: str | None = None
     branches: str = "spine"
+    profile: str | None = None
 
 
 class CampaignApproveRequest(BaseModel):
@@ -38,16 +43,16 @@ class CampaignRunRequest(BaseModel):
     beachhead: str = "windows"
     operator: str | None = None
     phase: str = "1-3"
-    dry_run: bool = True
-    stop_on_hitl: bool = True
+    dry_run: bool | None = None
+    stop_on_hitl: bool | None = None
     allow_mbr01_stage: bool = False
     graph: str | None = None
     automation_root: str | None = None
-    cadre_root: str | None = None
     seed: str | None = None
     branches: str = "spine"
     profile: str | None = None
     prefer_script: bool = False
+    nodes: str | None = None
 
 
 class IntentPreviewRequest(BaseModel):
@@ -67,12 +72,50 @@ class CampaignStreamRequest(BaseModel):
     stream: str
     beachhead: str = "linux"
     operator: str | None = None
-    dry_run: bool = True
+    dry_run: bool | None = None
     graph: str | None = None
     automation_root: str | None = None
-    cadre_root: str | None = None
     seed: str | None = None
     profile: str | None = None
+
+
+class IntentExecuteRequest(BaseModel):
+    intent: str
+    args: dict[str, Any] = Field(default_factory=dict)
+    mode: EngagementMode = EngagementMode.VALIDATE
+
+
+def scope_from_intent_args(args: dict[str, Any]) -> tuple[str, str | None]:
+    """Pick a host/DC from builder args so scope can be enforced (host before target)."""
+    target: str | None = None
+    for key in _INTENT_TARGET_KEYS:
+        value = args.get(key)
+        if value:
+            target = str(value)
+            break
+    domain: str | None = None
+    for key in _INTENT_DOMAIN_KEYS:
+        value = args.get(key)
+        if value:
+            domain = str(value)
+            break
+    if not target:
+        raise PermissionError(
+            "intent args must include host/dc/server/target so scope can be enforced"
+        )
+    return target, domain
+
+
+def resolve_run_flags(
+    *,
+    dry_run: bool | None,
+    stop_on_hitl: bool | None,
+    ungated: bool,
+) -> tuple[bool, bool]:
+    """Standalone defaults to dry-run + HITL stop. Ungated defaults to live, no gate."""
+    resolved_dry = dry_run if dry_run is not None else (not ungated)
+    resolved_stop = stop_on_hitl if stop_on_hitl is not None else (not ungated)
+    return resolved_dry, resolved_stop
 
 
 def _session(
@@ -88,11 +131,12 @@ def _session(
         operator=getattr(req, "operator", None),
         automation_root=getattr(req, "automation_root", None),
         graph_path=getattr(req, "graph", None),
-        cadre_root=getattr(req, "cadre_root", None),
         allow_mbr01_stage=bool(getattr(req, "allow_mbr01_stage", False)),
         seed_path=getattr(req, "seed", None),
         branches=getattr(req, "branches", "spine") or "spine",
         prefer_script=bool(getattr(req, "prefer_script", False)),
+        node_ids=getattr(req, "nodes", None),
+        profile=getattr(req, "profile", None),
     )
 
 
@@ -102,6 +146,36 @@ def intent_preview(req: IntentPreviewRequest) -> dict[str, Any]:
         "intent": req.intent,
         "argv": redact_argv(argv),
         "known_intents": DEFAULT_REGISTRY.known(),
+    }
+
+
+def intent_execute(
+    req: IntentExecuteRequest,
+    *,
+    policy: ScopePolicy,
+    runner: CommandRunner | None = None,
+) -> dict[str, Any]:
+    if not policy.ungated:
+        raise PermissionError("intent execute requires --ungated (scope-gated lab mode)")
+    target, domain = scope_from_intent_args(req.args)
+    policy.assert_allowed(
+        action="intent_execute",
+        target=target,
+        domain=domain,
+        mode=req.mode,
+    )
+    argv = DEFAULT_REGISTRY.build(req.intent, req.args)
+    result = (runner or CommandRunner()).run(argv)
+    return {
+        "intent": req.intent,
+        "argv": redact_argv(argv),
+        "return_code": result.return_code,
+        "stdout": result.stdout,
+        "stderr": result.stderr,
+        "success": result.success,
+        "timed_out": result.timed_out,
+        "target": target,
+        "domain": domain,
     }
 
 
@@ -115,11 +189,16 @@ def campaign_approve(req: CampaignApproveRequest) -> dict[str, Any]:
     return _session(req).approve(req.gate, note=req.note)
 
 
-def campaign_run_phase(req: CampaignRunRequest) -> dict[str, Any]:
-    return _session(req).run_phase(
-        req.phase,
+def campaign_run_phase(req: CampaignRunRequest, *, ungated: bool = False) -> dict[str, Any]:
+    dry_run, stop_on_hitl = resolve_run_flags(
         dry_run=req.dry_run,
         stop_on_hitl=req.stop_on_hitl,
+        ungated=ungated,
+    )
+    return _session(req).run_phase(
+        req.phase,
+        dry_run=dry_run,
+        stop_on_hitl=stop_on_hitl,
         profile=req.profile,
     )
 
@@ -128,7 +207,7 @@ def campaign_status(req: CampaignStatusRequest) -> dict[str, Any]:
     return _session(req).status()
 
 
-def campaign_stream(req: CampaignStreamRequest) -> dict[str, Any]:
+def campaign_stream(req: CampaignStreamRequest, *, ungated: bool = False) -> dict[str, Any]:
     spec = resolve_stream(req.stream)
     session = CampaignSession(
         req.engagement_id,
@@ -136,14 +215,15 @@ def campaign_stream(req: CampaignStreamRequest) -> dict[str, Any]:
         operator=req.operator,
         automation_root=req.automation_root,
         graph_path=req.graph,
-        cadre_root=req.cadre_root,
         seed_path=req.seed,
         branches=spec["branch"],
+        profile=req.profile,
     )
+    dry_run, _ = resolve_run_flags(dry_run=req.dry_run, stop_on_hitl=None, ungated=ungated)
     data = session.run_phase(
         spec["phase"],
-        dry_run=req.dry_run,
-        stop_on_hitl=True,
+        dry_run=dry_run,
+        stop_on_hitl=not ungated,
         profile=req.profile,
     )
     data["stream"] = req.stream.upper()
