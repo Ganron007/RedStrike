@@ -87,19 +87,29 @@ class CommandRunner:
 def redact_argv(argv: list[str]) -> list[str]:
     redacted = list(argv)
     secret_flags = {"-p", "--password", "-H", "--hash", "-hashes", "--hashes"}
-    for index, value in enumerate(redacted[:-1]):
+    for index, value in enumerate(redacted):
         if value in secret_flags:
-            redacted[index + 1] = "***REDACTED***"
+            if index + 1 < len(redacted):
+                redacted[index + 1] = "***REDACTED***"
             continue
-        # Rubeus-style /password:SECRET /rc4:HASH
+        # Rubeus-style /password:SECRET /rc4:HASH /aes256:KEY
         for prefix in ("/password:", "/rc4:", "/aes256:", "/aes128:"):
             if value.lower().startswith(prefix):
                 redacted[index] = prefix + "***REDACTED***"
-        # impacket user:pass@host
-        if "@" in value and ":" in value.split("@", 1)[0]:
-            user_part, host = value.rsplit("@", 1)
-            if ":" in user_part:
-                left, _pw = user_part.rsplit(":", 1)
-                redacted[index] = f"{left}:***REDACTED***@{host}"
+        # impacket user:pass@host (non-empty host must look host-like, e.g. dns name or IP)
+        user_part, sep, host = value.rpartition("@")
+        if sep and ":" in user_part and (not host or "." in host or ":" in host):
+            left, _pw = user_part.rsplit(":", 1)
+            redacted[index] = f"{left}:***REDACTED***@{host}"
+        # impacket domain/user:pass (e.g. GetUserSPNs.py)
+        elif "/" in value and ":" in value and not value.startswith(("-", "/")):
+            left, _pw = value.rsplit(":", 1)
+            redacted[index] = f"{left}:***REDACTED***"
+
+    # kerbrute passwordspray ... userlist password
+    if len(redacted) >= 4 and "passwordspray" in redacted:
+        # last argument is password
+        redacted[-1] = "***REDACTED***"
+
     return redacted
 

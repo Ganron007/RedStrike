@@ -26,15 +26,16 @@ RedStrike is a modular, policy-gated Active Directory, ADCS, and Hybrid Identity
   - Repeatable, scripted red team scenarios.
 - **Starter Templates (`examples/`):**
   - `generic-ad-recon.yaml`: LDAP user/group enumeration, AS-REP roasting, Kerberoasting, and ADCS discovery.
-  - `generic-adcs-audit.yaml`: ESC1–ESC13 template auditing, vulnerable certificate request, and PKINIT NT hash recovery.
+  - `generic-adcs-audit.yaml`: ESC1–ESC15 template auditing, vulnerable certificate request, and PKINIT NT hash recovery.
   - `generic-privilege-escalation.yaml`: Multi-hop attack chain from initial discovery to Shadow Credentials, ESC4 template ACL takeover, and DRS DCSync.
+  - `generic-rbcd-coercion.yaml`: Modern lateral movement chaining MS-RPRN coercion, LDAPS NTLM relaying, Rubeus S4U RBCD ticket impersonation, and SMB execution.
 
 ### 1B. Autonomous LLM Agent (FastMCP / REST API)
 - **Interface:** FastMCP protocol (`redstrike-mcp`) and REST API (`redstrike-api`).
 - **Capabilities Exposed to AI Models:**
   - `bloodhound_query`: Executes parameterized Cypher queries against BloodHound Neo4j databases.
   - `recommend_next_steps`: Heuristic graph-based suggestions for reachable Active Directory privilege paths.
-  - `execute_intent`: Atomic execution of typed tool intents (`certipy.find`, `rubeus.kerberoast`, `bloodyad.get_object`, `certipy.shadow`, `sharpsccm.get_naa`).
+  - `execute_intent`: Atomic execution of typed tool intents (`certipy.find`, `rubeus.s4u`, `coerce.spoolsample`, `impacket.secretsdump`, `kerbrute.spray`, `bloodyad.get_object`).
 - **Safety Boundary:** AI agents cannot pass arbitrary shell commands. Every request is parsed as a typed Pydantic intent validated by the policy engine.
 
 ---
@@ -47,9 +48,10 @@ Every operation—whether invoked via CLI graph or MCP agent—must pass through
 - Read-only discovery and non-intrusive enumeration run freely (`observe` and `assess` modes).
 - High-risk operations pause execution and require human operator approval:
   - **`dcsync`**: Domain Controller directory replication dumps.
-  - **`ticket`**: Kerberos Golden/Silver ticket generation and PKINIT forgery.
+  - **`ticket`**: Kerberos Golden/Silver/S4U ticket generation and PKINIT forgery.
   - **`acl_write`**: Object DACL and certificate template permission modifications.
   - **`password_reset`**: Direct user account password resets.
+  - **`relay`**: Active NTLM network relay listener engagements.
   - **`forest`**: Cross-forest Kerberos hop and trust abuse.
 - Approval command: `redstrike graph approve --gate <name> --engage <id>`.
 
@@ -67,12 +69,17 @@ RedStrike eliminates shell injection vulnerabilities by constructing argument ve
 
 | Builder | Target Surface | Supported Operations |
 |---|---|---|
-| `NetExecBuilder` | SMB / LDAP / WinRM | User enumeration, SMB share audit, password policy inspection |
-| `CertipyBuilder` | Active Directory Certificate Services (ADCS) | ESC1–ESC13 discovery (`find`), certificate request (`req`), PKINIT auth (`auth`), template takeover (`template`), shadow credentials (`shadow`) |
-| `RubeusBuilder` | Kerberos Authentication | AS-REP roasting, Kerberoasting, TGT request (`asktgt`), Golden Ticket (`golden`) |
+| `NetExecBuilder` | SMB / LDAP / WinRM / WMI | User/computer enumeration, share audit, password policy, RID brute-force, LAPS/GPP dumping, and remote command execution (`smb_exec`, `winrm_exec`) |
+| `CertipyBuilder` | ADCS Certificate Services | ESC1–ESC15 discovery (`find`), certificate request (`req`), PKINIT auth (`auth`), template takeover (`template`), shadow credentials (`shadow`) |
+| `CoerceBuilder` | Authentication Coercion (RPC/SMB) | MS-RPRN (`spoolsample`/`printerbug`), MS-EFSR (`petitpotam`), DFIRCoerce (`dfircoerce`), and MS-FSRVP (`shadowcoerce`) |
+| `RubeusBuilder` | Windows Kerberos | AS-REP roasting, Kerberoasting, TGT request (`asktgt`), S4U RBCD (`s4u`), Golden/Silver/Diamond ticket generation |
+| `KerbruteBuilder` | Kerberos Pre-Auth Spraying | Pre-auth user enumeration (`userenum`), rate-limited password spraying (`passwordspray`), account brute-force (`bruteuser`) |
+| `ImpacketBuilder` | Replication & Relay Suite | DCSync replication dumps (`secretsdump`), Kerberoasting (`getuserspns`), WMI/SMB/Task execution, and NTLM relaying (`ntlmrelayx`) |
 | `BloodyADBuilder` | LDAP & Active Directory Objects | Object query (`get_object`), password reset (`set_password`), DACL grant (`add_generic_all`) |
 | `ShadowCredentialsBuilder` | Key Credential Links | Certipy and KeyCredentialLink shadow credential injection |
-| `SharpSCCMBuilder` | Microsoft Configuration Manager (SCCM/MECM) | NAA credential recovery, PXE boot media extraction, CMPivot queries, Application deployment |
+| `SharpSCCMBuilder` | Configuration Manager (SCCM/MECM) | NAA credential recovery, PXE boot media extraction, CMPivot queries, Application deployment |
+| `SharpHoundBuilder` | BloodHound Telemetry | Windows `SharpHound.exe` and Linux `bloodhound-python` relationship collectors |
+| `AdcsModernBuilder` | 2024–2026 Modern ADCS Vectors | ESC16 weak mapping audits and ESC17 (`pyesc17`) cross-realm certificate abuse |
 | `SqlBuilder` | MSSQL Database Instances | Linked database queries, `xp_cmdshell` execution |
 | `WinRSBuilder` | Windows Remote Management | WinRM / WinRS command execution |
 

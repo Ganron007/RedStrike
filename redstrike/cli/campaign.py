@@ -78,6 +78,7 @@ def build_parser() -> argparse.ArgumentParser:
     check = sub.add_parser("check", help="Verify install, scope file, and operator tools")
     check.add_argument("--scope", default="scope.yaml")
     check.add_argument("--execute-ready", action="store_true")
+    check.add_argument("--version-gated", action="store_true", help="Fail if installed tools do not satisfy minimum version manifest")
     check.add_argument("--ungated", action="store_true")
     check.add_argument("--json", action="store_true")
 
@@ -242,6 +243,7 @@ def main(argv: list[str] | None = None) -> int:
         return run_check(
             scope=args.scope,
             execute_ready=bool(args.execute_ready),
+            version_gated=bool(getattr(args, "version_gated", False)),
             as_json=bool(args.json),
             ungated=bool(getattr(args, "ungated", False)),
         )

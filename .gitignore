@@ -11,6 +11,27 @@ scope.yaml
 .agents/
 .cursor/
 
+# Editors / IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Tooling caches
+.mypy_cache/
+.pytype/
+.pyre/
+.pdm-python/
+.coverage
+coverage.xml
+htmlcov/
+*.log
+
+# OS junk
+.DS_Store
+Thumbs.db
+desktop.ini
+
 # Secrets — never commit
 .env
 .env.*

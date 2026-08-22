@@ -7,6 +7,7 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 
 from redstrike import __version__
+from redstrike.core.manifest import ToolVersionStatus, audit_toolchain
 from redstrike.core.policy import (
     DEFAULT_API_PROFILE,
     POLICY_PROFILES,
@@ -111,18 +112,29 @@ def collect_checks(*, scope_path: Path, ungated: bool = False) -> list[CheckItem
     return items
 
 
-def run_check(*, scope: str = "scope.yaml", execute_ready: bool = False, as_json: bool = False, ungated: bool = False) -> int:
+def run_check(
+    *,
+    scope: str = "scope.yaml",
+    execute_ready: bool = False,
+    version_gated: bool = False,
+    as_json: bool = False,
+    ungated: bool = False,
+) -> int:
     items = collect_checks(scope_path=Path(scope), ungated=ungated)
+    manifest_statuses: list[ToolVersionStatus] = audit_toolchain()
     core = [i for i in items if i.required_for_core]
     tools = [i for i in items if i.required_for_execute]
     core_ok = all(i.ok for i in core)
     tools_ok = all(i.ok for i in tools)
+    manifest_ok = all(m.is_compatible for m in manifest_statuses if m.found)
 
     payload = {
         "version": __version__,
         "core_ok": core_ok,
         "execute_ready": tools_ok,
+        "manifest_ok": manifest_ok,
         "items": [asdict(i) for i in items],
+        "toolchain_manifest": [asdict(m) for m in manifest_statuses],
         "next": [
             "Copy examples/scope.example.yaml to scope.yaml and set your targets/domains.",
             "API (read-only): redstrike-api --scope scope.yaml --profile standalone",
@@ -153,6 +165,15 @@ def run_check(*, scope: str = "scope.yaml", execute_ready: bool = False, as_json
         for item in tools:
             mark = "ok" if item.ok else "missing"
             print(f"  [{mark}] {item.name}: {item.detail}")
+        print("2024-2026 AD/ADCS Toolchain Manifest:")
+        for m in manifest_statuses:
+            if m.status == "ok":
+                mark = "ok"
+            elif m.status == "outdated":
+                mark = "WARN"
+            else:
+                mark = "missing"
+            print(f"  [{mark}] {m.name}: {m.detail}")
         print()
         if core_ok:
             print("Dry-run is ready. Create/edit scope.yaml, then start the API or campaign dry-run.")
@@ -160,6 +181,8 @@ def run_check(*, scope: str = "scope.yaml", execute_ready: bool = False, as_json
             print("Core install is incomplete. See docs/SETUP.md.")
         if execute_ready and not tools_ok:
             print("--execute-ready: install missing PATH tools before live runs.")
+        if version_gated and not manifest_ok:
+            print("--version-gated: some operator tools are outdated. Upgrade to recommended versions.")
         for line in payload["next"]:
             print(f"  next: {line}")
 
@@ -167,4 +190,6 @@ def run_check(*, scope: str = "scope.yaml", execute_ready: bool = False, as_json
         return 1
     if execute_ready and not tools_ok:
         return 2
+    if version_gated and not manifest_ok:
+        return 3
     return 0

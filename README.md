@@ -25,7 +25,7 @@ Bring your own target environments, attack graphs, and seeds. RedStrike ships fu
 |---|---|
 | Package | `redstrike` |
 | Commands | `redstrike` (`graph` / `campaign` / `console` / `check`) · `redstrike-api` · `redstrike-mcp` |
-| Generic Graph Templates | [`examples/generic-ad-recon.yaml`](examples/generic-ad-recon.yaml) · [`examples/generic-adcs-audit.yaml`](examples/generic-adcs-audit.yaml) · [`examples/generic-privilege-escalation.yaml`](examples/generic-privilege-escalation.yaml) |
+| Generic Graph Templates | [`examples/generic-ad-recon.yaml`](examples/generic-ad-recon.yaml) · [`examples/generic-adcs-audit.yaml`](examples/generic-adcs-audit.yaml) · [`examples/generic-privilege-escalation.yaml`](examples/generic-privilege-escalation.yaml) · [`examples/generic-rbcd-coercion.yaml`](examples/generic-rbcd-coercion.yaml) |
 | Architecture & Modes | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) |
 | Practice & Operator Guide | [`docs/PRACTICE-GUIDE.md`](docs/PRACTICE-GUIDE.md) |
 | Setup & Toolchain | [`docs/SETUP.md`](docs/SETUP.md) |
@@ -66,12 +66,13 @@ RedStrike bridges deterministic reproducibility with adaptive AI agency through 
                           │   • Strictly bounded by scope.yaml IP/domain rules     │
                           └───────────────────────────┬────────────────────────────┘
                                                       ▼
-                          ┌────────────────────────────────────────────────────────┐
-                          │           TYPED BUILDERS & CROSS-PLATFORM              │
-                          │   • Linux Kali: netexec, certipy, bloodyAD, impacket   │
-                          │   • Windows Beachhead: Rubeus, SharpSCCM, Mimikatz     │
-                          │   • Cloud / Entra ID: Microsoft Graph API, Az CLI      │
-                          └────────────────────────────────────────────────────────┘
+                           ┌────────────────────────────────────────────────────────┐
+                           │           TYPED BUILDERS & CROSS-PLATFORM              │
+                           │   • Linux/Kali: nxc, certipy, bloodyAD, impacket, coerce│
+                           │   • Windows Beachhead: Rubeus, SharpSCCM, Mimikatz     │
+                           │   • Recon & Graph: kerbrute, SharpHound, BloodHound-CE │
+                           │   • Cloud / Entra ID: Microsoft Graph API, Az CLI      │
+                           └────────────────────────────────────────────────────────┘
 ```
 
 ### 1. Execution Profiles

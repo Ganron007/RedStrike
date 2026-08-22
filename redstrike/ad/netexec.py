@@ -4,6 +4,8 @@ from pydantic import SecretStr
 
 
 class NetExecCommandBuilder:
+    """Typed NetExec (nxc) command builder across SMB, LDAP, WinRM, and WMI."""
+
     def base(
         self,
         *,
@@ -15,7 +17,7 @@ class NetExecCommandBuilder:
         domain: str | None = None,
         kdc_host: str | None = None,
     ) -> list[str]:
-        if protocol not in {"smb", "ldap", "winrm"}:
+        if protocol not in {"smb", "ldap", "winrm", "wmi", "mssql"}:
             raise ValueError(f"Unsupported NetExec protocol: {protocol}")
 
         argv = ["nxc", protocol, target]
@@ -60,3 +62,56 @@ class NetExecCommandBuilder:
 
     def adcs_enum(self, **kwargs: object) -> list[str]:
         return self.base(protocol="ldap", **kwargs) + ["--adcs"]
+
+    def laps(self, **kwargs: object) -> list[str]:
+        """Extract LAPS passwords (nxc exposes --laps on the smb and winrm protocols only)."""
+        return self.base(protocol="smb", **kwargs) + ["--laps"]
+
+    def gpp_password(self, **kwargs: object) -> list[str]:
+        """Extract GPP cpassword XML records from SYSVOL (gpp_password module via -M)."""
+        return self.base(protocol="smb", **kwargs) + ["-M", "gpp_password"]
+
+    def rid_brute(self, max_rid: int = 4000, **kwargs: object) -> list[str]:
+        """Brute force Active Directory RIDs to enumerate hidden user accounts."""
+        return self.base(protocol="smb", **kwargs) + ["--rid-brute", str(max_rid)]
+
+    def smb_exec(
+        self,
+        command: str,
+        *,
+        use_powershell: bool = True,
+        exec_method: str = "wmiexec",
+        **kwargs: object,
+    ) -> list[str]:
+        """Execute command over SMB with specified execution method (wmiexec, smbexec, atexec, mmcexec)."""
+        flag = "-X" if use_powershell else "-x"
+        argv = self.base(protocol="smb", **kwargs) + [flag, command]
+        if exec_method:
+            argv.extend(["--exec-method", exec_method])
+        return argv
+
+    def winrm_exec(
+        self,
+        command: str,
+        *,
+        use_powershell: bool = True,
+        exec_method: str | None = None,
+        **kwargs: object,
+    ) -> list[str]:
+        """Execute command over WinRM."""
+        flag = "-X" if use_powershell else "-x"
+        argv = self.base(protocol="winrm", **kwargs) + [flag, command]
+        if exec_method:
+            argv.extend(["--exec-method", exec_method])
+        return argv
+
+    def wmi_exec(
+        self,
+        command: str,
+        *,
+        use_powershell: bool = True,
+        **kwargs: object,
+    ) -> list[str]:
+        """Execute command over WMI."""
+        flag = "-X" if use_powershell else "-x"
+        return self.base(protocol="wmi", **kwargs) + [flag, command]
