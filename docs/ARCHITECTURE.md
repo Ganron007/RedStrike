@@ -1,9 +1,9 @@
 # RedStrike Architecture
 
-RedStrike is a modular, policy-gated Active Directory, ADCS, and Hybrid Identity assessment framework. It provides two complementary execution models:
+RedStrike is a modular, policy-gated Active Directory, ADCS, and Hybrid Identity assessment framework. It provides two complementary execution models with native **[C2Stack](https://github.com/Ganron007/C2Stack)** in-memory post-exploitation support:
 
-1. **Deterministic DAG Graph Engine** — Executes structured, repeatable YAML attack graphs with dependency resolution, conditional branching, and fail-closed verification.
-2. **Autonomous LLM Agent Interface (FastMCP / REST API)** — Connects AI models (Claude, GPT-4o, Cursor, Cline) to explore and chain Active Directory attack paths dynamically via typed tool intents and BloodHound graph queries.
+1. **Deterministic DAG Graph Engine** — Executes structured, repeatable YAML attack graphs with dependency resolution, conditional branching, fail-closed verification, and dual-mode dispatch (Direct vs C2-Enabled).
+2. **Autonomous LLM Agent Interface (FastMCP / REST API)** — Connects AI models (Claude, GPT-4o, Cursor, Cline) to explore and chain Active Directory attack paths dynamically via typed tool intents, BloodHound graph queries, and live C2 session orchestration (`c2_execute_assembly`, `c2_shell`, `c2_psexec`).
 
 ---
 

@@ -17,14 +17,15 @@
 > to test. Unauthorized scanning, enumeration, or access attempts are illegal. The authors
 > and contributors accept no liability for any misuse or damage.
 
-RedStrike is an agentic Active Directory, ADCS, and Hybrid Identity assessment framework combining a **deterministic DAG attack-graph engine** with an **autonomous LLM agent (FastMCP)**, typed command builders (`shell=False`), scope policy, a cryptographic credential ledger, human-in-the-loop safety gates, and cross-platform transport (Linux, Windows beachheads, and Cloud).
+RedStrike is an agentic Active Directory, ADCS, and Hybrid Identity assessment framework combining a **deterministic DAG attack-graph engine** with an **autonomous LLM agent (FastMCP)**, typed command builders (`shell=False`), scope policy, a cryptographic credential ledger, human-in-the-loop safety gates, and **deep C2 framework integration via [C2Stack](https://github.com/Ganron007/C2Stack)** for in-memory implant execution (Sliver & Meridian), covert DNS tunneling, and cross-platform lateral movement.
 
-Bring your own target environments, attack graphs, and seeds. RedStrike ships fully standalone with generic starter templates in `examples/`.
+Bring your own target environments, attack graphs, and seeds. RedStrike ships fully standalone with generic starter templates in `examples/` and native dual-mode execution (direct standard vs C2-enabled).
 
 | | |
 |---|---|
 | Package | `redstrike` |
 | Commands | `redstrike` (`graph` / `campaign` / `console` / `check`) · `redstrike-api` · `redstrike-mcp` |
+| C2 Integration | Native **[C2Stack](https://github.com/Ganron007/C2Stack)** (Sliver & Meridian in-memory execution) |
 | Generic Graph Templates | [`examples/generic-ad-recon.yaml`](examples/generic-ad-recon.yaml) · [`examples/generic-adcs-audit.yaml`](examples/generic-adcs-audit.yaml) · [`examples/generic-privilege-escalation.yaml`](examples/generic-privilege-escalation.yaml) · [`examples/generic-rbcd-coercion.yaml`](examples/generic-rbcd-coercion.yaml) |
 | Architecture & Modes | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) |
 | Practice & Operator Guide | [`docs/PRACTICE-GUIDE.md`](docs/PRACTICE-GUIDE.md) |
@@ -36,7 +37,7 @@ Bring your own target environments, attack graphs, and seeds. RedStrike ships fu
 
 ## Dual Execution Engine & 2-Tier Safety Profiles
 
-RedStrike bridges deterministic reproducibility with adaptive AI agency through two execution interfaces and two execution policy profiles:
+RedStrike bridges deterministic reproducibility with adaptive AI agency through two execution interfaces, two execution policy profiles, and dual transport modes (Direct vs C2-Enabled via [C2Stack](https://github.com/Ganron007/C2Stack)):
 
 ```
                           ┌────────────────────────────────────────────────────────┐
@@ -67,10 +68,10 @@ RedStrike bridges deterministic reproducibility with adaptive AI agency through 
                           └───────────────────────────┬────────────────────────────┘
                                                       ▼
                            ┌────────────────────────────────────────────────────────┐
-                           │           TYPED BUILDERS & CROSS-PLATFORM              │
+                           │      TYPED BUILDERS, TRANSPORTS & C2STACK INTEGRATION  │
                            │   • Linux/Kali: nxc, certipy, bloodyAD, impacket, coerce│
                            │   • Windows Beachhead: Rubeus, SharpSCCM, Mimikatz     │
-                           │   • Recon & Graph: kerbrute, SharpHound, BloodHound-CE │
+                           │   • C2Stack Implants: Sliver (:31337) & Meridian (:8080)│
                            │   • Cloud / Entra ID: Microsoft Graph API, Az CLI      │
                            └────────────────────────────────────────────────────────┘
 ```
@@ -79,9 +80,11 @@ RedStrike bridges deterministic reproducibility with adaptive AI agency through 
 - **`GATED` Mode (Default / Safe):** Reconnaissance, discovery, and non-intrusive checks execute freely. High-risk operations (**DCSync**, **Ticket/Certificate Forgery**, **ACL Writes**, **Password Resets**) pause execution and wait for human operator approval (`redstrike graph approve --gate <name>`).
 - **`AUTONOMOUS` Mode (Unrestricted under Scope):** Allows AI agents (or automated pipelines) to explore and chain multi-hop paths without manual pauses, strictly enforced by `scope.yaml` IP/CIDR blocks, domain suffixes, and cooldown limits.
 
-### 2. Execution Interfaces
+### 2. Execution Interfaces & Dual-Mode Transport
 - **Deterministic DAG Graph Engine:** Run predefined or custom YAML attack graphs with dependency tracking, condition evaluation, and fail-closed verification (`redstrike graph run --graph <file.yaml>`).
 - **Autonomous LLM Agent (FastMCP):** Connect AI coding assistants (Claude Desktop, Cursor, Cline, custom agent swarms) via FastMCP to query BloodHound graphs, request next-step recommendations, and invoke typed intent tools.
+- **Direct Mode (Default):** Standard execution using local subprocesses or transparent OpenSSH wrapping without any external C2 dependencies.
+- **C2-Enabled Mode (`--c2`):** Routes post-exploitation tooling in-memory through active **[C2Stack](https://github.com/Ganron007/C2Stack)** implant sessions (BishopFox Sliver or Meridian), executing `.NET` binaries via CLR hosting or running commands over covert DNS TXT tunnels.
 
 ---
 
@@ -91,12 +94,12 @@ RedStrike bridges deterministic reproducibility with adaptive AI agency through 
   <img src="assets/redstrike-architecture.svg" alt="RedStrike Architecture" width="100%">
 </p>
 
-1. **Ingress** — CLI (`redstrike graph`), HTTP (`/ad/*`, `/jobs`), or FastMCP tools (`redstrike-mcp`).
+1. **Ingress** — CLI (`redstrike graph`), HTTP (`/ad/*`, `/jobs`, `/c2/*`), or FastMCP tools (`redstrike-mcp`).
 2. **Auth & Trust** — Local loopback trust by default; `X-API-Key` required for remote interfaces.
 3. **Policy & Scope** — `ScopePolicy.assert_allowed` validates target IP/CIDRs and domains against `scope.yaml`.
 4. **HITL Gatekeeper** — Pauses high-risk operations in `gated` profile until cryptographically approved.
-5. **Typed Builders (`shell=False`)** — Generates secure `list[str]` argument vectors; eliminates shell injection.
-6. **Cross-Platform Transport** — Direct Kali execution, OpenSSH to domain-joined Windows beachheads, or Cloud Graph APIs.
+5. **Typed Builders (`shell=False`)** — Generates secure `list[str]` argument vectors or `CallSpec` C2 descriptors; eliminates shell injection.
+6. **Cross-Platform & C2 Transport** — Direct Kali execution, OpenSSH to domain-joined Windows beachheads, [C2Stack](https://github.com/Ganron007/C2Stack) implant execution (Sliver & Meridian), or Cloud Graph APIs.
 7. **Verification & Teardown** — Validates exit codes, output patterns, and success markers; tracks modified objects in `TeardownQueue` for cleanup.
 8. **Credential Ledger (SSoT)** — Automatically indexes discovered NT hashes, Kerberos tickets, and privileges.
 
@@ -148,15 +151,18 @@ redstrike graph run --graph examples/generic-adcs-audit.yaml --phase 2-3
 redstrike graph approve --gate ticket --engage default
 ```
 
-### Option B: C2-Enabled Mode (via C2Stack)
+### Option B: C2-Enabled Mode (via [C2Stack](https://github.com/Ganron007/C2Stack))
 
-Dispatch post-exploitation tasks directly through in-memory C2 implants (Sliver or Meridian):
+Dispatch post-exploitation tasks directly through in-memory C2 implants (BishopFox Sliver or Meridian) without dropping executables to disk:
 
 ```bash
-# 1. Run campaign graph in C2 mode with Sliver backend
+# 0. (Optional) Launch C2Stack services from https://github.com/Ganron007/C2Stack
+docker compose up -d sliver meridian
+
+# 1. Run campaign graph in C2 mode with Sliver backend (in-memory .NET assembly execution)
 redstrike graph run --phase 1-3 --c2 --c2-backend sliver --c2-session <session-id>
 
-# 2. Run with lightweight Meridian C2 (HTTP/DNS TXT tunneling)
+# 2. Run with Meridian C2 backend (covert DNS TXT tunneling / HTTP)
 redstrike graph run --phase 1-3 --c2 --c2-backend meridian --c2-endpoint http://127.0.0.1:8080
 ```
 

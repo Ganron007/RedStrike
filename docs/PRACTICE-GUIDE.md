@@ -7,7 +7,7 @@
 
 Modern Active Directory (AD) and Active Directory Certificate Services (ADCS) environments present vast, graph-theoretic attack surfaces. In traditional penetration testing, operators manually execute disconnected command-line tools (`NetExec`, `Certipy`, `Rubeus`, `bloodyAD`), risking command injection, out-of-scope targets, and uncoordinated privilege jumps.
 
-**RedStrike** bridges modern **Autonomous AI Agents (LLMs)** with **Deterministic, Safe Active Directory Execution**:
+**RedStrike** bridges modern **Autonomous AI Agents (LLMs)** with **Deterministic, Safe Active Directory Execution** across direct CLI tooling, Windows beachheads, and **in-memory C2 implants via [C2Stack](https://github.com/Ganron007/C2Stack)**:
 
 ```
 ┌──────────────────────────────────────────────────────────────────────────────────────────────────┐
@@ -17,8 +17,9 @@ Modern Active Directory (AD) and Active Directory Certificate Services (ADCS) en
 ├──────────────────────────────────────┼───────────────────────────────────────────────────────────┤
 │ • Analyzes domain topology & graphs  │ • Enforces hard boundaries (`scope.yaml` validation)     │
 │ • Plans strategic kill-chains        │ • ✋ Pauses for Human Operator approval on high-risk jumps│
-│ • Selects structured intent tools    │ • Generates typed subprocess `argv` (`shell=False`)       │
-│ • Consumes factual `EvidenceRecord`  │ • Masks passwords and NT hashes in real time              │
+│ • Selects structured intent tools    │ • Generates typed `CallSpec` / `argv` (`shell=False`)     │
+│ • In-Memory C2 via C2Stack (Sliver)  │ • Masks passwords and NT hashes in real time              │
+│ • Consumes factual `EvidenceRecord`  │ • Dual-mode execution (Direct standard vs C2-enabled)     │
 └──────────────────────────────────────┴───────────────────────────────────────────────────────────┘
 ```
 

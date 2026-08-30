@@ -272,6 +272,29 @@ export REDSTRIKE_WS01_SSH_KEY="/path/to/private-key"
 
 ---
 
+## Step 7 (Optional) — C2-Enabled Mode with C2Stack
+
+For in-memory post-exploitation, lateral movement, and covert egress without dropping binaries to disk, RedStrike natively integrates with **[C2Stack](https://github.com/Ganron007/C2Stack)**.
+
+### 1. Launch C2Stack
+Clone and start the C2 teamservers (Docker-based):
+```bash
+git clone https://github.com/Ganron007/C2Stack.git
+cd C2Stack/Docker
+docker compose up -d sliver meridian
+```
+
+### 2. Run RedStrike in C2 Mode
+```bash
+# Sliver in-memory .NET assembly execution (Rubeus, SharpHound, Seatbelt)
+redstrike graph run --phase 1-3 --c2 --c2-backend sliver --c2-session <sliver-session-id>
+
+# Meridian covert DNS TXT tunneling & HTTP client
+redstrike graph run --phase 1-3 --c2 --c2-backend meridian --c2-endpoint http://127.0.0.1:8080
+```
+
+---
+
 ## Practice on a lab you own
 
 Standalone RedStrike can target **any authorized lab** if **you** write the graph, seed,

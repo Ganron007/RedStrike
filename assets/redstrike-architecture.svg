@@ -192,9 +192,9 @@
     <!-- Sub-bullets -->
     <g transform="translate(24, 58)">
       <text x="0" y="16" font-family="sans-serif" font-size="14" font-weight="600" fill="#fecaca">• <strong>Active Directory &amp; ACLs:</strong> `NetExec` · `BloodyAD` (Object/ACL/Password) · `SqlBuilder` (xp_cmdshell)</text>
-      <text x="0" y="42" font-family="sans-serif" font-size="14" font-weight="600" fill="#fecaca">• <strong>Kerberos &amp; ADCS:</strong> `Certipy` (ESC1–13) · `Rubeus` (AS-REP/Kerberoast/PKINIT/S4U) · `ShadowCredentials`</text>
-      <text x="0" y="68" font-family="sans-serif" font-size="14" font-weight="700" fill="#34d399">• <strong>Zero Shell Injection:</strong> Strictly structured argument vectors (`list[str]`) with real-time secret redaction.</text>
-      <text x="0" y="92" font-family="sans-serif" font-size="14" font-weight="600" fill="#fca5a5">• <strong>Management &amp; Lateral:</strong> `SharpSCCM` (NAA/PXE/CMPivot/Scripts) · `Mimikatz` · `WinRS`</text>
+      <text x="0" y="42" font-family="sans-serif" font-size="14" font-weight="600" fill="#fecaca">• <strong>Kerberos &amp; ADCS:</strong> `Certipy` (ESC1–16) · `Rubeus` (AS-REP/Kerberoast/PKINIT/S4U) · `ShadowCredentials`</text>
+      <text x="0" y="68" font-family="sans-serif" font-size="14" font-weight="700" fill="#34d399">• <strong>Zero Shell Injection:</strong> `CallSpec` discriminated union (argv + C2 + HTTP) with real-time secret redaction.</text>
+      <text x="0" y="92" font-family="sans-serif" font-size="14" font-weight="600" fill="#fca5a5">• <strong>C2 &amp; Lateral:</strong> `C2Stack` (Sliver in-memory / Meridian DNS TXT) · `SharpSCCM` · `Mimikatz` · `WinRS`</text>
     </g>
   </g>
 
@@ -206,7 +206,7 @@
   </g>
 
   <!-- ========================================================================= -->
-  <!-- STEP 4: CROSS-PLATFORM TRANSPORT (LINUX, WINDOWS &amp; CLOUD) (y=725, h=155)  -->
+  <!-- STEP 4: CROSS-PLATFORM TRANSPORT (LINUX, WINDOWS & CLOUD) (y=725, h=155)  -->
   <!-- ========================================================================= -->
   <g transform="translate(80, 725)" filter="url(#shadow)">
     <rect x="0" y="0" width="820" height="155" rx="14" fill="url(#cardMcp)" stroke="#e11d2a" stroke-width="2"/>
@@ -218,25 +218,31 @@
     <rect x="675" y="14" width="130" height="28" rx="6" fill="#360a10" stroke="#e11d2a" stroke-width="1.2"/>
     <text x="740" y="32" text-anchor="middle" font-family="sans-serif" font-size="12" font-weight="800" fill="#ff4d4d">TRANSPORT</text>
 
-    <!-- 3 Transport Columns -->
-    <g transform="translate(24, 58)">
+    <!-- 4 Transport Columns -->
+    <g transform="translate(18, 58)">
       <!-- Linux Box -->
-      <rect x="0" y="0" width="245" height="82" rx="8" fill="#170508" stroke="#7f1d1d" stroke-width="1"/>
-      <text x="122" y="22" text-anchor="middle" font-family="sans-serif" font-size="13.5" font-weight="800" fill="#ff8080">Linux / Kali Local</text>
-      <text x="122" y="44" text-anchor="middle" font-family="sans-serif" font-size="12" font-weight="600" fill="#fca5a5">`netexec` · `certipy` · `bloodyAD`</text>
-      <text x="122" y="64" text-anchor="middle" font-family="sans-serif" font-size="12" font-weight="600" fill="#fca5a5">`impacket` · `ldap3`</text>
+      <rect x="0" y="0" width="185" height="82" rx="8" fill="#170508" stroke="#7f1d1d" stroke-width="1"/>
+      <text x="92" y="22" text-anchor="middle" font-family="sans-serif" font-size="12.5" font-weight="800" fill="#ff8080">Linux / Kali Local</text>
+      <text x="92" y="44" text-anchor="middle" font-family="sans-serif" font-size="11" font-weight="600" fill="#fca5a5">`netexec` · `certipy`</text>
+      <text x="92" y="64" text-anchor="middle" font-family="sans-serif" font-size="11" font-weight="600" fill="#fca5a5">`bloodyAD` · `impacket`</text>
 
       <!-- Windows Box -->
-      <rect x="265" y="0" width="245" height="82" rx="8" fill="#170508" stroke="#7f1d1d" stroke-width="1"/>
-      <text x="387" y="22" text-anchor="middle" font-family="sans-serif" font-size="13.5" font-weight="800" fill="#ff8080">Windows Beachhead</text>
-      <text x="387" y="44" text-anchor="middle" font-family="sans-serif" font-size="12" font-weight="600" fill="#fca5a5">OpenSSH / Native Beachhead</text>
-      <text x="387" y="64" text-anchor="middle" font-family="sans-serif" font-size="12" font-weight="600" fill="#fca5a5">`Rubeus` · `SharpSCCM` · `Mimikatz`</text>
+      <rect x="198" y="0" width="185" height="82" rx="8" fill="#170508" stroke="#7f1d1d" stroke-width="1"/>
+      <text x="290" y="22" text-anchor="middle" font-family="sans-serif" font-size="12.5" font-weight="800" fill="#ff8080">Windows Beachhead</text>
+      <text x="290" y="44" text-anchor="middle" font-family="sans-serif" font-size="11" font-weight="600" fill="#fca5a5">OpenSSH / Native Host</text>
+      <text x="290" y="64" text-anchor="middle" font-family="sans-serif" font-size="11" font-weight="600" fill="#fca5a5">`Rubeus` · `SharpSCCM`</text>
+
+      <!-- C2Stack Implants Box -->
+      <rect x="396" y="0" width="195" height="82" rx="8" fill="#1e0c1f" stroke="#a855f7" stroke-width="1.2"/>
+      <text x="493" y="22" text-anchor="middle" font-family="sans-serif" font-size="12.5" font-weight="800" fill="#c084fc">C2Stack Implants</text>
+      <text x="493" y="44" text-anchor="middle" font-family="sans-serif" font-size="11" font-weight="600" fill="#e9d5ff">Sliver (`:31337` in-memory)</text>
+      <text x="493" y="64" text-anchor="middle" font-family="sans-serif" font-size="11" font-weight="600" fill="#e9d5ff">Meridian (DNS TXT egress)</text>
 
       <!-- Cloud Box -->
-      <rect x="530" y="0" width="245" height="82" rx="8" fill="#170508" stroke="#7f1d1d" stroke-width="1"/>
-      <text x="652" y="22" text-anchor="middle" font-family="sans-serif" font-size="13.5" font-weight="800" fill="#ff8080">Cloud / Entra ID</text>
-      <text x="652" y="44" text-anchor="middle" font-family="sans-serif" font-size="12" font-weight="600" fill="#fca5a5">Microsoft Graph API · Azure CLI</text>
-      <text x="652" y="64" text-anchor="middle" font-family="sans-serif" font-size="12" font-weight="600" fill="#fca5a5">Hybrid Identity &amp; Token Replay</text>
+      <rect x="604" y="0" width="180" height="82" rx="8" fill="#170508" stroke="#7f1d1d" stroke-width="1"/>
+      <text x="694" y="22" text-anchor="middle" font-family="sans-serif" font-size="12.5" font-weight="800" fill="#ff8080">Cloud / Entra ID</text>
+      <text x="694" y="44" text-anchor="middle" font-family="sans-serif" font-size="11" font-weight="600" fill="#fca5a5">Graph API · Azure CLI</text>
+      <text x="694" y="64" text-anchor="middle" font-family="sans-serif" font-size="11" font-weight="600" fill="#fca5a5">Hybrid Token Replay</text>
     </g>
   </g>
 
