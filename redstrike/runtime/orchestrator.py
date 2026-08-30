@@ -5,6 +5,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from redstrike.c2 import get_c2_client
+from redstrike.core.models import C2Backend, CallKind, CallSpec
 from redstrike.core.runner import CommandRunner, redact_argv
 from redstrike.runtime.activity import ActivityJournal, resolve_activity_log
 from redstrike.runtime.beachhead import (
@@ -224,6 +226,10 @@ class CampaignOrchestrator:
         prefer_script: bool = False,
         operator: OperatorMode | str = OperatorMode.PROVISIONING,
         node_ids: str | tuple[str, ...] | None = None,
+        c2_enabled: bool = False,
+        c2_backend: C2Backend | str = C2Backend.SLIVER,
+        c2_session_id: str | None = None,
+        c2_endpoint: str | None = None,
     ) -> None:
         self.engagement_id = engagement_id
         self.beachhead = Beachhead(beachhead)
@@ -239,12 +245,22 @@ class CampaignOrchestrator:
             allow_mbr01_stage=allow_mbr01_stage,
             operator=self.operator.value,
         )
+        self.c2_enabled = c2_enabled or (self.beachhead is Beachhead.SESSION)
+        self.c2_backend = C2Backend(c2_backend) if isinstance(c2_backend, str) else c2_backend
+        self.c2_session_id = c2_session_id
+        self.c2_endpoint = c2_endpoint
+
         self.router = BeachheadRouter(
             automation_root=self.automation_root,
             allow_mbr01_stage=allow_mbr01_stage or self.state.allow_mbr01_stage,
             operator=self.operator,
+            c2_enabled=self.c2_enabled,
+            c2_backend=self.c2_backend,
+            c2_session_id=self.c2_session_id,
         )
-        self.runner = runner or CommandRunner()
+        self.runner = runner or CommandRunner(
+            c2_client=get_c2_client(self.c2_backend, endpoint=self.c2_endpoint) if self.c2_enabled else None
+        )
         self.allow_mbr01_stage = allow_mbr01_stage or self.state.allow_mbr01_stage
         if isinstance(branches, set):
             self.branches = branches or {"spine"}
@@ -321,15 +337,22 @@ class CampaignOrchestrator:
 
     def _plan_node(self, node: CampaignNode) -> StepPlan:
         argv_override: list[str] | None = None
+        call_spec: CallSpec | None = None
         use_intent = bool(node.intent) and not self.prefer_script
         if use_intent:
-            argv_override = self.intents.build(
+            call_spec = self.intents.build_spec(
                 node.intent or "",
                 node.intent_args,
                 ledger=self.ledger,
                 cred_name=node.cred or node.requires_cred,
             )
-        return self.router.plan_step(
+            if self.c2_session_id and call_spec.kind == CallKind.C2 and not call_spec.session_id:
+                call_spec.session_id = self.c2_session_id
+            argv_override = call_spec.to_display_command()
+            if call_spec.kind == CallKind.ARGV:
+                call_spec = None
+
+        plan = self.router.plan_step(
             node_id=node.id,
             title=node.title,
             phase=node.phase,
@@ -344,6 +367,30 @@ class CampaignOrchestrator:
             intent=node.intent if use_intent else None,
             argv_override=argv_override,
         )
+        if call_spec is not None:
+            plan = StepPlan(
+                node_id=plan.node_id,
+                title=plan.title,
+                phase=plan.phase,
+                path=ExecutionPath.C2_IMPLANT if call_spec.kind == CallKind.C2 else plan.path,
+                beachhead=plan.beachhead,
+                argv=plan.argv,
+                uses_ws01_exec=plan.uses_ws01_exec,
+                mechanism=f"c2:{call_spec.c2_backend.value if call_spec.c2_backend else 'task'}" if call_spec.kind == CallKind.C2 else plan.mechanism,
+                script=plan.script,
+                requires_cred=plan.requires_cred,
+                produces_cred=plan.produces_cred,
+                exception_reason=plan.exception_reason,
+                hitl_gate=plan.hitl_gate,
+                stub=plan.stub,
+                branch=plan.branch,
+                intent=plan.intent,
+                pivot_to=plan.pivot_to,
+                produces_beachhead=plan.produces_beachhead,
+                operator=plan.operator,
+                call_spec=call_spec,
+            )
+        return plan
 
     def plan(self, phase_spec: str = "1-3") -> list[StepPlan]:
         plans: list[StepPlan] = []

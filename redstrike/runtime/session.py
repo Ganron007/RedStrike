@@ -54,6 +54,10 @@ class CampaignSession:
         prefer_script: bool = False,
         node_ids: str | tuple[str, ...] | None = None,
         profile: str | None = None,
+        c2_enabled: bool = False,
+        c2_backend: str = "sliver",
+        c2_session_id: str | None = None,
+        c2_endpoint: str | None = None,
     ) -> None:
         self.engagement_id = engagement_id
         self.operator = OperatorMode(operator) if operator else detect_default_operator()
@@ -64,6 +68,10 @@ class CampaignSession:
         self.prefer_script = prefer_script or default_prefer_script()
         self.node_ids = node_ids
         self.profile = profile
+        self.c2_enabled = c2_enabled or (beachhead == "session")
+        self.c2_backend = c2_backend
+        self.c2_session_id = c2_session_id
+        self.c2_endpoint = c2_endpoint
         self.store = EngagementStore(engagement_id, root=ledger_root)
         self.state = self.store.get_or_create(
             beachhead=beachhead,
@@ -98,6 +106,10 @@ class CampaignSession:
             branches=self.branches,
             prefer_script=self.prefer_script,
             node_ids=self.node_ids,
+            c2_enabled=self.c2_enabled,
+            c2_backend=self.c2_backend,
+            c2_session_id=self.c2_session_id,
+            c2_endpoint=self.c2_endpoint,
         )
 
     def start(self) -> dict[str, Any]:

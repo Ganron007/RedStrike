@@ -15,6 +15,72 @@ class EngagementMode(str, Enum):
     REPORT = "report"
 
 
+class CallKind(str, Enum):
+    ARGV = "argv"
+    C2 = "c2"
+    HTTP = "http"
+
+
+class C2Backend(str, Enum):
+    SLIVER = "sliver"
+    MERIDIAN = "meridian"
+    MYTHIC = "mythic"
+
+
+class C2TaskType(str, Enum):
+    EXECUTE_ASSEMBLY = "execute_assembly"
+    SHELL = "shell"
+    PSEXEC = "psexec"
+    LIST_SESSIONS = "list_sessions"
+    TASK = "task"
+
+
+class C2Session(BaseModel):
+    id: str
+    backend: C2Backend
+    hostname: str
+    username: str
+    os: str = "windows"
+    arch: str = "amd64"
+    transport: str = "http"
+    last_seen: datetime | None = None
+    is_alive: bool = True
+    remote_address: str | None = None
+
+
+class CallSpec(BaseModel):
+    """Execution descriptor for either a direct subprocess or a C2 implant task."""
+
+    kind: CallKind = CallKind.ARGV
+    argv: list[str] = Field(default_factory=list)
+    c2_backend: C2Backend | None = None
+    c2_task_type: C2TaskType | None = None
+    session_id: str | None = None
+    assembly: str | None = None
+    args: list[str] = Field(default_factory=list)
+    url: str | None = None
+    method: str = "GET"
+    body: dict[str, Any] | None = None
+    headers: dict[str, str] = Field(default_factory=dict)
+
+    def to_display_command(self) -> list[str]:
+        """Convert to a representative command list for display, redaction, and ledgers."""
+        if self.kind == CallKind.ARGV:
+            return self.argv
+        if self.kind == CallKind.C2:
+            backend_str = self.c2_backend.value if self.c2_backend else "c2"
+            task_str = self.c2_task_type.value if self.c2_task_type else "exec"
+            prefix = [f"c2:{backend_str}", task_str]
+            if self.session_id:
+                prefix.extend(["--session", self.session_id])
+            if self.assembly:
+                prefix.extend(["--assembly", self.assembly])
+            return prefix + self.args
+        if self.kind == CallKind.HTTP:
+            return ["http", self.method, self.url or ""]
+        return self.argv
+
+
 class RiskLevel(str, Enum):
     INFO = "info"
     LOW = "low"

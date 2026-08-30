@@ -53,6 +53,42 @@ class CampaignRunRequest(BaseModel):
     profile: str | None = None
     prefer_script: bool = False
     nodes: str | None = None
+    c2_enabled: bool = False
+    c2_backend: str = "sliver"
+    c2_session: str | None = None
+    c2_endpoint: str | None = None
+
+
+class C2ListSessionsRequest(BaseModel):
+    backend: str = "sliver"
+    endpoint: str | None = None
+
+
+class C2ExecuteAssemblyRequest(BaseModel):
+    backend: str = "sliver"
+    session_id: str
+    assembly: str
+    args: list[str] = Field(default_factory=list)
+    endpoint: str | None = None
+    timeout_seconds: int = 120
+
+
+class C2ShellRequest(BaseModel):
+    backend: str = "sliver"
+    session_id: str
+    command: str
+    endpoint: str | None = None
+    timeout_seconds: int = 60
+
+
+class C2PsExecRequest(BaseModel):
+    backend: str = "sliver"
+    session_id: str
+    target: str
+    service_name: str = "RedStrikeSvc"
+    bin_path: str = ""
+    endpoint: str | None = None
+    timeout_seconds: int = 120
 
 
 class IntentPreviewRequest(BaseModel):
@@ -137,6 +173,10 @@ def _session(
         prefer_script=bool(getattr(req, "prefer_script", False)),
         node_ids=getattr(req, "nodes", None),
         profile=getattr(req, "profile", None),
+        c2_enabled=bool(getattr(req, "c2_enabled", False)),
+        c2_backend=getattr(req, "c2_backend", "sliver"),
+        c2_session_id=getattr(req, "c2_session", None),
+        c2_endpoint=getattr(req, "c2_endpoint", None),
     )
 
 
@@ -228,3 +268,53 @@ def campaign_stream(req: CampaignStreamRequest, *, ungated: bool = False) -> dic
     )
     data["stream"] = req.stream.upper()
     return data
+
+
+def c2_list_sessions(req: C2ListSessionsRequest) -> dict[str, Any]:
+    from redstrike.c2 import get_c2_client
+    client = get_c2_client(req.backend, endpoint=req.endpoint)
+    sessions = client.list_sessions()
+    return {
+        "ok": True,
+        "backend": req.backend,
+        "sessions": [s.model_dump(mode="json") for s in sessions],
+    }
+
+
+def c2_execute_assembly(req: C2ExecuteAssemblyRequest) -> dict[str, Any]:
+    from redstrike.c2 import get_c2_client
+    client = get_c2_client(req.backend, endpoint=req.endpoint)
+    res = client.execute_assembly(req.session_id, req.assembly, req.args, timeout_seconds=req.timeout_seconds)
+    return {
+        "ok": res.success,
+        "return_code": res.return_code,
+        "stdout": res.stdout,
+        "stderr": res.stderr,
+        "duration_seconds": res.duration_seconds,
+    }
+
+
+def c2_shell(req: C2ShellRequest) -> dict[str, Any]:
+    from redstrike.c2 import get_c2_client
+    client = get_c2_client(req.backend, endpoint=req.endpoint)
+    res = client.shell(req.session_id, req.command, timeout_seconds=req.timeout_seconds)
+    return {
+        "ok": res.success,
+        "return_code": res.return_code,
+        "stdout": res.stdout,
+        "stderr": res.stderr,
+        "duration_seconds": res.duration_seconds,
+    }
+
+
+def c2_psexec(req: C2PsExecRequest) -> dict[str, Any]:
+    from redstrike.c2 import get_c2_client
+    client = get_c2_client(req.backend, endpoint=req.endpoint)
+    res = client.psexec(req.session_id, req.target, req.service_name, req.bin_path, timeout_seconds=req.timeout_seconds)
+    return {
+        "ok": res.success,
+        "return_code": res.return_code,
+        "stdout": res.stdout,
+        "stderr": res.stderr,
+        "duration_seconds": res.duration_seconds,
+    }

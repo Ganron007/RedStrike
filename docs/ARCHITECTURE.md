@@ -82,6 +82,7 @@ RedStrike eliminates shell injection vulnerabilities by constructing argument ve
 | `AdcsModernBuilder` | 2024–2026 Modern ADCS Vectors | ESC16 weak mapping audits and ESC17 (`pyesc17`) cross-realm certificate abuse |
 | `SqlBuilder` | MSSQL Database Instances | Linked database queries, `xp_cmdshell` execution |
 | `WinRSBuilder` | Windows Remote Management | WinRM / WinRS command execution |
+| `C2Adapters` | C2 Implants (Sliver & Meridian) | In-memory .NET `execute_assembly` (`Rubeus`, `SharpHound`), shell commands, PsExec lateral movement, covert DNS TXT tunneling |
 
 **Secret Redaction Invariant:** All builders automatically mask plaintext passwords, NT hashes, and Kerberos keys in logging, telemetry streams, and generated report artifacts.
 
@@ -93,7 +94,10 @@ RedStrike seamlessly dispatches commands across heterogeneous infrastructure:
 
 1. **Linux / Kali Local:** Native subprocess execution for Linux-native tooling (`netexec`, `certipy`, `bloodyAD`, `impacket`).
 2. **Windows Beachhead:** Transparent OpenSSH wrapper or native PowerShell execution for Windows binaries (`Rubeus.exe`, `SharpSCCM.exe`, `Mimikatz.exe`). Configured via `REDSTRIKE_WS01_HOST`, `REDSTRIKE_WS01_USER`, and `REDSTRIKE_WS01_SSH_KEY`.
-3. **Cloud & Azure (Entra ID):** Extensible runner interface for Microsoft Graph API queries, Az CLI cmdlets, Azure AD Connect sync abuse, and hybrid identity token replay.
+3. **C2 Implant Execution (via C2Stack):** Dispatches in-memory .NET tools and lateral movement directly through active C2 sessions via `CallSpec` primitives:
+   - **Sliver**: In-memory assembly execution and interactive control over gRPC/CLI (`127.0.0.1:31337`).
+   - **Meridian**: Custom Go stdlib implant with X25519/AES-GCM encryption and chunked DNS TXT covert egress over UDP 5353 (`http://127.0.0.1:8080`).
+4. **Cloud & Azure (Entra ID):** Extensible runner interface for Microsoft Graph API queries, Az CLI cmdlets, Azure AD Connect sync abuse, and hybrid identity token replay.
 
 ---
 

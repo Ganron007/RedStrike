@@ -13,6 +13,10 @@ from pydantic import BaseModel
 from redstrike import __version__
 from redstrike.ad.service import ActiveDirectoryAssessmentService
 from redstrike.api.campaign import (
+    C2ExecuteAssemblyRequest,
+    C2ListSessionsRequest,
+    C2PsExecRequest,
+    C2ShellRequest,
     CampaignApproveRequest,
     CampaignRunRequest,
     CampaignStartRequest,
@@ -20,6 +24,10 @@ from redstrike.api.campaign import (
     CampaignStreamRequest,
     IntentExecuteRequest,
     IntentPreviewRequest,
+    c2_execute_assembly,
+    c2_list_sessions,
+    c2_psexec,
+    c2_shell,
     campaign_approve,
     campaign_run_phase,
     campaign_start,
@@ -344,6 +352,22 @@ def create_app(
                 },
             ],
         }
+
+    @app.post("/c2/sessions")
+    def api_c2_sessions(payload: C2ListSessionsRequest) -> dict[str, object]:
+        return c2_list_sessions(payload)
+
+    @app.post("/c2/execute-assembly")
+    def api_c2_execute_assembly(payload: C2ExecuteAssemblyRequest) -> dict[str, object]:
+        return c2_execute_assembly(payload)
+
+    @app.post("/c2/shell")
+    def api_c2_shell(payload: C2ShellRequest) -> dict[str, object]:
+        return c2_shell(payload)
+
+    @app.post("/c2/psexec")
+    def api_c2_psexec(payload: C2PsExecRequest) -> dict[str, object]:
+        return c2_psexec(payload)
 
     return app
 

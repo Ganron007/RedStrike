@@ -62,6 +62,27 @@ def build_parser() -> argparse.ArgumentParser:
                 "(override with REDSTRIKE_OPERATOR)."
             ),
         )
+        p.add_argument(
+            "--c2",
+            action="store_true",
+            help="Enable C2 execution mode (dispatches tasks through C2 teamserver)",
+        )
+        p.add_argument(
+            "--c2-backend",
+            choices=["sliver", "meridian"],
+            default="sliver",
+            help="C2 backend adapter: sliver (default) or meridian",
+        )
+        p.add_argument(
+            "--c2-session",
+            default=None,
+            help="Target C2 session ID for implant command execution",
+        )
+        p.add_argument(
+            "--c2-endpoint",
+            default=None,
+            help="C2 teamserver endpoint (e.g. 127.0.0.1:31337 or http://127.0.0.1:8080)",
+        )
         if beachhead_required:
             p.add_argument(
                 "--beachhead",
@@ -143,6 +164,10 @@ def _session_from_args(args: argparse.Namespace) -> CampaignSession:
         prefer_script=bool(getattr(args, "prefer_script", False)),
         node_ids=getattr(args, "nodes", None),
         profile=getattr(args, "profile", None),
+        c2_enabled=bool(getattr(args, "c2", False)),
+        c2_backend=getattr(args, "c2_backend", "sliver"),
+        c2_session_id=getattr(args, "c2_session", None),
+        c2_endpoint=getattr(args, "c2_endpoint", None),
     )
 
 

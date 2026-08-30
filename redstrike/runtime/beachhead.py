@@ -6,10 +6,13 @@ from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
 
+from redstrike.core.models import C2Backend, CallSpec
+
 
 class Beachhead(str, Enum):
     WINDOWS = "windows"
     LINUX = "linux"
+    SESSION = "session"
 
 
 class OperatorMode(str, Enum):
@@ -18,10 +21,12 @@ class OperatorMode(str, Enum):
     Distinct from Beachhead (attack-identity / preferred path):
     - provisioning: orchestrator on a Linux operator host → SSH into the Windows beachhead
     - ws01: orchestrator already on the domain-joined Windows beachhead (no SSH wrap)
+    - c2: orchestrator driving post-exploitation through C2 implants
     """
 
     PROVISIONING = "provisioning"
     WS01 = "ws01"
+    C2 = "c2"
 
 
 class ExecutionPath(str, Enum):
@@ -30,6 +35,7 @@ class ExecutionPath(str, Enum):
     DIRECT = "direct"
     STAGE_MBR01 = "stage_mbr01"
     EXTERNAL60_PHASE0 = "external60_phase0"
+    C2_IMPLANT = "c2_implant"
 
 
 def detect_default_operator() -> OperatorMode:
@@ -44,7 +50,7 @@ def detect_default_operator() -> OperatorMode:
 
 @dataclass(frozen=True)
 class StepPlan:
-    """Resolved invocation for one campaign graph node (shell=False argv)."""
+    """Resolved invocation for one campaign graph node (shell=False argv or C2 CallSpec)."""
 
     node_id: str
     title: str
@@ -65,10 +71,11 @@ class StepPlan:
     pivot_to: str | None = None
     produces_beachhead: str | None = None
     operator: OperatorMode = OperatorMode.PROVISIONING
+    call_spec: CallSpec | None = None
 
 
 class BeachheadRouter:
-    """Route campaign steps: ws01 primary, linux60 alt, stage_mbr01 exception-only."""
+    """Route campaign steps: ws01 primary, linux60 alt, stage_mbr01 exception-only, c2_implant."""
 
     def __init__(
         self,
@@ -77,11 +84,17 @@ class BeachheadRouter:
         allow_mbr01_stage: bool = False,
         bash: str = "bash",
         operator: OperatorMode | str = OperatorMode.PROVISIONING,
+        c2_enabled: bool = False,
+        c2_backend: C2Backend | str = C2Backend.SLIVER,
+        c2_session_id: str | None = None,
     ) -> None:
         self.automation_root = Path(automation_root)
         self.allow_mbr01_stage = allow_mbr01_stage
         self.bash = bash
         self.operator = OperatorMode(operator)
+        self.c2_enabled = c2_enabled
+        self.c2_backend = C2Backend(c2_backend) if isinstance(c2_backend, str) else c2_backend
+        self.c2_session_id = c2_session_id
 
     def effective_path(
         self,
@@ -90,6 +103,9 @@ class BeachheadRouter:
         beachhead: Beachhead,
     ) -> ExecutionPath:
         declared = ExecutionPath(declared_path)
+
+        if declared is ExecutionPath.C2_IMPLANT or beachhead is Beachhead.SESSION:
+            return ExecutionPath.C2_IMPLANT
 
         if declared is ExecutionPath.STAGE_MBR01:
             if not self.allow_mbr01_stage:

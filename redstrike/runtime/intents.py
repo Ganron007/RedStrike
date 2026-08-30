@@ -20,9 +20,10 @@ from redstrike.builders import (
     SqlBuilder,
     WinRSBuilder,
 )
+from redstrike.core.models import C2Backend, C2TaskType, CallKind, CallSpec
 from redstrike.runtime.ledger import Credential, CredentialLedger
 
-IntentFn = Callable[..., list[str]]
+IntentFn = Callable[..., list[str] | CallSpec]
 
 
 class UnknownIntentError(KeyError):
@@ -118,19 +119,97 @@ class IntentRegistry:
             # BloodHound Ingestion
             "sharphound.collect": self._sharphound.sharphound,
             "bloodhound.python_collect": self._sharphound.bloodhound_python,
+            # C2 Framework Integration (Phase 8)
+            "c2.sliver.execute_assembly": self._sliver_execute_assembly,
+            "c2.sliver.psexec": self._sliver_psexec,
+            "c2.sliver.shell": self._sliver_shell,
+            "c2.sliver.list_sessions": self._sliver_list_sessions,
+            "c2.meridian.task": self._meridian_task,
+            "c2.meridian.shell": self._meridian_shell,
+            "c2.meridian.execute_assembly": self._meridian_execute_assembly,
         }
+
+    @staticmethod
+    def _sliver_execute_assembly(session_id: str = "", assembly: str = "", args: list[str] | None = None, **kwargs) -> CallSpec:
+        return CallSpec(
+            kind=CallKind.C2,
+            c2_backend=C2Backend.SLIVER,
+            c2_task_type=C2TaskType.EXECUTE_ASSEMBLY,
+            session_id=session_id,
+            assembly=assembly,
+            args=args or [],
+        )
+
+    @staticmethod
+    def _sliver_shell(session_id: str = "", command: str = "", **kwargs) -> CallSpec:
+        return CallSpec(
+            kind=CallKind.C2,
+            c2_backend=C2Backend.SLIVER,
+            c2_task_type=C2TaskType.SHELL,
+            session_id=session_id,
+            args=[command] if command else [],
+        )
+
+    @staticmethod
+    def _sliver_psexec(session_id: str = "", target: str = "", service: str = "RedStrikeSvc", bin_path: str = "", **kwargs) -> CallSpec:
+        return CallSpec(
+            kind=CallKind.C2,
+            c2_backend=C2Backend.SLIVER,
+            c2_task_type=C2TaskType.PSEXEC,
+            session_id=session_id,
+            args=[target, service, bin_path],
+        )
+
+    @staticmethod
+    def _sliver_list_sessions(**kwargs) -> CallSpec:
+        return CallSpec(
+            kind=CallKind.C2,
+            c2_backend=C2Backend.SLIVER,
+            c2_task_type=C2TaskType.LIST_SESSIONS,
+        )
+
+    @staticmethod
+    def _meridian_task(session_id: str = "", module: str = "shell", action: str = "exec", params: dict[str, Any] | None = None, **kwargs) -> CallSpec:
+        return CallSpec(
+            kind=CallKind.C2,
+            c2_backend=C2Backend.MERIDIAN,
+            c2_task_type=C2TaskType.TASK,
+            session_id=session_id,
+            body={"module": module, "action": action, "params": params or {}},
+        )
+
+    @staticmethod
+    def _meridian_shell(session_id: str = "", command: str = "", **kwargs) -> CallSpec:
+        return CallSpec(
+            kind=CallKind.C2,
+            c2_backend=C2Backend.MERIDIAN,
+            c2_task_type=C2TaskType.SHELL,
+            session_id=session_id,
+            args=[command] if command else [],
+        )
+
+    @staticmethod
+    def _meridian_execute_assembly(session_id: str = "", assembly: str = "", args: list[str] | None = None, **kwargs) -> CallSpec:
+        return CallSpec(
+            kind=CallKind.C2,
+            c2_backend=C2Backend.MERIDIAN,
+            c2_task_type=C2TaskType.EXECUTE_ASSEMBLY,
+            session_id=session_id,
+            assembly=assembly,
+            args=args or [],
+        )
 
     def known(self) -> list[str]:
         return sorted(self._intents)
 
-    def build(
+    def build_spec(
         self,
         intent: str,
         args: dict[str, Any] | None = None,
         *,
         ledger: CredentialLedger | None = None,
         cred_name: str | None = None,
-    ) -> list[str]:
+    ) -> CallSpec:
         if intent not in self._intents:
             raise UnknownIntentError(
                 f"unknown intent '{intent}'; known={self.known()}"
@@ -144,7 +223,22 @@ class IntentRegistry:
             filtered = kwargs
         else:
             filtered = {k: v for k, v in kwargs.items() if k in params}
-        return fn(**filtered)
+        
+        result = fn(**filtered)
+        if isinstance(result, CallSpec):
+            return result
+        return CallSpec(kind=CallKind.ARGV, argv=result)
+
+    def build(
+        self,
+        intent: str,
+        args: dict[str, Any] | None = None,
+        *,
+        ledger: CredentialLedger | None = None,
+        cred_name: str | None = None,
+    ) -> list[str]:
+        spec = self.build_spec(intent, args, ledger=ledger, cred_name=cred_name)
+        return spec.to_display_command()
 
 
 def merge_cred(kwargs: dict[str, Any], cred: Credential) -> dict[str, Any]:

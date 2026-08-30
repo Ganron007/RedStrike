@@ -4,8 +4,9 @@ import os
 import subprocess
 import time
 from shutil import which
+from typing import Any
 
-from redstrike.core.models import CommandResult
+from redstrike.core.models import C2Backend, C2TaskType, CallKind, CallSpec, CommandResult
 
 _UNIX_FALLBACKS = (
     "/usr/bin",
@@ -44,11 +45,26 @@ def resolve_executable(name: str) -> str:
     return name
 
 
-class CommandRunner:
-    def __init__(self, timeout_seconds: int = 300):
-        self.timeout_seconds = timeout_seconds
 
-    def run(self, argv: list[str]) -> CommandResult:
+
+class CommandRunner:
+    def __init__(self, timeout_seconds: int = 300, c2_client: Any = None):
+        self.timeout_seconds = timeout_seconds
+        self.c2_client = c2_client
+
+    def run(self, command: list[str] | CallSpec) -> CommandResult:
+        if isinstance(command, CallSpec):
+            return self.run_call_spec(command)
+        return self._run_argv(command)
+
+    def run_call_spec(self, spec: CallSpec) -> CommandResult:
+        if spec.kind == CallKind.C2:
+            return self._run_c2(spec)
+        elif spec.kind == CallKind.HTTP:
+            return self._run_http(spec)
+        return self._run_argv(spec.argv)
+
+    def _run_argv(self, argv: list[str]) -> CommandResult:
         if not argv:
             raise ValueError("Command cannot be empty")
         argv = [resolve_executable(argv[0])] + argv[1:]
@@ -81,6 +97,103 @@ class CommandRunner:
                 stderr=decode_captured(exc.stderr),
                 duration_seconds=duration,
                 timed_out=True,
+            )
+
+    def _run_c2(self, spec: CallSpec) -> CommandResult:
+        """Execute task via configured C2 client adapter."""
+        from redstrike.c2 import get_c2_client
+
+        client = self.c2_client
+        if client is None:
+            backend = spec.c2_backend or C2Backend.SLIVER
+            client = get_c2_client(backend)
+
+        if spec.c2_task_type == C2TaskType.EXECUTE_ASSEMBLY:
+            return client.execute_assembly(
+                session_id=spec.session_id or "",
+                assembly=spec.assembly or "",
+                args=spec.args,
+                timeout_seconds=self.timeout_seconds,
+            )
+        elif spec.c2_task_type == C2TaskType.SHELL:
+            return client.shell(
+                session_id=spec.session_id or "",
+                command=" ".join(spec.args),
+                timeout_seconds=self.timeout_seconds,
+            )
+        elif spec.c2_task_type == C2TaskType.PSEXEC:
+            target = spec.args[0] if len(spec.args) > 0 else ""
+            service = spec.args[1] if len(spec.args) > 1 else "RedStrikeSvc"
+            bin_path = spec.args[2] if len(spec.args) > 2 else ""
+            return client.psexec(
+                session_id=spec.session_id or "",
+                target=target,
+                service_name=service,
+                bin_path=bin_path,
+                timeout_seconds=self.timeout_seconds,
+            )
+        elif spec.c2_task_type == C2TaskType.LIST_SESSIONS:
+            sessions = client.list_sessions()
+            import json
+            payload = json.dumps([s.model_dump(mode="json") for s in sessions], indent=2)
+            return CommandResult(
+                command=spec.to_display_command(),
+                return_code=0,
+                stdout=payload,
+                stderr="",
+                duration_seconds=0.01,
+            )
+        else:
+            return client.shell(
+                session_id=spec.session_id or "",
+                command=" ".join(spec.args),
+                timeout_seconds=self.timeout_seconds,
+            )
+
+    def _run_http(self, spec: CallSpec) -> CommandResult:
+        import json
+        import urllib.error
+        import urllib.request
+
+        started = time.monotonic()
+        data = json.dumps(spec.body).encode("utf-8") if spec.body is not None else None
+        req = urllib.request.Request(
+            spec.url or "",
+            data=data,
+            headers=spec.headers,
+            method=spec.method.upper(),
+        )
+        display_cmd = spec.to_display_command()
+
+        try:
+            with urllib.request.urlopen(req, timeout=self.timeout_seconds) as resp:
+                payload = resp.read().decode("utf-8", errors="replace")
+                duration = time.monotonic() - started
+                return CommandResult(
+                    command=redact_argv(display_cmd),
+                    return_code=0,
+                    stdout=payload,
+                    stderr="",
+                    duration_seconds=duration,
+                )
+        except urllib.error.HTTPError as exc:
+            payload = exc.read().decode("utf-8", errors="replace")
+            duration = time.monotonic() - started
+            return CommandResult(
+                command=redact_argv(display_cmd),
+                return_code=exc.code,
+                stdout="",
+                stderr=f"HTTP Error {exc.code}: {payload}",
+                duration_seconds=duration,
+            )
+        except Exception as exc:  # noqa: BLE001
+            duration = time.monotonic() - started
+            return CommandResult(
+                command=redact_argv(display_cmd),
+                return_code=1,
+                stdout="",
+                stderr=str(exc),
+                duration_seconds=duration,
             )
 
 

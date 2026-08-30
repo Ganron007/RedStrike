@@ -148,7 +148,19 @@ redstrike graph run --graph examples/generic-adcs-audit.yaml --phase 2-3
 redstrike graph approve --gate ticket --engage default
 ```
 
-### Option B: Start Autonomous LLM FastMCP Server
+### Option B: C2-Enabled Mode (via C2Stack)
+
+Dispatch post-exploitation tasks directly through in-memory C2 implants (Sliver or Meridian):
+
+```bash
+# 1. Run campaign graph in C2 mode with Sliver backend
+redstrike graph run --phase 1-3 --c2 --c2-backend sliver --c2-session <session-id>
+
+# 2. Run with lightweight Meridian C2 (HTTP/DNS TXT tunneling)
+redstrike graph run --phase 1-3 --c2 --c2-backend meridian --c2-endpoint http://127.0.0.1:8080
+```
+
+### Option C: Start Autonomous LLM FastMCP Server
 
 Connect RedStrike to Claude Desktop, Cursor, or your agent swarm:
 

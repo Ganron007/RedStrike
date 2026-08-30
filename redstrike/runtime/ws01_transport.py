@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import shutil
 
+from redstrike.core.models import CallSpec
 from redstrike.runtime.beachhead import ExecutionPath, OperatorMode, StepPlan
 
 
@@ -68,21 +69,24 @@ def wrap_argv_for_ws01(argv: list[str]) -> list[str]:
     return ssh_argv
 
 
-def argv_for_plan(plan: StepPlan) -> list[str]:
-    """Return argv to run locally (scripts / native ws01) or SSH-wrapped (hybrid intents).
+def argv_for_plan(plan: StepPlan) -> list[str] | CallSpec:
+    """Return argv or CallSpec to run locally, via C2 implant, or SSH-wrapped.
 
     Operator modes:
     - provisioning: bash scripts keep ws01-exec; typed intents SSH → PowerShell on ws01
     - ws01: already on the domain-joined host — never SSH wrap
+    - c2: dispatches directly via C2 CallSpec
     """
+    if plan.call_spec is not None and plan.path is ExecutionPath.C2_IMPLANT:
+        return plan.call_spec
     if not plan.argv:
-        return plan.argv
-    if plan.operator is OperatorMode.WS01:
-        return plan.argv
+        return plan.call_spec if plan.call_spec is not None else plan.argv
+    if plan.operator is OperatorMode.WS01 or plan.operator is OperatorMode.C2:
+        return plan.call_spec if plan.call_spec is not None else plan.argv
     if plan.mechanism == "local-ws01":
         return plan.argv
     if plan.path is not ExecutionPath.WS01:
-        return plan.argv
+        return plan.call_spec if plan.call_spec is not None else plan.argv
     if not _ssh_enabled():
         return plan.argv
     if plan.mechanism == "ws01-exec":

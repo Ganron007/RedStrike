@@ -630,6 +630,90 @@ def create_mcp(api_url: str):
             {"engagement_id": engagement_id, "objective": objective},
         )
 
+    @mcp.tool()
+    def c2_list_sessions(
+        backend: str = "sliver",
+        endpoint: str = "",
+    ) -> dict[str, Any]:
+        """List active C2 sessions/beacons from the C2 teamserver (Sliver or Meridian)."""
+        return _post(
+            api_url,
+            "/c2/sessions",
+            {"backend": backend, "endpoint": endpoint or None},
+        )
+
+    @mcp.tool()
+    def c2_execute_assembly(
+        session_id: str,
+        assembly: str,
+        args: list[str] | None = None,
+        backend: str = "sliver",
+        endpoint: str = "",
+        timeout_seconds: int = 120,
+    ) -> dict[str, Any]:
+        """Execute a .NET assembly in-memory inside the remote C2 implant session."""
+        return _post(
+            api_url,
+            "/c2/execute-assembly",
+            {
+                "session_id": session_id,
+                "assembly": assembly,
+                "args": args or [],
+                "backend": backend,
+                "endpoint": endpoint or None,
+                "timeout_seconds": timeout_seconds,
+            },
+            timeout=timeout_seconds + 30,
+        )
+
+    @mcp.tool()
+    def c2_shell(
+        session_id: str,
+        command: str,
+        backend: str = "sliver",
+        endpoint: str = "",
+        timeout_seconds: int = 60,
+    ) -> dict[str, Any]:
+        """Execute a remote shell command inside the C2 implant session context."""
+        return _post(
+            api_url,
+            "/c2/shell",
+            {
+                "session_id": session_id,
+                "command": command,
+                "backend": backend,
+                "endpoint": endpoint or None,
+                "timeout_seconds": timeout_seconds,
+            },
+            timeout=timeout_seconds + 30,
+        )
+
+    @mcp.tool()
+    def c2_psexec(
+        session_id: str,
+        target: str,
+        service_name: str = "RedStrikeSvc",
+        bin_path: str = "",
+        backend: str = "sliver",
+        endpoint: str = "",
+        timeout_seconds: int = 120,
+    ) -> dict[str, Any]:
+        """PsExec lateral movement from an active C2 implant session."""
+        return _post(
+            api_url,
+            "/c2/psexec",
+            {
+                "session_id": session_id,
+                "target": target,
+                "service_name": service_name,
+                "bin_path": bin_path,
+                "backend": backend,
+                "endpoint": endpoint or None,
+                "timeout_seconds": timeout_seconds,
+            },
+            timeout=timeout_seconds + 30,
+        )
+
     return mcp
 
 

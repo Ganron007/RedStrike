@@ -182,6 +182,26 @@ Add to `.vscode/mcp.json` in your workspace root:
 
 ---
 
+### Lab Module 4: In-Memory C2 Post-Exploitation via C2Stack
+**Objective**: Execute post-exploitation tools inside an active implant session without dropping binaries to disk.
+
+1. Launch C2Stack (Sliver or Meridian):
+   ```bash
+   # From C2Stack repository
+   docker compose up -d sliver meridian
+   ```
+2. Run graph in C2-Enabled Mode:
+   ```bash
+   # Run campaign through an active Sliver session
+   redstrike graph run --phase 1-3 --c2 --c2-backend sliver --c2-session <session-id>
+   ```
+3. **What RedStrike Executes**:
+   - Constructs a `CallSpec(kind="c2", c2_backend="sliver", c2_task_type="execute_assembly")`.
+   - Sliver injects `Rubeus.exe` or `SharpHound.exe` into remote process memory via CLR hosting.
+   - Extracts Kerberos ticket / hash evidence and updates the local `CredentialLedger`.
+
+---
+
 ## 6. Real-World Defensive Synergy (DFIR-Nexus & Purple Teaming)
 
 RedStrike is designed for seamless purple-teaming alongside **DFIR-Nexus**:
