@@ -1,141 +1,175 @@
 from __future__ import annotations
 
+import base64
 import json
 import os
+import subprocess
 import time
-import urllib.error
-import urllib.parse
-import urllib.request
 from datetime import datetime, timezone
 from typing import Any
 
 from redstrike.c2.base import BaseC2Client
 from redstrike.core.models import C2Backend, C2Session, CommandResult
-from redstrike.core.runner import redact_argv
+from redstrike.core.runner import decode_captured, redact_argv
 
 
 class MeridianClient(BaseC2Client):
-    """Client adapter for Meridian C2 (communicates via REST API over HTTP/DNS)."""
+    """Client adapter for Meridian C2, verified against the operator CLI.
+
+    Contract (verified live against C2Stack's meridian container):
+      * the operator surface is an in-process CLI, not a REST API;
+      * `meridian sessions --json` -> JSON array of session objects;
+      * `meridian exec --json <session> -- <command...>` queues a builtin exec
+        task and returns {"queued": <task_id>, "session_id": ...};
+      * `meridian results --json` -> JSON array of results with base64 stdout;
+      * commands are asynchronous (beacon interval), so `shell()` polls results.
+      * execute-assembly / psexec are not implemented by the meridian backend
+        (built-in modules: exec/download/upload/sleep/exit) -> rejected.
+
+    The CLI is usually reached inside the C2Stack container, configure
+    ``command="docker exec -i docker-meridian-1 meridian"`` (as a list).
+    """
 
     def __init__(
         self,
-        endpoint: str = "http://127.0.0.1:8080",
+        endpoint: str = "meridian",
         api_key: str | None = None,
         timeout_seconds: int = 60,
+        command: list[str] | str | None = None,
     ) -> None:
-        self.endpoint = endpoint.rstrip("/")
+        self.endpoint = endpoint
         self.api_key = api_key or os.environ.get("MERIDIAN_API_KEY")
         self.timeout_seconds = timeout_seconds
+        if command is None:
+            self.command: list[str] = [endpoint] if endpoint not in ("", None) else ["meridian"]
+        elif isinstance(command, str):
+            self.command = command.split()
+        else:
+            self.command = command
 
-    def _http_request(
-        self,
-        method: str,
-        path: str,
-        body: dict[str, Any] | None = None,
-        timeout: int = 30,
-    ) -> tuple[int, str]:
-        url = f"{self.endpoint}/{path.lstrip('/')}"
-        headers = {
-            "User-Agent": "RedStrike-C2Adapter/1.0",
-            "Content-Type": "application/json",
-        }
-        if self.api_key:
-            headers["Authorization"] = f"Bearer {self.api_key}"
-
-        data = json.dumps(body).encode("utf-8") if body is not None else None
-        req = urllib.request.Request(url, data=data, headers=headers, method=method.upper())
-
+    def _run_cli(self, argv: list[str], timeout: int) -> tuple[int, bytes, bytes]:
         try:
-            with urllib.request.urlopen(req, timeout=timeout) as response:
-                status = response.status
-                payload = response.read().decode("utf-8", errors="replace")
-                return status, payload
-        except urllib.error.HTTPError as exc:
-            payload = exc.read().decode("utf-8", errors="replace")
-            return exc.code, payload
-        except Exception as exc:  # noqa: BLE001
-            return 503, str(exc)
+            completed = subprocess.run(
+                self.command + argv,
+                shell=False,
+                check=False,
+                capture_output=True,
+                timeout=timeout,
+            )
+            return completed.returncode, completed.stdout, completed.stderr
+        except FileNotFoundError:
+            if self.command and "docker" in self.command[0]:
+                msg = b"docker CLI not found on PATH (required to reach the meridian container)."
+            else:
+                msg = b"meridian not found on PATH. Point MeridianClient at the C2Stack CLI."
+            return 1, b"", msg
 
+    def _cli_json(self, argv: list[str], timeout: int) -> Any | None:
+        rc, out, _err = self._run_cli(argv, timeout)
+        if rc != 0:
+            return None
+        try:
+            return json.loads(decode_captured(out))
+        except ValueError:
+            return None
+
+    # ------------------------------------------------------------- interface
     def list_sessions(self) -> list[C2Session]:
-        """Query active sessions from the Meridian daemon."""
-        status, payload = self._http_request("GET", "/api/sessions", timeout=10)
-        if status != 200:
-            return []
-
-        try:
-            data = json.loads(payload)
-            sessions: list[C2Session] = []
-            for item in data if isinstance(data, list) else data.get("sessions", []):
-                sessions.append(
-                    C2Session(
-                        id=str(item.get("id") or ""),
-                        backend=C2Backend.MERIDIAN,
-                        hostname=item.get("hostname", "unknown"),
-                        username=item.get("user") or item.get("username", "unknown"),
-                        os=item.get("os", "windows"),
-                        arch=item.get("arch", "amd64"),
-                        transport=item.get("listener") or item.get("transport", "http"),
-                        last_seen=datetime.now(timezone.utc),
-                        is_alive=bool(item.get("alive", True)),
-                        remote_address=item.get("remote_addr") or item.get("remote_address"),
-                    )
+        data = self._cli_json(["sessions", "--json"], 30)
+        sessions: list[C2Session] = []
+        for item in data if isinstance(data, list) else []:
+            last_seen = datetime.now(timezone.utc)
+            ts = item.get("last_seen")
+            if isinstance(ts, (int, float)) and ts > 0:
+                last_seen = datetime.fromtimestamp(ts, tz=timezone.utc)
+            ips = item.get("ips") or []
+            remote = ips[0] if isinstance(ips, list) and ips else None
+            sessions.append(
+                C2Session(
+                    id=str(item.get("id") or ""),
+                    backend=C2Backend.MERIDIAN,
+                    hostname=item.get("hostname", "unknown"),
+                    username=item.get("user") or item.get("uid") or "unknown",
+                    os=item.get("os", "windows"),
+                    arch=item.get("arch", "amd64"),
+                    transport=item.get("listener") or item.get("transport") or "http",
+                    last_seen=last_seen,
+                    is_alive=bool(item.get("alive", True)),
+                    remote_address=remote,
                 )
-            return sessions
-        except Exception:  # noqa: BLE001
-            return []
-
-    def task(
-        self,
-        session_id: str,
-        module: str,
-        action: str,
-        params: dict[str, Any] | None = None,
-        timeout_seconds: int = 60,
-    ) -> CommandResult:
-        """Queue a task on a Meridian session and wait for result."""
-        display_cmd = ["meridian", "task", session_id, module, action]
-        if params:
-            for k, v in params.items():
-                display_cmd.extend([f"--{k}", str(v)])
-
-        started = time.monotonic()
-        body = {
-            "session_id": session_id,
-            "module": module,
-            "action": action,
-            "params": params or {},
-        }
-
-        status, payload = self._http_request("POST", f"/api/sessions/{session_id}/tasks", body=body, timeout=timeout_seconds)
-        duration = time.monotonic() - started
-
-        if status not in (200, 201, 202):
-            return CommandResult(
-                command=redact_argv(display_cmd),
-                return_code=1,
-                stdout="",
-                stderr=f"Meridian task failed (HTTP {status}): {payload}",
-                duration_seconds=duration,
             )
+        return sessions
+
+    def _exec(self, session_id: str, command: str, timeout_seconds: int) -> CommandResult:
+        display_cmd = self.command + ["exec", "--json", session_id, "--", command]
+        started = time.monotonic()
 
         try:
-            result_data = json.loads(payload)
-            stdout = result_data.get("output") or result_data.get("stdout") or payload
+            rc, out, err = self._run_cli(
+                ["exec", "--json", session_id, "--", command], timeout_seconds + 10
+            )
+        except subprocess.TimeoutExpired as exc:
             return CommandResult(
                 command=redact_argv(display_cmd),
-                return_code=0 if result_data.get("status") != "error" else 1,
-                stdout=str(stdout),
-                stderr=str(result_data.get("error") or ""),
-                duration_seconds=duration,
+                return_code=124,
+                stdout=decode_captured(exc.stdout),
+                stderr=decode_captured(exc.stderr),
+                duration_seconds=time.monotonic() - started,
+                timed_out=True,
             )
+        if rc != 0:
+            return CommandResult(
+                command=redact_argv(display_cmd),
+                return_code=rc,
+                stdout=decode_captured(out),
+                stderr=decode_captured(err),
+                duration_seconds=time.monotonic() - started,
+            )
+
+        task_id: str | None = None
+        try:
+            task_id = json.loads(decode_captured(out)).get("queued")
+        except ValueError:
+            pass
+        if not task_id:
+            return CommandResult(
+                command=redact_argv(display_cmd),
+                return_code=rc,
+                stdout=decode_captured(out),
+                stderr=decode_captured(err),
+                duration_seconds=time.monotonic() - started,
+            )
+
+        deadline = started + timeout_seconds
+        while time.monotonic() < deadline:
+            rows = self._cli_json(["results", "--json"], 30)
+            for row in rows if isinstance(rows, list) else []:
+                if row.get("task_id") == task_id:
+                    return CommandResult(
+                        command=redact_argv(display_cmd),
+                        return_code=int(row.get("exit_code") or 0) if row.get("status") != "error" else 1,
+                        stdout=self._decode_out(row.get("stdout_b64")),
+                        stderr=self._decode_out(row.get("stderr_b64")),
+                        duration_seconds=time.monotonic() - started,
+                    )
+            time.sleep(3)
+        return CommandResult(
+            command=redact_argv(display_cmd),
+            return_code=124,
+            stdout="",
+            stderr=f"task {task_id} did not complete within {timeout_seconds}s (beacon interval)",
+            duration_seconds=time.monotonic() - started,
+            timed_out=True,
+        )
+
+    @staticmethod
+    def _decode_out(b64: str | None) -> str:
+        if not b64:
+            return ""
+        try:
+            return base64.b64decode(b64).decode("utf-8", errors="replace")
         except Exception:  # noqa: BLE001
-            return CommandResult(
-                command=redact_argv(display_cmd),
-                return_code=0,
-                stdout=payload,
-                stderr="",
-                duration_seconds=duration,
-            )
+            return ""
 
     def shell(
         self,
@@ -143,13 +177,7 @@ class MeridianClient(BaseC2Client):
         command: str,
         timeout_seconds: int = 60,
     ) -> CommandResult:
-        return self.task(
-            session_id=session_id,
-            module="shell",
-            action="exec",
-            params={"command": command},
-            timeout_seconds=timeout_seconds,
-        )
+        return self._exec(session_id, command, timeout_seconds)
 
     def execute_assembly(
         self,
@@ -158,12 +186,15 @@ class MeridianClient(BaseC2Client):
         args: list[str] | None = None,
         timeout_seconds: int = 120,
     ) -> CommandResult:
-        return self.task(
-            session_id=session_id,
-            module="execute_assembly",
-            action="run",
-            params={"assembly": assembly, "args": args or []},
-            timeout_seconds=timeout_seconds,
+        return CommandResult(
+            command=redact_argv(["meridian", "execute-assembly", session_id, assembly] + (args or [])),
+            return_code=2,
+            stdout="",
+            stderr=(
+                "meridian backend has no execute-assembly module (built-in modules are "
+                "exec/download/upload/sleep/exit). Use builtin/exec or a different backend."
+            ),
+            duration_seconds=0.0,
         )
 
     def psexec(
@@ -174,10 +205,13 @@ class MeridianClient(BaseC2Client):
         bin_path: str,
         timeout_seconds: int = 120,
     ) -> CommandResult:
-        return self.task(
-            session_id=session_id,
-            module="psexec",
-            action="run",
-            params={"target": target, "service": service_name, "bin_path": bin_path},
-            timeout_seconds=timeout_seconds,
+        return CommandResult(
+            command=redact_argv(["meridian", "psexec", session_id, target]),
+            return_code=2,
+            stdout="",
+            stderr=(
+                "meridian backend has no psexec lateral-movement module; "
+                "queue a builtin/exec task with a crafted command instead."
+            ),
+            duration_seconds=0.0,
         )

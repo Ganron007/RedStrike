@@ -11,6 +11,7 @@ def get_c2_client(
     endpoint: str | None = None,
     config_path: str | None = None,
     api_key: str | None = None,
+    command: list[str] | str | None = None,
 ) -> BaseC2Client:
     """Factory helper to obtain a configured C2 client instance."""
     backend_val = C2Backend(backend) if isinstance(backend, str) else backend
@@ -22,8 +23,9 @@ def get_c2_client(
         )
     elif backend_val == C2Backend.MERIDIAN:
         return MeridianClient(
-            endpoint=endpoint or "http://127.0.0.1:8080",
+            endpoint=endpoint or "meridian",
             api_key=api_key,
+            command=command,
         )
     raise ValueError(f"Unsupported C2 backend: {backend_val}")
 

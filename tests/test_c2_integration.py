@@ -218,15 +218,118 @@ def test_sliver_client_offline_fallback():
     assert "not found on PATH" in res.stderr
 
 
-def test_meridian_client_mock_http():
-    """Verify MeridianClient handles REST API requests and responses."""
-    client = MeridianClient(endpoint="http://127.0.0.1:8080")
+def test_meridian_client_cli_flow():
+    """Verify MeridianClient queues an exec task and polls results via the CLI."""
+    client = MeridianClient(endpoint="meridian", command=["meridian"])
+    calls: list[list[str]] = []
 
-    mock_resp = (200, json.dumps({"output": "NT AUTHORITY\\SYSTEM", "status": "ok"}))
-    with patch.object(client, "_http_request", return_value=mock_resp):
+    def fake_run(argv, timeout):
+        calls.append(argv)
+        if argv[:3] == ["exec", "--json", "sess-1"]:
+            return 0, b'{"queued": "task-abc", "session_id": "sess-1"}', b""
+        if argv == ["results", "--json"]:
+            return 0, json.dumps([{
+                "id": "r1",
+                "task_id": "task-abc",
+                "session_id": "sess-1",
+                "module": "builtin/exec",
+                "status": "ok",
+                "exit_code": 0,
+                "ts": 1.0,
+                "stdout_b64": "TlQgQVVUSE9SSVRZXFNZU1RFTQ==",  # NT AUTHORITY\SYSTEM
+                "stderr_b64": "",
+            }]).encode(), b""
+        if argv == ["sessions", "--json"]:
+            return 0, json.dumps([{
+                "id": "sess-1",
+                "hostname": "WS01",
+                "os": "windows",
+                "arch": "amd64",
+                "user": "analyst_t1",
+                "listener": "http",
+                "last_seen": 1700000000,
+                "alive": True,
+                "ips": ["10.0.0.5"],
+            }]).encode(), b""
+        return 0, b"[]", b""
+
+    with patch.object(client, "_run_cli", side_effect=fake_run):
         res = client.shell("sess-1", "whoami")
         assert res.return_code == 0
         assert "SYSTEM" in res.stdout
+        assert calls[0][:4] == ["exec", "--json", "sess-1", "--"]
+
+        sessions = client.list_sessions()
+        assert len(sessions) == 1
+        assert sessions[0].hostname == "WS01"
+        assert sessions[0].remote_address == "10.0.0.5"
+
+        unsupported = client.execute_assembly("sess-1", "Rubeus.exe")
+        assert unsupported.return_code == 2
+        assert unsupported.stdout == ""
+        assert "no execute-assembly" in unsupported.stderr
+
+        no_psexec = client.psexec("sess-1", "DC01", "svc", "bin.exe")
+        assert no_psexec.return_code == 2
+        assert "no psexec" in no_psexec.stderr
+
+
+LIVE_SLIVER_SESSIONS_TABLE = (
+    " ID         Name               Transport   Remote Address     Hostname       Username   Process (PID)"
+    "         Operating System   Locale   Last Message                             Health  \n"
+    "========== ================== =========== ================== ============== ========== ====================="
+    "===== ================== ======== ======================================== =========\n"
+    " e9716f96   GENETIC_TORTOISE   mtls        172.19.0.4:34404   30dff580990c   root       "
+    "/tmp/implant (6349)   linux/amd64                 Sun Aug 30 15:09:05 UTC 2026 (16s ago)"
+    "   \x1b[1;38;2;23;201;100m[ALIVE]\x1b[m \n"
+    " fd1291ff   GENETIC_TORTOISE   mtls        172.19.0.4:34420   30dff580990c   root       "
+    "/tmp/implant (6286)   linux/amd64                 Sun Aug 30 15:09:07 UTC 2026 (14s ago)"
+    "   \x1b[1;38;2;23;201;100m[ALIVE]\x1b[m \n"
+)
+
+
+def test_sliver_sessions_table_parser():
+    """Parse the fixed-width console table captured live from sliver v1.7.6."""
+    from redstrike.c2.sliver import _parse_table, _session_from_row
+
+    rows = _parse_table(LIVE_SLIVER_SESSIONS_TABLE)
+    assert len(rows) == 2
+
+    first = _session_from_row(rows[0])
+    assert first is not None
+    assert first.id == "e9716f96"
+    assert first.transport == "mtls"
+    assert first.hostname == "30dff580990c"
+    assert first.username == "root"
+    assert first.os == "linux"
+    assert first.arch == "amd64"
+    assert first.remote_address == "172.19.0.4:34404"
+    assert first.is_alive is True
+    assert first.last_seen is not None and first.last_seen.year == 2026
+
+
+def test_sliver_sessions_table_empty():
+    from redstrike.c2.sliver import _parse_table
+
+    assert _parse_table("\x1b[2K\x1b[1;38;2;51;142;247m[*] \x1b[mNo sessions \xf0\x9f\x99\x81\n") == []
+
+
+def test_sliver_execute_output_block():
+    from redstrike.c2.sliver import _output_block
+
+    sample = (
+        "\x1b[2K\x1b[1;38;2;51;142;247m[*] \x1b[mExecute: /usr/bin/hostname []\n"
+        "\x1b[2K\x1b[2K\x1b[1;38;2;51;142;247m[*] \x1b[mOutput:\n"
+        "30dff580990c\n"
+    )
+    assert _output_block(sample) == "30dff580990c"
+
+
+def test_sliver_psexec_headless_unsupported():
+    client = SliverClient(sliver_binary="/nonexistent/sliver-client")
+    res = client.psexec("s1", "DC01", "RedStrikeSvc", "bin.exe")
+    assert res.return_code == 2
+    assert "interactive" in res.stderr
 
 
 def test_orchestrator_dual_mode():
