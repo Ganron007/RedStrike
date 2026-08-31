@@ -127,10 +127,20 @@ class MeridianClient(BaseC2Client):
             )
 
         task_id: str | None = None
+        parsed: dict[str, Any] | None = None
         try:
-            task_id = json.loads(decode_captured(out)).get("queued")
+            parsed = json.loads(decode_captured(out))
+            task_id = parsed.get("queued") if isinstance(parsed, dict) else None
         except ValueError:
             pass
+        if isinstance(parsed, dict) and parsed.get("error"):
+            return CommandResult(
+                command=redact_argv(display_cmd),
+                return_code=1,
+                stdout="",
+                stderr=str(parsed["error"]),
+                duration_seconds=time.monotonic() - started,
+            )
         if not task_id:
             return CommandResult(
                 command=redact_argv(display_cmd),

@@ -332,6 +332,22 @@ def test_sliver_psexec_headless_unsupported():
     assert "interactive" in res.stderr
 
 
+def test_meridian_client_no_such_session():
+    """A rejected exec (`{"error": ...}`) must surface as a failed result."""
+    client = MeridianClient(endpoint="meridian", command=["meridian"])
+
+    def fake_run(argv, timeout):
+        if argv[:3] == ["exec", "--json", "nope"]:
+            return 0, b'{"error": "no such session"}', b""
+        return 0, b"[]", b""
+
+    with patch.object(client, "_run_cli", side_effect=fake_run):
+        res = client.shell("nope", "whoami")
+        assert res.return_code == 1
+        assert res.stdout == ""
+        assert "no such session" in res.stderr
+
+
 def test_orchestrator_dual_mode():
     """Verify CampaignOrchestrator works cleanly in standard mode and in C2 mode."""
     # 1. Standard mode
