@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from redstrike.c2.base import BaseC2Client
 from redstrike.c2.meridian import MeridianClient
+from redstrike.c2.mythic import MythicClient
 from redstrike.c2.sliver import SliverClient
 from redstrike.core.models import C2Backend
 
@@ -27,12 +28,18 @@ def get_c2_client(
             api_key=api_key,
             command=command,
         )
+    elif backend_val == C2Backend.MYTHIC:
+        return MythicClient(
+            endpoint=endpoint or "http://127.0.0.1:7443",
+            api_key=api_key,
+        )
     raise ValueError(f"Unsupported C2 backend: {backend_val}")
 
 
 __all__ = [
     "BaseC2Client",
     "MeridianClient",
+    "MythicClient",
     "SliverClient",
     "get_c2_client",
 ]

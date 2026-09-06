@@ -348,6 +348,136 @@ def test_meridian_client_no_such_session():
         assert "no such session" in res.stderr
 
 
+def test_mythic_client_factory():
+    """Verify the C2 factory dispatches Mythic correctly."""
+    from redstrike.c2 import get_c2_client
+    from redstrike.c2.mythic import MythicClient
+
+    client = get_c2_client(C2Backend.MYTHIC, endpoint="http://127.0.0.1:7443")
+    assert isinstance(client, MythicClient)
+    assert client.endpoint == "http://127.0.0.1:7443"
+
+
+def test_mythic_intent_registry():
+    """Verify Mythic intents are registered and produce typed CallSpec."""
+    registry = IntentRegistry()
+    assert "c2.mythic.shell" in registry.known()
+    assert "c2.mythic.execute_assembly" in registry.known()
+    assert "c2.mythic.psexec" in registry.known()
+    assert "c2.mythic.list_sessions" in registry.known()
+
+    spec = registry.build_spec(
+        "c2.mythic.execute_assembly",
+        {"session_id": "1", "assembly": "Rubeus.exe", "args": ["kerberoast"]},
+    )
+    assert spec.kind == CallKind.C2
+    assert spec.c2_backend == C2Backend.MYTHIC
+    assert spec.session_id == "1"
+    assert spec.assembly == "Rubeus.exe"
+
+
+def test_mythic_client_list_sessions():
+    """Verify list_sessions parses psql callback rows into C2Session objects."""
+    from redstrike.c2.mythic import MythicClient
+
+    client = MythicClient(endpoint="http://127.0.0.1:7443")
+    psql_rows = [
+        {
+            "display_id": "1",
+            "host": "WS01",
+            "user": "analyst_t1",
+            "os": "windows",
+            "architecture": "amd64",
+            "active": "true",
+            "ip": "10.0.0.5",
+            "external_ip": "203.0.113.1",
+            "process_name": "explorer.exe",
+            "description": "initial callback",
+            "init_callback": "2026-09-06 12:00:00",
+            "last_checkin": "2026-09-06 12:30:00",
+        }
+    ]
+    with patch.object(client, "_psql", return_value=psql_rows):
+        sessions = client.list_sessions()
+        assert len(sessions) == 1
+        s = sessions[0]
+        assert s.id == "1"
+        assert s.backend == C2Backend.MYTHIC
+        assert s.hostname == "WS01"
+        assert s.username == "analyst_t1"
+        assert s.os == "windows"
+        assert s.is_alive is True
+        assert s.remote_address == "10.0.0.5"
+        assert s.last_seen is not None and s.last_seen.year == 2026
+
+
+def test_mythic_client_shell_task_flow():
+    """Verify shell() creates a task and polls for completion."""
+    from redstrike.c2.mythic import MythicClient
+
+    client = MythicClient(endpoint="http://127.0.0.1:7443", api_key="fake-token")
+
+    create_result = {"status": "success", "id": 42}
+
+    with patch.object(client, "_create_task", return_value=create_result), \
+         patch.object(client, "_poll_task") as mock_poll:
+        mock_poll.return_value = CommandResult(
+            command=["mythic", "task", "42"],
+            return_code=0,
+            stdout="root\n",
+            stderr="",
+            duration_seconds=0.5,
+        )
+        res = client.shell("1", "whoami")
+        assert res.return_code == 0
+        assert "root" in res.stdout
+        mock_poll.assert_called_once_with(42, 60)
+
+
+def test_mythic_client_shell_bad_session_id():
+    """Non-integer session IDs are rejected with rc=2."""
+    from redstrike.c2.mythic import MythicClient
+
+    client = MythicClient(endpoint="http://127.0.0.1:7443")
+    res = client.shell("not-a-number", "whoami")
+    assert res.return_code == 2
+    assert "integer" in res.stderr
+
+
+def test_mythic_client_task_creation_failure():
+    """When task creation fails, shell() surfaces the error immediately."""
+    from redstrike.c2.mythic import MythicClient
+
+    client = MythicClient(endpoint="http://127.0.0.1:7443", api_key="fake")
+    with patch.object(client, "_create_task", return_value={"status": "error", "error": "callback not found"}):
+        res = client.shell("1", "whoami")
+        assert res.return_code == 1
+        assert "callback not found" in res.stderr
+
+
+def test_mythic_client_psexec():
+    """psexec creates a task with the right params structure."""
+    from redstrike.c2.mythic import MythicClient
+
+    client = MythicClient(endpoint="http://127.0.0.1:7443", api_key="fake")
+    create_result = {"status": "success", "id": 99}
+    with patch.object(client, "_create_task", return_value=create_result) as mock_create, \
+         patch.object(client, "_poll_task") as mock_poll:
+        mock_poll.return_value = CommandResult(
+            command=["mythic", "task", "99"],
+            return_code=0,
+            stdout="[+] Service installed",
+            stderr="",
+            duration_seconds=1.0,
+        )
+        res = client.psexec("1", "DC01", "svc", "C:\\\\tmp\\\\svc.exe")
+        assert res.return_code == 0
+        mock_create.assert_called_once()
+        call_args = mock_create.call_args[0]
+        assert call_args[0] == 1  # callback_id
+        assert call_args[1] == "psexec"  # command
+
+
 def test_orchestrator_dual_mode():
     """Verify CampaignOrchestrator works cleanly in standard mode and in C2 mode."""
     # 1. Standard mode

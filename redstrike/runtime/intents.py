@@ -127,6 +127,11 @@ class IntentRegistry:
             "c2.meridian.task": self._meridian_task,
             "c2.meridian.shell": self._meridian_shell,
             "c2.meridian.execute_assembly": self._meridian_execute_assembly,
+            # Mythic (REST API, priority 2)
+            "c2.mythic.shell": self._mythic_shell,
+            "c2.mythic.execute_assembly": self._mythic_execute_assembly,
+            "c2.mythic.psexec": self._mythic_psexec,
+            "c2.mythic.list_sessions": self._mythic_list_sessions,
         }
 
     @staticmethod
@@ -197,6 +202,45 @@ class IntentRegistry:
             session_id=session_id,
             assembly=assembly,
             args=args or [],
+        )
+
+    @staticmethod
+    def _mythic_shell(session_id: str = "", command: str = "", **kwargs) -> CallSpec:
+        return CallSpec(
+            kind=CallKind.C2,
+            c2_backend=C2Backend.MYTHIC,
+            c2_task_type=C2TaskType.SHELL,
+            session_id=session_id,
+            args=[command] if command else [],
+        )
+
+    @staticmethod
+    def _mythic_execute_assembly(session_id: str = "", assembly: str = "", args: list[str] | None = None, **kwargs) -> CallSpec:
+        return CallSpec(
+            kind=CallKind.C2,
+            c2_backend=C2Backend.MYTHIC,
+            c2_task_type=C2TaskType.EXECUTE_ASSEMBLY,
+            session_id=session_id,
+            assembly=assembly,
+            args=args or [],
+        )
+
+    @staticmethod
+    def _mythic_psexec(session_id: str = "", target: str = "", service: str = "RedStrikeSvc", bin_path: str = "", **kwargs) -> CallSpec:
+        return CallSpec(
+            kind=CallKind.C2,
+            c2_backend=C2Backend.MYTHIC,
+            c2_task_type=C2TaskType.PSEXEC,
+            session_id=session_id,
+            args=[target, service, bin_path],
+        )
+
+    @staticmethod
+    def _mythic_list_sessions(**kwargs) -> CallSpec:
+        return CallSpec(
+            kind=CallKind.C2,
+            c2_backend=C2Backend.MYTHIC,
+            c2_task_type=C2TaskType.LIST_SESSIONS,
         )
 
     def known(self) -> list[str]:
