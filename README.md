@@ -17,15 +17,15 @@
 > to test. Unauthorized scanning, enumeration, or access attempts are illegal. The authors
 > and contributors accept no liability for any misuse or damage.
 
-RedStrike is an agentic Active Directory, ADCS, and Hybrid Identity assessment framework combining a **deterministic DAG attack-graph engine** with an **autonomous LLM agent (FastMCP)**, typed command builders (`shell=False`), scope policy, a cryptographic credential ledger, human-in-the-loop safety gates, and **deep C2 framework integration via [C2Stack](https://github.com/Ganron007/C2Stack)** for in-memory implant execution (Sliver & Meridian), covert DNS tunneling, and cross-platform lateral movement.
+RedStrike is an agentic Active Directory, ADCS, and Hybrid Identity assessment framework combining a **deterministic DAG attack-graph engine** with an **autonomous LLM agent (FastMCP)**, typed command builders (`shell=False`), scope policy, a cryptographic credential ledger, human-in-the-loop safety gates, and **deep C2 framework integration via [C2Stack](https://github.com/Ganron007/C2Stack)** for in-memory implant execution (Sliver, Meridian, Mythic, Havoc, and Adaptix), covert DNS tunneling, and cross-platform lateral movement.
 
 Bring your own target environments, attack graphs, and seeds. RedStrike ships fully standalone with generic starter templates in `examples/` and native dual-mode execution (direct standard vs C2-enabled).
 
 | | |
 |---|---|
 | Package | `redstrike` |
-| Commands | `redstrike` (`graph` / `campaign` / `console` / `check`) · `redstrike-api` · `redstrike-mcp` |
-| C2 Integration | Native **[C2Stack](https://github.com/Ganron007/C2Stack)** (Sliver & Meridian in-memory execution) |
+| Commands | `redstrike` (`graph` / `campaign` / `c2` / `console` / `check`) · `redstrike-api` · `redstrike-mcp` |
+| C2 Integration | Native **[C2Stack](https://github.com/Ganron007/C2Stack)** (Sliver, Meridian, Mythic, Havoc & Adaptix) |
 | Generic Graph Templates | [`examples/generic-ad-recon.yaml`](examples/generic-ad-recon.yaml) · [`examples/generic-adcs-audit.yaml`](examples/generic-adcs-audit.yaml) · [`examples/generic-privilege-escalation.yaml`](examples/generic-privilege-escalation.yaml) · [`examples/generic-rbcd-coercion.yaml`](examples/generic-rbcd-coercion.yaml) |
 | Architecture & Modes | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) |
 | Practice & Operator Guide | [`docs/PRACTICE-GUIDE.md`](docs/PRACTICE-GUIDE.md) |
@@ -71,7 +71,8 @@ RedStrike bridges deterministic reproducibility with adaptive AI agency through 
                            │      TYPED BUILDERS, TRANSPORTS & C2STACK INTEGRATION  │
                            │   • Linux/Kali: nxc, certipy, bloodyAD, impacket, coerce│
                            │   • Windows Beachhead: Rubeus, SharpSCCM, Mimikatz     │
-                           │   • C2Stack Implants: Sliver (:31337) & Meridian (:8080)│
+                           │   • C2Stack Implants: Sliver, Meridian, Mythic,     │
+                           │     Havoc & Adaptix (Flight Control portal :8000)   │
                            │   • Cloud / Entra ID: Microsoft Graph API, Az CLI      │
                            └────────────────────────────────────────────────────────┘
 ```
@@ -84,7 +85,7 @@ RedStrike bridges deterministic reproducibility with adaptive AI agency through 
 - **Deterministic DAG Graph Engine:** Run predefined or custom YAML attack graphs with dependency tracking, condition evaluation, and fail-closed verification (`redstrike graph run --graph <file.yaml>`).
 - **Autonomous LLM Agent (FastMCP):** Connect AI coding assistants (Claude Desktop, Cursor, Cline, custom agent swarms) via FastMCP to query BloodHound graphs, request next-step recommendations, and invoke typed intent tools.
 - **Direct Mode (Default):** Standard execution using local subprocesses or transparent OpenSSH wrapping without any external C2 dependencies.
-- **C2-Enabled Mode (`--c2`):** Routes post-exploitation tooling in-memory through active **[C2Stack](https://github.com/Ganron007/C2Stack)** implant sessions (BishopFox Sliver or Meridian), executing `.NET` binaries via CLR hosting or running commands over covert DNS TXT tunnels.
+- **C2-Enabled Mode (`--c2`):** Routes post-exploitation tooling in-memory through active **[C2Stack](https://github.com/Ganron007/C2Stack)** implant sessions (Sliver, Meridian, Mythic, Havoc, or Adaptix), executing `.NET` binaries via CLR hosting or running commands over covert DNS TXT tunnels.
 
 ---
 
@@ -99,7 +100,7 @@ RedStrike bridges deterministic reproducibility with adaptive AI agency through 
 3. **Policy & Scope** — `ScopePolicy.assert_allowed` validates target IP/CIDRs and domains against `scope.yaml`.
 4. **HITL Gatekeeper** — Pauses high-risk operations in `gated` profile until cryptographically approved.
 5. **Typed Builders (`shell=False`)** — Generates secure `list[str]` argument vectors or `CallSpec` C2 descriptors; eliminates shell injection.
-6. **Cross-Platform & C2 Transport** — Direct Kali execution, OpenSSH to domain-joined Windows beachheads, [C2Stack](https://github.com/Ganron007/C2Stack) implant execution (Sliver & Meridian), or Cloud Graph APIs.
+6. **Cross-Platform & C2 Transport** — Direct Kali execution, OpenSSH to domain-joined Windows beachheads, [C2Stack](https://github.com/Ganron007/C2Stack) implant execution (Sliver, Meridian, Mythic, Havoc & Adaptix), or Cloud Graph APIs.
 7. **Verification & Teardown** — Validates exit codes, output patterns, and success markers; tracks modified objects in `TeardownQueue` for cleanup.
 8. **Credential Ledger (SSoT)** — Automatically indexes discovered NT hashes, Kerberos tickets, and privileges.
 
@@ -141,30 +142,56 @@ redstrike check
 Execute one of the bundled generic Active Directory graphs:
 
 ```bash
-# 1. Run Active Directory Reconnaissance Graph (Dry-run)
-redstrike graph run --graph examples/generic-ad-recon.yaml --phase 1.0
+# 1. Run Active Directory Reconnaissance Graph (dry run; --engage/--beachhead required)
+redstrike graph run --engage default --beachhead windows --graph examples/generic-ad-recon.yaml --phase 1.0
 
 # 2. Run ADCS Audit & Template Escalation Graph
-redstrike graph run --graph examples/generic-adcs-audit.yaml --phase 2-3
+redstrike graph run --engage default --beachhead windows --graph examples/generic-adcs-audit.yaml --phase 2-3
 
 # 3. Approve a paused HITL gate (in Gated mode)
-redstrike graph approve --gate ticket --engage default
+redstrike graph approve --engage default --gate ticket
 ```
 
 ### Option B: C2-Enabled Mode (via [C2Stack](https://github.com/Ganron007/C2Stack))
 
-Dispatch post-exploitation tasks directly through in-memory C2 implants (BishopFox Sliver or Meridian) without dropping executables to disk:
+Dispatch post-exploitation tasks directly through in-memory C2 implants (Sliver, Meridian, Mythic, Havoc, or Adaptix) without dropping executables to disk:
 
 ```bash
 # 0. (Optional) Launch C2Stack services from https://github.com/Ganron007/C2Stack
-docker compose up -d sliver meridian
+cd C2Stack/Docker && ./docker-bootstrap.ps1 -All   # or: ./docker-bootstrap.sh --all
 
 # 1. Run campaign graph in C2 mode with Sliver backend (in-memory .NET assembly execution)
 redstrike graph run --phase 1-3 --c2 --c2-backend sliver --c2-session <session-id>
 
-# 2. Run with Meridian C2 backend (covert DNS TXT tunneling / HTTP)
-redstrike graph run --phase 1-3 --c2 --c2-backend meridian --c2-endpoint http://127.0.0.1:8080
+# 2. Run with Meridian C2 backend (covert DNS TXT tunneling / HTTP; driven via its container CLI)
+redstrike graph run --phase 1-3 --c2 --c2-backend meridian \
+  --c2-endpoint "docker exec -i c2stack-meridian-1 meridian"
+
+# 3. Havoc / Adaptix are driven through C2Stack's Flight Control portal API (port 8000)
+redstrike graph run --phase 1-3 --c2 --c2-backend havoc --c2-endpoint http://127.0.0.1:8000
 ```
+
+Available backends: `sliver` (CLI, `execute-assembly`), `meridian` (container CLI, DNS TXT egress), `mythic` (REST webhooks, Apollo agents), `havoc` and `adaptix` (C2Stack Flight Control portal at `http://127.0.0.1:8000`, set `C2STACK_PORTAL_URL` to override). Omit `--c2-session` to auto-select the first live session, or use `--c2-backend auto` to pick the first framework that has one.
+
+### Option C: Full C2Stack Operations (`redstrike c2`)
+
+Build implants server-side, stage files, and inspect the fleet — all through C2Stack's Flight Control API:
+
+```bash
+redstrike c2 status                              # container health, ports, URI prefixes
+redstrike c2 sessions                            # unified fleet across all five frameworks
+redstrike c2 capabilities                        # live per-framework capability probe
+redstrike c2 catalogues --backend havoc          # tasking vocabulary per framework
+redstrike c2 build --backend sliver --retrieve --out ./impl.exe   # garble build + docker cp
+redstrike c2 build --backend havoc   --out ./demon.exe            # Demon (30-90s)
+redstrike c2 build --backend adaptix --listener cadre_http --out ./beacon.exe
+redstrike c2 build --backend mythic  --out ./apollo.exe           # async build, polled + downloaded
+redstrike c2 stage ./payload.o                   # Mythic agent_file_id (COFF/assembly tasking)
+redstrike c2 probe --path /gateway/v1/telemetry  # redirector: decoy vs backend routing
+redstrike c2 task --backend havoc --session <id> --command "whoami"   # task ANY framework
+```
+
+Note: Adaptix 0.7/Demon builds are compiled server-side inside the C2Stack containers; retrieval for Sliver uses `docker cp` and Mythic builds are queued and polled (dotnet takes minutes).
 
 ### Option C: Start Autonomous LLM FastMCP Server
 

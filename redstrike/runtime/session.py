@@ -82,8 +82,14 @@ class CampaignSession:
         self.state.operator = self.operator.value
         self.state.allow_mbr01_stage = allow_mbr01_stage
         if not hitl_required(profile):
+            # Process-local auto-approval only: persisting wildcard approvals
+            # would silently pre-approve a LATER gated run of this engagement.
             for gate in sorted(KNOWN_GATES):
-                self.state.approve(gate, note="HITL auto-approved (autonomous profile or ungated)")
+                self.state.approve(
+                    gate,
+                    note="HITL auto-approved (autonomous profile or ungated)",
+                    persist=False,
+                )
         self.store.save(self.state)
         self._seed(seed_path)
 

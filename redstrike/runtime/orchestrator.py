@@ -246,7 +246,14 @@ class CampaignOrchestrator:
             operator=self.operator.value,
         )
         self.c2_enabled = c2_enabled or (self.beachhead is Beachhead.SESSION)
-        self.c2_backend = C2Backend(c2_backend) if isinstance(c2_backend, str) else c2_backend
+        self.c2_backend_auto = (
+            isinstance(c2_backend, str) and c2_backend.strip().lower() == "auto"
+        )
+        self.c2_backend = (
+            C2Backend.SLIVER
+            if self.c2_backend_auto
+            else (C2Backend(c2_backend) if isinstance(c2_backend, str) else c2_backend)
+        )
         self.c2_session_id = c2_session_id
         self.c2_endpoint = c2_endpoint
 
@@ -259,7 +266,11 @@ class CampaignOrchestrator:
             c2_session_id=self.c2_session_id,
         )
         self.runner = runner or CommandRunner(
-            c2_client=get_c2_client(self.c2_backend, endpoint=self.c2_endpoint) if self.c2_enabled else None
+            c2_client=(
+                get_c2_client(self.c2_backend, endpoint=self.c2_endpoint)
+                if self.c2_enabled and not self.c2_backend_auto
+                else None
+            )
         )
         self.allow_mbr01_stage = allow_mbr01_stage or self.state.allow_mbr01_stage
         if isinstance(branches, set):
@@ -400,6 +411,73 @@ class CampaignOrchestrator:
             plans.append(self._plan_node(node))
         return plans
 
+    # ------------------------------------------------------------- C2 resolve
+    def _pick_backend_from_fleet(self) -> C2Backend | None:
+        """First backend (in preference order) with a live session on the stack."""
+        from redstrike.c2.stack import C2StackClient
+
+        fleet = C2StackClient(endpoint=self.c2_endpoint).sessions()
+        sessions = fleet.get("sessions") if isinstance(fleet, dict) else None
+        if not sessions:
+            return None
+        preference = (
+            C2Backend.SLIVER,
+            C2Backend.HAVOC,
+            C2Backend.ADAPTIX,
+            C2Backend.MYTHIC,
+            C2Backend.MERIDIAN,
+        )
+        for backend in preference:
+            if any(
+                s.get("backend") == backend.value and s.get("is_alive", True)
+                for s in sessions
+            ):
+                return backend
+        return None
+
+    def _resolve_session_id(self) -> str | None:
+        """First live session id for the active backend (adapter first, portal fallback)."""
+        client = self.runner.c2_client
+        if client is not None:
+            try:
+                live = [s for s in client.list_sessions() if s.is_alive]
+            except Exception:  # noqa: BLE001 - adapter transport issues must not abort the run
+                live = []
+            if live:
+                return live[0].id
+        from redstrike.c2.stack import C2StackClient
+
+        picked = C2StackClient(endpoint=self.c2_endpoint).select_session(self.c2_backend.value)
+        return str(picked["id"]) if picked and picked.get("id") else None
+
+    def _resolve_c2(self) -> None:
+        """Resolve ``--c2-backend auto`` and a missing session id against the live stack.
+
+        Auto mode picks the first framework with a live session; a missing
+        session id is looked up so ``--c2`` works without manual ids. When the
+        stack cannot be reached the configuration is left untouched and the
+        steps surface their own adapter errors.
+        """
+        if not self.c2_enabled:
+            return
+        if self.c2_backend_auto:
+            picked = self._pick_backend_from_fleet()
+            if picked is not None:
+                self.c2_backend = picked
+        if self.runner.c2_client is None:
+            self.runner.c2_client = get_c2_client(self.c2_backend, endpoint=self.c2_endpoint)
+        self.router.c2_backend = self.c2_backend
+        if not self.c2_session_id:
+            self.c2_session_id = self._resolve_session_id()
+            self.router.c2_session_id = self.c2_session_id
+        self.activity.emit(
+            "c2_resolved",
+            engagement_id=self.engagement_id,
+            backend=self.c2_backend.value,
+            session_id=self.c2_session_id,
+            auto_backend=self.c2_backend_auto,
+        )
+
     def run(
         self,
         phase_spec: str = "1-3",
@@ -408,6 +486,7 @@ class CampaignOrchestrator:
         stop_on_hitl: bool = True,
     ) -> list[StepResult]:
         results: list[StepResult] = []
+        self._resolve_c2()
         self.state.last_phase = phase_spec
         self.state.status = "running"
         pending: str | None = None

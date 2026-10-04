@@ -19,6 +19,7 @@ def main(argv: list[str] | None = None) -> int:
 
     sub.add_parser("campaign", help="Campaign orchestrator (same as redstrike-campaign)")
     sub.add_parser("graph", help="DAG Graph orchestrator (run custom or generic graphs)")
+    sub.add_parser("c2", help="C2Stack Flight Control client (fleet, builds, staging, tasking)")
     sub.add_parser("api", help="HTTP API (same as redstrike-api)")
     sub.add_parser("console", help="Interactive TUI campaign dashboard")
 
@@ -37,6 +38,10 @@ def main(argv: list[str] | None = None) -> int:
         from redstrike.cli.campaign import main as campaign_main
 
         return campaign_main(rest)
+    if args.command == "c2":
+        from redstrike.cli.c2 import main as c2_main
+
+        return c2_main(rest)
     if args.command == "api":
         from redstrike.api.server import main as api_main
 

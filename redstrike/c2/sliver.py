@@ -38,24 +38,37 @@ def _column_starts(header: str) -> list[int]:
     return starts
 
 
-def _parse_table(text: str) -> list[dict[str, str]]:
-    """Parse a fixed-width sliver console table (sessions/beacons) into rows."""
+def _parse_tables(text: str) -> list[tuple[list[str], list[dict[str, str]]]]:
+    """Parse each fixed-width sliver console table (sessions/beacons) separately.
+
+    The console prints one table per command, and each has its OWN header and
+    column widths (the beacons table adds Tasks/Next Check-In columns), so
+    rows must be sliced with the header that precedes them — slicing a
+    beacons row with the sessions header yields garbage fields.
+    """
     lines = [_strip_ansi(ln.rstrip()) for ln in text.splitlines()]
-    header_idx: int | None = None
-    for i, ln in enumerate(lines):
-        if re.match(r"^\s*ID\s+Name\s+", ln):
-            header_idx = i
-            break
-    if header_idx is None:
-        return []
-    header = _strip_ansi(lines[header_idx])
-    starts = _column_starts(header)
-    header_tokens = [
-        header[start: starts[idx + 1] if idx + 1 < len(starts) else len(header)].strip()
-        for idx, start in enumerate(starts)
-    ]
+    tables: list[tuple[list[str], list[dict[str, str]]]] = []
+    header_tokens: list[str] | None = None
+    starts: list[int] = []
     rows: list[dict[str, str]] = []
-    for ln in lines[header_idx + 1:]:
+
+    def _close() -> None:
+        nonlocal header_tokens, rows
+        if header_tokens is not None:
+            tables.append((header_tokens, rows))
+        header_tokens, rows = None, []
+
+    for ln in lines:
+        if re.match(r"^\s*ID\s+Name\s+", ln):
+            _close()
+            starts = _column_starts(ln)
+            header_tokens = [
+                ln[start: starts[idx + 1] if idx + 1 < len(starts) else len(ln)].strip()
+                for idx, start in enumerate(starts)
+            ]
+            continue
+        if header_tokens is None:
+            continue
         if not ln.startswith((" ", "\t")):
             continue
         if not ln.strip() or _SPINNER_RE.match(ln.strip()) or _NO_RESULTS_RE.match(ln):
@@ -67,7 +80,13 @@ def _parse_table(text: str) -> list[dict[str, str]]:
             end = starts[idx + 1] if idx + 1 < len(starts) else len(ln)
             row[col] = ln[starts[idx]:end].strip()
         rows.append(row)
-    return rows
+    _close()
+    return tables
+
+
+def _parse_table(text: str) -> list[dict[str, str]]:
+    """All data rows across every table in `text`."""
+    return [row for _tokens, rows in _parse_tables(text) for row in rows]
 
 
 def _session_from_row(row: dict[str, str]) -> C2Session | None:
@@ -76,7 +95,7 @@ def _session_from_row(row: dict[str, str]) -> C2Session | None:
         return None
     os_arch = row.get("Operating System", "")
     os_name, _, arch = os_arch.partition("/")
-    last_message = row.get("Last Message", "")
+    last_message = row.get("Last Message") or row.get("Last Check-In") or ""
     last_seen = datetime.now(timezone.utc)
     m = re.search(r"([A-Z][a-z]{2} [A-Z][a-z]{2} \d{2} \d{2}:\d{2}:\d{2} UTC \d{4})", last_message)
     if m:
@@ -86,7 +105,13 @@ def _session_from_row(row: dict[str, str]) -> C2Session | None:
             )
         except ValueError:
             pass
-    health = row.get("Health", "")
+    health = row.get("Health")
+    if health is None:
+        # The beacons table has no Health column; a listed beacon is known to
+        # the teamserver (its Tasks column shows pending/completed counts).
+        is_alive = True
+    else:
+        is_alive = "DEAD" not in health.upper() and health not in ("", "[OFFLINE]") or "ALIVE" in health.upper()
     return C2Session(
         id=sid,
         backend=C2Backend.SLIVER,
@@ -96,21 +121,23 @@ def _session_from_row(row: dict[str, str]) -> C2Session | None:
         arch=arch or "amd64",
         transport=row.get("Transport", "http"),
         last_seen=last_seen,
-        is_alive="DEAD" not in health.upper() and health not in ("", "[OFFLINE]") or "ALIVE" in health.upper(),
+        is_alive=is_alive,
         remote_address=row.get("Remote Address"),
     )
 
 
 class SliverClient(BaseC2Client):
-    """Client adapter for Sliver C2, verified against the v1.7.6 client CLI.
+    """Client adapter for Sliver C2, verified against the v1.7.7 client CLI.
 
-    Contract (verified live against C2Stack's sliver v1.7.6 container):
+    Contract (re-verified live against C2Stack's sliver v1.7.7 container,
+    2026-10-04; the 1.7.6 -> 1.7.7 bump changed no client-side flags):
       * operator config is imported, not passed per-call (`import`, no `--config`);
       * headless listing runs the console with a script: `console --rc <file>`
         where the file contains `sessions` / `beacons` / `exit`; output is a
-        fixed-width table (no `--json` in the 1.7.6 console);
+        fixed-width table (no `--json` in the console);
       * remote execution runs the `implant` subtree with the session selected
-        via `implant -s <id>`: `implant -s <id> execute <path> [-- args...]`,
+        via the group's `-s/--use` flag (identical flag; C2Stack's portal
+        spells it `--use`): `implant -s <id> execute <path> [-- args...]`,
         `implant -s <id> execute-assembly <assembly> [--process-arguments ...]`;
       * `shell` has no headless one-shot (interactive tunnel, `--no-pty` /
         `--shell-path` only) -> mapped to `execute` with the session shell;
@@ -139,7 +166,7 @@ class SliverClient(BaseC2Client):
         if shutil.which(self.sliver_binary) is None and not os.path.isfile(self.sliver_binary):
             return (
                 "sliver-client not found on PATH. Ensure C2Stack sliver-client "
-                "is configured (v1.7.6 contract)."
+                "is configured (v1.7.7 contract)."
             )
         return None
 
@@ -329,7 +356,7 @@ class SliverClient(BaseC2Client):
             return_code=2,
             stdout="",
             stderr=(
-                "sliver v1.7.6 psexec requires the interactive operator console: the "
+                "sliver v1.7.7 psexec requires the interactive operator console: the "
                 "service-confirmation prompt (bubbletea) cannot be answered on a closed "
                 "TTY, so headless automation cannot drive it. Create the service profile "
                 "and run psexec from `sliver-client console` manually."

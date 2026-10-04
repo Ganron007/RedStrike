@@ -132,6 +132,12 @@ class IntentRegistry:
             "c2.mythic.execute_assembly": self._mythic_execute_assembly,
             "c2.mythic.psexec": self._mythic_psexec,
             "c2.mythic.list_sessions": self._mythic_list_sessions,
+            # Havoc & Adaptix via the C2Stack Flight Control portal (Phase 8.5)
+            "c2.havoc.shell": self._c2_shell_builder(C2Backend.HAVOC),
+            "c2.havoc.execute_assembly": self._c2_execute_assembly_builder(C2Backend.HAVOC),
+            "c2.havoc.list_sessions": self._c2_list_sessions_builder(C2Backend.HAVOC),
+            "c2.adaptix.shell": self._c2_shell_builder(C2Backend.ADAPTIX),
+            "c2.adaptix.list_sessions": self._c2_list_sessions_builder(C2Backend.ADAPTIX),
         }
 
     @staticmethod
@@ -242,6 +248,40 @@ class IntentRegistry:
             c2_backend=C2Backend.MYTHIC,
             c2_task_type=C2TaskType.LIST_SESSIONS,
         )
+
+    # Havoc & Adaptix share the portal transport, so their builders are
+    # parameterized by backend instead of repeated per framework.
+    def _c2_shell_builder(self, backend: C2Backend):
+        def build(session_id: str = "", command: str = "", **kwargs) -> CallSpec:
+            return CallSpec(
+                kind=CallKind.C2,
+                c2_backend=backend,
+                c2_task_type=C2TaskType.SHELL,
+                session_id=session_id,
+                args=[command] if command else [],
+            )
+        return build
+
+    def _c2_execute_assembly_builder(self, backend: C2Backend):
+        def build(session_id: str = "", assembly: str = "", args: list[str] | None = None, **kwargs) -> CallSpec:
+            return CallSpec(
+                kind=CallKind.C2,
+                c2_backend=backend,
+                c2_task_type=C2TaskType.EXECUTE_ASSEMBLY,
+                session_id=session_id,
+                assembly=assembly,
+                args=args or [],
+            )
+        return build
+
+    def _c2_list_sessions_builder(self, backend: C2Backend):
+        def build(**kwargs) -> CallSpec:
+            return CallSpec(
+                kind=CallKind.C2,
+                c2_backend=backend,
+                c2_task_type=C2TaskType.LIST_SESSIONS,
+            )
+        return build
 
     def known(self) -> list[str]:
         return sorted(self._intents)

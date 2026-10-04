@@ -27,7 +27,8 @@ class MeridianClient(BaseC2Client):
         (built-in modules: exec/download/upload/sleep/exit) -> rejected.
 
     The CLI is usually reached inside the C2Stack container, configure
-    ``command="docker exec -i docker-meridian-1 meridian"`` (as a list).
+    ``command="docker exec -i c2stack-meridian-1 meridian"`` (as a list; the
+    compose project was renamed from `docker` to `c2stack`).
     """
 
     def __init__(
@@ -41,7 +42,14 @@ class MeridianClient(BaseC2Client):
         self.api_key = api_key or os.environ.get("MERIDIAN_API_KEY")
         self.timeout_seconds = timeout_seconds
         if command is None:
-            self.command: list[str] = [endpoint] if endpoint not in ("", None) else ["meridian"]
+            # The endpoint doubles as the CLI invocation: a bare name/path
+            # ("meridian") or a full command line with spaces, e.g.
+            # "docker exec -i c2stack-meridian-1 meridian" (the form the CLI
+            # --c2-endpoint flag passes through).
+            if endpoint and any(ch.isspace() for ch in endpoint):
+                self.command: list[str] = endpoint.split()
+            else:
+                self.command = [endpoint] if endpoint not in ("", None) else ["meridian"]
         elif isinstance(command, str):
             self.command = command.split()
         else:

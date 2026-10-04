@@ -635,7 +635,7 @@ def create_mcp(api_url: str):
         backend: str = "sliver",
         endpoint: str = "",
     ) -> dict[str, Any]:
-        """List active C2 sessions/beacons from the C2 teamserver (Sliver or Meridian)."""
+        """List active C2 sessions/beacons (sliver, meridian, mythic, havoc, adaptix)."""
         return _post(
             api_url,
             "/c2/sessions",
@@ -712,6 +712,127 @@ def create_mcp(api_url: str):
                 "timeout_seconds": timeout_seconds,
             },
             timeout=timeout_seconds + 30,
+        )
+
+    # --- C2Stack Flight Control surface (fleet, probe, builds, staging) ---
+    @mcp.tool()
+    def c2_stack_status(endpoint: str = "") -> dict[str, Any]:
+        """C2Stack service health: containers, published ports, redirector prefixes."""
+        return _post(api_url, "/c2/stack/status", {"endpoint": endpoint or None})
+
+    @mcp.tool()
+    def c2_stack_sessions(backend: str = "", endpoint: str = "") -> dict[str, Any]:
+        """Unified live fleet across all C2Stack frameworks (meridian/mythic/havoc/adaptix/sliver).
+
+        Use this to discover session ids before tasking; per-backend errors are
+        reported in `backends` rather than dropped."""
+        return _post(
+            api_url,
+            "/c2/stack/sessions",
+            {"backend": backend or None, "endpoint": endpoint or None},
+            timeout=120,
+        )
+
+    @mcp.tool()
+    def c2_stack_task(
+        backend: str,
+        session_id: str,
+        command: str,
+        wait: int = 25,
+        callback_id: int | None = None,
+        endpoint: str = "",
+    ) -> dict[str, Any]:
+        """Task ANY framework session through the C2Stack portal (framework-native syntax).
+
+        havoc/meridian/adaptix/sliver take their own command vocabularies (see
+        the stack catalogues); mythic `shell` takes a raw command line."""
+        payload: dict[str, Any] = {
+            "backend": backend,
+            "session_id": session_id,
+            "command": command,
+            "wait": wait,
+            "endpoint": endpoint or None,
+        }
+        if callback_id is not None:
+            payload["callback_id"] = callback_id
+        return _post(api_url, "/c2/stack/task", payload, timeout=wait + 90)
+
+    @mcp.tool()
+    def c2_build_payload(
+        backend: str,
+        out: str = "",
+        kind: str = "session",
+        c2_url: str = "",
+        arch: str = "amd64",
+        listener: str = "",
+        output_type: str = "WinExe",
+        filename: str = "",
+        endpoint: str = "",
+    ) -> dict[str, Any]:
+        """Build a payload/implant server-side via C2Stack (sliver|havoc|adaptix|mythic).
+
+        sliver returns a container path (+ docker cp retrieve line); havoc and
+        adaptix return the built bytes (written to `out` on the API host, plus
+        base64 in `payload_b64`); mythic queues an async build and returns its
+        uuid for polling via c2_stack_status-style build status."""
+        return _post(
+            api_url,
+            "/c2/stack/build",
+            {
+                "backend": backend,
+                "out": out or None,
+                "kind": kind,
+                "c2_url": c2_url or None,
+                "arch": arch,
+                "listener": listener or None,
+                "output_type": output_type,
+                "filename": filename or None,
+                "endpoint": endpoint or None,
+            },
+            timeout=660,
+        )
+
+    @mcp.tool()
+    def c2_stage_file(
+        path: str = "",
+        content_b64: str = "",
+        filename: str = "",
+        endpoint: str = "",
+    ) -> dict[str, Any]:
+        """Stage a file in Mythic (agent_file_id) for assembly/COFF/PE tasking."""
+        return _post(
+            api_url,
+            "/c2/stack/stage",
+            {
+                "path": path or None,
+                "content_b64": content_b64 or None,
+                "filename": filename or None,
+                "endpoint": endpoint or None,
+            },
+            timeout=180,
+        )
+
+    @mcp.tool()
+    def c2_probe_redirector(
+        url_path: str = "/",
+        headers_json: str = "",
+        method: str = "GET",
+        endpoint: str = "",
+    ) -> dict[str, Any]:
+        """Probe the C2Stack redirector: verdict decoy | backend | backend_down | unreachable."""
+        import json as _json
+
+        headers: dict[str, Any] = {}
+        if headers_json:
+            try:
+                headers = _json.loads(headers_json)
+            except ValueError:
+                return {"ok": False, "error": "headers_json must be a JSON object"}
+        return _post(
+            api_url,
+            "/c2/stack/probe",
+            {"url_path": url_path, "headers": headers, "method": method, "endpoint": endpoint or None},
+            timeout=60,
         )
 
     return mcp

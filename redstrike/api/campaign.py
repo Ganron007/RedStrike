@@ -54,7 +54,7 @@ class CampaignRunRequest(BaseModel):
     prefer_script: bool = False
     nodes: str | None = None
     c2_enabled: bool = False
-    c2_backend: str = "sliver"
+    c2_backend: str = "sliver"  # sliver | meridian | mythic | havoc | adaptix
     c2_session: str | None = None
     c2_endpoint: str | None = None
 
@@ -318,3 +318,177 @@ def c2_psexec(req: C2PsExecRequest) -> dict[str, Any]:
         "stderr": res.stderr,
         "duration_seconds": res.duration_seconds,
     }
+
+
+# --------------------------------------------------------------------------
+# C2Stack Flight Control surface (fleet, capability probe, builds, staging).
+# Unlike /c2/* (single-session tasking via one backend adapter), these call
+# the portal directly and cover every framework the stack runs.
+# --------------------------------------------------------------------------
+class C2StackRequest(BaseModel):
+    endpoint: str | None = None
+
+
+class C2StackSessionsRequest(C2StackRequest):
+    backend: str | None = None
+
+
+class C2StackBuildRequest(C2StackRequest):
+    backend: str
+    out: str | None = None
+    # sliver
+    kind: str = "session"
+    c2_url: str | None = None
+    target_os: str = "windows"
+    arch: str = "amd64"
+    retrieve: bool = False
+    # havoc
+    format: str | None = None
+    listener: str | None = None
+    sleep: str | int | None = None
+    jitter: int = 0
+    # adaptix
+    agent: str = "beacon"
+    ensure_listener: bool = False
+    # mythic
+    output_type: str = "WinExe"
+    filename: str | None = None
+    enable_keying: bool = False
+    keying_method: str | None = None
+    keying_value: str = ""
+
+
+class C2StackStageRequest(C2StackRequest):
+    path: str | None = None
+    content_b64: str | None = None
+    filename: str | None = None
+
+
+class C2StackProbeRequest(C2StackRequest):
+    url_path: str = "/"
+    headers: dict[str, str] = Field(default_factory=dict)
+    method: str = "GET"
+
+
+class C2StackTaskRequest(C2StackRequest):
+    backend: str
+    session_id: str
+    command: str
+    wait: int = 25
+    callback_id: int | None = None
+
+
+def c2_stack_status(req: C2StackRequest) -> dict[str, Any]:
+    from redstrike.c2.stack import C2StackClient
+
+    return C2StackClient(endpoint=req.endpoint).status()
+
+
+def c2_stack_sessions(req: C2StackSessionsRequest) -> dict[str, Any]:
+    from redstrike.c2.stack import C2StackClient
+
+    return C2StackClient(endpoint=req.endpoint).sessions(backend=req.backend)
+
+
+def c2_stack_capabilities(req: C2StackRequest) -> dict[str, Any]:
+    from redstrike.c2.stack import C2StackClient
+
+    return C2StackClient(endpoint=req.endpoint).capabilities()
+
+
+def c2_stack_catalogues(req: C2StackSessionsRequest) -> dict[str, Any]:
+    from redstrike.c2.stack import C2StackClient
+
+    return C2StackClient(endpoint=req.endpoint).catalogues(backend=req.backend)
+
+
+def c2_stack_build(req: C2StackBuildRequest) -> dict[str, Any]:
+    import base64
+    from pathlib import Path
+
+    from redstrike.c2.stack import C2StackClient
+
+    client = C2StackClient(endpoint=req.endpoint)
+    if req.backend == "sliver":
+        data = client.build_sliver(
+            kind=req.kind, c2_url=req.c2_url, target_os=req.target_os, arch=req.arch
+        )
+        if data.get("ok") and req.retrieve and data.get("container_path"):
+            dest = Path(req.out or f"sliver-{req.kind}-{req.arch}.exe")
+            data = dict(data)
+            data["retrieved"] = client.retrieve_container_file(str(data["container_path"]), dest)
+        return data
+    if req.backend == "havoc":
+        data = client.build_havoc(
+            arch=req.arch if req.arch in ("x64", "x86") else "x64",
+            format=req.format or "Windows Exe",
+            listener=req.listener,
+            sleep=int(req.sleep) if req.sleep is not None else 5,
+            jitter=req.jitter,
+        )
+    elif req.backend == "adaptix":
+        data = client.build_adaptix(
+            agent=req.agent,
+            listener=req.listener or "cadre_http",
+            arch=req.arch if req.arch in ("x64", "x86") else "x64",
+            format=req.format or "Exe",
+            sleep=str(req.sleep) if req.sleep is not None else "30s",
+            ensure_listener=req.ensure_listener,
+        )
+    elif req.backend == "mythic":
+        return client.build_mythic(
+            output_type=req.output_type,
+            filename=req.filename or "apollo-portal.exe",
+            enable_keying=req.enable_keying,
+            keying_method=req.keying_method or "Hostname",
+            keying_value=req.keying_value,
+        )
+    else:
+        return {"ok": False, "error": f"unsupported build backend '{req.backend}'"}
+
+    # havoc/adaptix return raw bytes: base64 them for JSON and honor `out`.
+    payload = data.pop("payload", None) if isinstance(data, dict) else None
+    if payload is not None:
+        if req.out:
+            Path(req.out).write_bytes(payload)
+            data["path"] = req.out
+        data["size"] = len(payload)
+        data["payload_b64"] = base64.b64encode(payload).decode("ascii")
+    return data
+
+
+def c2_stack_stage(req: C2StackStageRequest) -> dict[str, Any]:
+    import base64
+
+    from redstrike.c2.stack import C2StackClient
+
+    client = C2StackClient(endpoint=req.endpoint)
+    if req.path:
+        return client.stage_file(req.path)
+    if req.content_b64:
+        try:
+            content = base64.b64decode(req.content_b64)
+        except (ValueError, TypeError) as exc:
+            return {"ok": False, "error": f"content_b64 decode failed: {exc}"}
+        return client.stage_bytes(content, req.filename or "upload.bin")
+    return {"ok": False, "error": "provide either path or content_b64"}
+
+
+def c2_stack_probe(req: C2StackProbeRequest) -> dict[str, Any]:
+    from redstrike.c2.stack import C2StackClient
+
+    return C2StackClient(endpoint=req.endpoint).probe_redirector(
+        url_path=req.url_path, headers=req.headers, method=req.method
+    )
+
+
+def c2_stack_task(req: C2StackTaskRequest) -> dict[str, Any]:
+    from redstrike.c2.stack import C2StackClient
+
+    return C2StackClient(endpoint=req.endpoint).task(
+        backend=req.backend,
+        session_id=req.session_id,
+        command=req.command,
+        wait=req.wait,
+        callback_id=req.callback_id,
+    )

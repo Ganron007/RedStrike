@@ -8,6 +8,8 @@ from typing import Any
 
 import yaml
 
+from redstrike.runtime.hitl import KNOWN_GATES
+
 KNOWN_BRANCHES = frozenset({"spine", "A", "B", "C", "D", "E", "F", "G", "H", "sql-ai"})
 
 # Standalone exercise streams (Plan 1.1 M5) — not on the AD spine.
@@ -221,6 +223,12 @@ def _parse_node(item: dict[str, Any], index: int) -> CampaignNode:
     requires = item.get("requires_cred")
     produces = item.get("produces_cred")
     gate = item.get("hitl_gate")
+    if gate not in (None, "null") and str(gate) not in KNOWN_GATES:
+        # An unknown gate can never be approved (approve() rejects it), which
+        # would strand the node as "awaiting approval" forever — fail at load.
+        raise ValueError(
+            f"nodes[{index}].hitl_gate unknown: '{gate}' (known={sorted(KNOWN_GATES)})"
+        )
     pivot_to = item.get("pivot_to")
     produces_beachhead = item.get("produces_beachhead")
     marker_raw = item.get("success_marker")

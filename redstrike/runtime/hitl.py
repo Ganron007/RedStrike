@@ -57,19 +57,37 @@ class EngagementState:
     pending_gate: str | None = None
     last_phase: str | None = None
     notes: str | None = None
+    #: Process-local approvals (autonomous/ungated profiles). NEVER persisted:
+    #: a later run in a gated profile must not inherit phantom approvals.
+    _auto_approved: set[str] = field(default_factory=set, repr=False, compare=False)
 
     def is_approved(self, gate: str | HitlGate | None) -> bool:
         if gate is None:
             return True
         value = gate.value if isinstance(gate, HitlGate) else str(gate)
-        return value in self.approved_gates
+        return value in self.approved_gates or value in self._auto_approved
 
-    def approve(self, gate: str | HitlGate, *, note: str | None = None) -> None:
+    def approve(
+        self,
+        gate: str | HitlGate,
+        *,
+        note: str | None = None,
+        persist: bool = True,
+    ) -> None:
+        """Record a gate approval.
+
+        ``persist=False`` records an autonomous/ungated auto-approval for this
+        process only (see ``_auto_approved``); it is deliberately excluded from
+        ``to_dict()`` so engagement state on disk never carries it.
+        """
         value = gate.value if isinstance(gate, HitlGate) else str(gate)
         if value not in KNOWN_GATES:
             raise ValueError(f"unknown HITL gate '{value}'; known={sorted(KNOWN_GATES)}")
-        if value not in self.approved_gates:
-            self.approved_gates.append(value)
+        if persist:
+            if value not in self.approved_gates:
+                self.approved_gates.append(value)
+        else:
+            self._auto_approved.add(value)
         if self.pending_gate == value:
             self.pending_gate = None
             if self.status == "paused":
@@ -78,7 +96,7 @@ class EngagementState:
             self.notes = note
 
     def to_dict(self) -> dict[str, Any]:
-        return asdict(self)
+        return {k: v for k, v in asdict(self).items() if not k.startswith("_")}
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> EngagementState:

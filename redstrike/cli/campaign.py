@@ -69,19 +69,27 @@ def build_parser() -> argparse.ArgumentParser:
         )
         p.add_argument(
             "--c2-backend",
-            choices=["sliver", "meridian"],
+            choices=["sliver", "meridian", "mythic", "havoc", "adaptix", "auto"],
             default="sliver",
-            help="C2 backend adapter: sliver (default) or meridian",
+            help=(
+                "C2 backend adapter: sliver (default), meridian, mythic, "
+                "havoc/adaptix (driven through the C2Stack Flight Control portal), "
+                "or auto (pick the first framework with a live session)"
+            ),
         )
         p.add_argument(
             "--c2-session",
             default=None,
-            help="Target C2 session ID for implant command execution",
+            help="Target C2 session ID (omit to auto-select a live session)",
         )
         p.add_argument(
             "--c2-endpoint",
             default=None,
-            help="C2 teamserver endpoint (e.g. 127.0.0.1:31337 or http://127.0.0.1:8080)",
+            help=(
+                "C2 teamserver endpoint (e.g. 127.0.0.1:31337 for sliver, "
+                "http://127.0.0.1:8000 for the C2Stack portal backends, "
+                "http://127.0.0.1:7443 for mythic)"
+            ),
         )
         if beachhead_required:
             p.add_argument(

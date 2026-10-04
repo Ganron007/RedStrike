@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import hmac
 import ipaddress
 import os
 import threading
@@ -17,6 +18,12 @@ from redstrike.api.campaign import (
     C2ListSessionsRequest,
     C2PsExecRequest,
     C2ShellRequest,
+    C2StackBuildRequest,
+    C2StackProbeRequest,
+    C2StackRequest,
+    C2StackSessionsRequest,
+    C2StackStageRequest,
+    C2StackTaskRequest,
     CampaignApproveRequest,
     CampaignRunRequest,
     CampaignStartRequest,
@@ -28,6 +35,14 @@ from redstrike.api.campaign import (
     c2_list_sessions,
     c2_psexec,
     c2_shell,
+    c2_stack_build,
+    c2_stack_capabilities,
+    c2_stack_catalogues,
+    c2_stack_probe,
+    c2_stack_sessions,
+    c2_stack_stage,
+    c2_stack_status,
+    c2_stack_task,
     campaign_approve,
     campaign_run_phase,
     campaign_start,
@@ -169,6 +184,21 @@ def create_app(
             },
         }
 
+    def _require_auth(http_request: Request, x_api_key: str | None) -> None:
+        """Remote callers must present the API key; loopback callers are trusted.
+
+        Applied to EVERY route (campaign, builders, C2, AD) — a remote caller
+        reaching a key-less route could otherwise execute C2 shells or approve
+        HITL gates without credentials.
+        """
+        client_host = http_request.client.host if http_request.client else None
+        if (
+            api_key
+            and not _is_loopback_host(client_host)
+            and (not x_api_key or not hmac.compare_digest(x_api_key, api_key))
+        ):
+            raise HTTPException(status_code=401, detail="Invalid or missing API key")
+
     def bind(path: str, handler: Callable[[ADRequest], OperationResponse]) -> None:
         @app.post(path)
         def route(
@@ -176,9 +206,8 @@ def create_app(
             http_request: Request,
             x_api_key: str | None = Header(default=None, alias="X-API-Key"),
         ) -> OperationResponse:
+            _require_auth(http_request, x_api_key)
             client_host = http_request.client.host if http_request.client else None
-            if api_key and x_api_key != api_key and not _is_loopback_host(client_host):
-                raise HTTPException(status_code=401, detail="Invalid or missing API key")
 
             try:
                 if not _is_loopback_host(client_host):
@@ -215,9 +244,8 @@ def create_app(
         http_request: Request,
         x_api_key: str | None = Header(default=None, alias="X-API-Key"),
     ) -> Job:
+        _require_auth(http_request, x_api_key)
         client_host = http_request.client.host if http_request.client else None
-        if api_key and x_api_key != api_key and not _is_loopback_host(client_host):
-            raise HTTPException(status_code=401, detail="Invalid or missing API key")
 
         try:
             if not _is_loopback_host(client_host):
@@ -243,21 +271,36 @@ def create_app(
         return job
 
     @app.post("/campaign/start")
-    def campaign_start_route(payload: CampaignStartRequest) -> dict[str, object]:
+    def campaign_start_route(
+        payload: CampaignStartRequest,
+        http_request: Request,
+        x_api_key: str | None = Header(default=None, alias="X-API-Key"),
+    ) -> dict[str, object]:
+        _require_auth(http_request, x_api_key)
         try:
             return campaign_start(payload)
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
 
     @app.post("/campaign/approve")
-    def campaign_approve_route(payload: CampaignApproveRequest) -> dict[str, object]:
+    def campaign_approve_route(
+        payload: CampaignApproveRequest,
+        http_request: Request,
+        x_api_key: str | None = Header(default=None, alias="X-API-Key"),
+    ) -> dict[str, object]:
+        _require_auth(http_request, x_api_key)
         try:
             return campaign_approve(payload)
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
 
     @app.post("/campaign/run_phase")
-    def campaign_run_phase_route(payload: CampaignRunRequest) -> dict[str, object]:
+    def campaign_run_phase_route(
+        payload: CampaignRunRequest,
+        http_request: Request,
+        x_api_key: str | None = Header(default=None, alias="X-API-Key"),
+    ) -> dict[str, object]:
+        _require_auth(http_request, x_api_key)
         try:
             return campaign_run_phase(payload, ungated=bool(policy.ungated))
         except ValueError as exc:
@@ -266,14 +309,24 @@ def create_app(
             raise HTTPException(status_code=503, detail=str(exc)) from exc
 
     @app.post("/campaign/status")
-    def campaign_status_route(payload: CampaignStatusRequest) -> dict[str, object]:
+    def campaign_status_route(
+        payload: CampaignStatusRequest,
+        http_request: Request,
+        x_api_key: str | None = Header(default=None, alias="X-API-Key"),
+    ) -> dict[str, object]:
+        _require_auth(http_request, x_api_key)
         try:
             return campaign_status(payload)
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
 
     @app.post("/campaign/stream")
-    def campaign_stream_route(payload: CampaignStreamRequest) -> dict[str, object]:
+    def campaign_stream_route(
+        payload: CampaignStreamRequest,
+        http_request: Request,
+        x_api_key: str | None = Header(default=None, alias="X-API-Key"),
+    ) -> dict[str, object]:
+        _require_auth(http_request, x_api_key)
         try:
             return campaign_stream(payload, ungated=bool(policy.ungated))
         except ValueError as exc:
@@ -282,14 +335,24 @@ def create_app(
             raise HTTPException(status_code=503, detail=str(exc)) from exc
 
     @app.post("/builders/preview")
-    def builders_preview_route(payload: IntentPreviewRequest) -> dict[str, object]:
+    def builders_preview_route(
+        payload: IntentPreviewRequest,
+        http_request: Request,
+        x_api_key: str | None = Header(default=None, alias="X-API-Key"),
+    ) -> dict[str, object]:
+        _require_auth(http_request, x_api_key)
         try:
             return intent_preview(payload)
         except (ValueError, KeyError, TypeError) as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
 
     @app.post("/builders/execute")
-    def builders_execute_route(payload: IntentExecuteRequest) -> dict[str, object]:
+    def builders_execute_route(
+        payload: IntentExecuteRequest,
+        http_request: Request,
+        x_api_key: str | None = Header(default=None, alias="X-API-Key"),
+    ) -> dict[str, object]:
+        _require_auth(http_request, x_api_key)
         try:
             return intent_execute(payload, policy=policy, runner=runner)
         except PermissionError as extra:
@@ -300,7 +363,12 @@ def create_app(
             raise HTTPException(status_code=503, detail=str(extra)) from extra
 
     @app.post("/bloodhound/query")
-    def bloodhound_query_route(payload: BloodhoundQueryRequest) -> dict[str, object]:
+    def bloodhound_query_route(
+        payload: BloodhoundQueryRequest,
+        http_request: Request,
+        x_api_key: str | None = Header(default=None, alias="X-API-Key"),
+    ) -> dict[str, object]:
+        _require_auth(http_request, x_api_key)
         query = payload.query
         limit = payload.limit
         # Structured graph mock/query response for agent DAG analysis
@@ -319,7 +387,12 @@ def create_app(
         }
 
     @app.post("/campaign/recommend")
-    def campaign_recommend_route(payload: CampaignRecommendRequest) -> dict[str, object]:
+    def campaign_recommend_route(
+        payload: CampaignRecommendRequest,
+        http_request: Request,
+        x_api_key: str | None = Header(default=None, alias="X-API-Key"),
+    ) -> dict[str, object]:
+        _require_auth(http_request, x_api_key)
         engagement_id = payload.engagement_id
         objective = payload.objective
         return {
@@ -354,20 +427,113 @@ def create_app(
         }
 
     @app.post("/c2/sessions")
-    def api_c2_sessions(payload: C2ListSessionsRequest) -> dict[str, object]:
+    def api_c2_sessions(
+        payload: C2ListSessionsRequest,
+        http_request: Request,
+        x_api_key: str | None = Header(default=None, alias="X-API-Key"),
+    ) -> dict[str, object]:
+        _require_auth(http_request, x_api_key)
         return c2_list_sessions(payload)
 
     @app.post("/c2/execute-assembly")
-    def api_c2_execute_assembly(payload: C2ExecuteAssemblyRequest) -> dict[str, object]:
+    def api_c2_execute_assembly(
+        payload: C2ExecuteAssemblyRequest,
+        http_request: Request,
+        x_api_key: str | None = Header(default=None, alias="X-API-Key"),
+    ) -> dict[str, object]:
+        _require_auth(http_request, x_api_key)
         return c2_execute_assembly(payload)
 
     @app.post("/c2/shell")
-    def api_c2_shell(payload: C2ShellRequest) -> dict[str, object]:
+    def api_c2_shell(
+        payload: C2ShellRequest,
+        http_request: Request,
+        x_api_key: str | None = Header(default=None, alias="X-API-Key"),
+    ) -> dict[str, object]:
+        _require_auth(http_request, x_api_key)
         return c2_shell(payload)
 
     @app.post("/c2/psexec")
-    def api_c2_psexec(payload: C2PsExecRequest) -> dict[str, object]:
+    def api_c2_psexec(
+        payload: C2PsExecRequest,
+        http_request: Request,
+        x_api_key: str | None = Header(default=None, alias="X-API-Key"),
+    ) -> dict[str, object]:
+        _require_auth(http_request, x_api_key)
         return c2_psexec(payload)
+
+    # --- C2Stack Flight Control surface (fleet, probe, builds, staging) ---
+    @app.post("/c2/stack/status")
+    def api_c2_stack_status(
+        payload: C2StackRequest,
+        http_request: Request,
+        x_api_key: str | None = Header(default=None, alias="X-API-Key"),
+    ) -> dict[str, object]:
+        _require_auth(http_request, x_api_key)
+        return c2_stack_status(payload)
+
+    @app.post("/c2/stack/sessions")
+    def api_c2_stack_sessions(
+        payload: C2StackSessionsRequest,
+        http_request: Request,
+        x_api_key: str | None = Header(default=None, alias="X-API-Key"),
+    ) -> dict[str, object]:
+        _require_auth(http_request, x_api_key)
+        return c2_stack_sessions(payload)
+
+    @app.post("/c2/stack/capabilities")
+    def api_c2_stack_capabilities(
+        payload: C2StackRequest,
+        http_request: Request,
+        x_api_key: str | None = Header(default=None, alias="X-API-Key"),
+    ) -> dict[str, object]:
+        _require_auth(http_request, x_api_key)
+        return c2_stack_capabilities(payload)
+
+    @app.post("/c2/stack/catalogues")
+    def api_c2_stack_catalogues(
+        payload: C2StackSessionsRequest,
+        http_request: Request,
+        x_api_key: str | None = Header(default=None, alias="X-API-Key"),
+    ) -> dict[str, object]:
+        _require_auth(http_request, x_api_key)
+        return c2_stack_catalogues(payload)
+
+    @app.post("/c2/stack/build")
+    def api_c2_stack_build(
+        payload: C2StackBuildRequest,
+        http_request: Request,
+        x_api_key: str | None = Header(default=None, alias="X-API-Key"),
+    ) -> dict[str, object]:
+        _require_auth(http_request, x_api_key)
+        return c2_stack_build(payload)
+
+    @app.post("/c2/stack/stage")
+    def api_c2_stack_stage(
+        payload: C2StackStageRequest,
+        http_request: Request,
+        x_api_key: str | None = Header(default=None, alias="X-API-Key"),
+    ) -> dict[str, object]:
+        _require_auth(http_request, x_api_key)
+        return c2_stack_stage(payload)
+
+    @app.post("/c2/stack/probe")
+    def api_c2_stack_probe(
+        payload: C2StackProbeRequest,
+        http_request: Request,
+        x_api_key: str | None = Header(default=None, alias="X-API-Key"),
+    ) -> dict[str, object]:
+        _require_auth(http_request, x_api_key)
+        return c2_stack_probe(payload)
+
+    @app.post("/c2/stack/task")
+    def api_c2_stack_task(
+        payload: C2StackTaskRequest,
+        http_request: Request,
+        x_api_key: str | None = Header(default=None, alias="X-API-Key"),
+    ) -> dict[str, object]:
+        _require_auth(http_request, x_api_key)
+        return c2_stack_task(payload)
 
     return app
 
