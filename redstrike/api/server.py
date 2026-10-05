@@ -7,8 +7,10 @@ import os
 import threading
 import time
 from collections.abc import Callable
+from pathlib import Path
 
 from fastapi import FastAPI, Header, HTTPException, Request
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from redstrike import __version__
@@ -44,6 +46,7 @@ from redstrike.api.campaign import (
     c2_stack_status,
     c2_stack_task,
     campaign_approve,
+    campaign_recommend,
     campaign_run_phase,
     campaign_start,
     campaign_status,
@@ -74,6 +77,8 @@ class BloodhoundQueryRequest(BaseModel):
 class CampaignRecommendRequest(BaseModel):
     engagement_id: str = "demo"
     objective: str = "Domain Admins"
+    graph: str | None = None
+    limit: int = 3
 
 
 def _is_loopback_host(host: str | None) -> bool:
@@ -85,6 +90,43 @@ def _is_loopback_host(host: str | None) -> bool:
         return ipaddress.ip_address(host).is_loopback
     except ValueError:
         return False
+
+
+class _BodyTooLarge(Exception):
+    """Internal marker: the streaming body guard tripped."""
+
+
+_DEFAULT_MAX_BODY_BYTES = 5 * 1024 * 1024
+
+
+def max_body_bytes() -> int:
+    """Request-body cap in bytes (REDSTRIKE_MAX_BODY_BYTES, 0 disables)."""
+    raw = os.environ.get("REDSTRIKE_MAX_BODY_BYTES", "").strip()
+    if not raw:
+        return _DEFAULT_MAX_BODY_BYTES
+    try:
+        return max(0, int(raw))
+    except ValueError:
+        return _DEFAULT_MAX_BODY_BYTES
+
+
+def _caller_is_remote(http_request: Request) -> bool:
+    """True when the caller must authenticate / be rate-limited.
+
+    A loopback peer is trusted ONLY when it presents no proxy headers: a
+    reverse proxy on 127.0.0.1 would otherwise make every remote caller look
+    local, bypassing both the API key and the rate limiter. Operators behind a
+    trusted local proxy can opt in with ``REDSTRIKE_TRUST_PROXY=1``.
+    """
+    client_host = http_request.client.host if http_request.client else None
+    if not _is_loopback_host(client_host):
+        return True
+    if os.environ.get("REDSTRIKE_TRUST_PROXY", "").strip().lower() in {"1", "true", "yes"}:
+        return False
+    return any(
+        http_request.headers.get(header)
+        for header in ("x-forwarded-for", "forwarded", "x-real-ip")
+    )
 
 
 class RateLimiter:
@@ -99,16 +141,30 @@ class RateLimiter:
     """
 
     def __init__(
-        self, max_requests: int, window_seconds: float, max_keys: int = 10000
+        self,
+        max_requests: int,
+        window_seconds: float,
+        max_keys: int = 10000,
+        shared_path: str | None = None,
     ) -> None:
         self.max_requests = max_requests
         self.window_seconds = window_seconds
         self.max_keys = max(1, max_keys)
         self._lock = threading.Lock()
         self._hits: dict[str, list[float]] = {}
+        # Shared SQLite window (set with REDSTRIKE_RATE_LIMIT_DB / create_app):
+        # one budget across uvicorn workers and restarts.
+        self._shared = None
+        if shared_path:
+            from redstrike.api.ratelimit import SqliteRateWindow
+
+            self._shared = SqliteRateWindow(shared_path)
 
     def check(self, key: str) -> None:
         if self.max_requests <= 0 or self.window_seconds <= 0:
+            return
+        if self._shared is not None:
+            self._shared.check(key, self.max_requests, self.window_seconds)
             return
         now = time.monotonic()
         with self._lock:
@@ -133,6 +189,7 @@ def create_app(
     api_key: str | None = None,
     profile: str | None = DEFAULT_API_PROFILE,
     ungated: bool = False,
+    rate_limit_db: str | None = None,
 ) -> FastAPI:
     resolved = resolve_profile_name(profile) or DEFAULT_API_PROFILE
     if ungated:
@@ -148,7 +205,15 @@ def create_app(
         policy.require_scope_ready()
         os.environ["REDSTRIKE_UNGATED"] = "1"
     service = ActiveDirectoryAssessmentService(policy)
-    limiter = RateLimiter(policy.rate_limit_requests, policy.rate_limit_window_seconds)
+    shared_window = rate_limit_db or os.environ.get("REDSTRIKE_RATE_LIMIT_DB") or None
+    if shared_window:
+        limiter = RateLimiter(
+            policy.rate_limit_requests,
+            policy.rate_limit_window_seconds,
+            shared_path=shared_window,
+        )
+    else:
+        limiter = RateLimiter(policy.rate_limit_requests, policy.rate_limit_window_seconds)
     job_store = JobStore()
     runner = CommandRunner()
     app = FastAPI(
@@ -158,6 +223,43 @@ def create_app(
     )
     app.state.policy = policy
     app.state.ungated = bool(policy.ungated)
+
+    @app.middleware("http")
+    async def limit_request_body(request: Request, call_next):
+        """Reject oversized request bodies (413).
+
+        Content-Length is checked up front; chunked bodies are counted while
+        streaming. Cap: REDSTRIKE_MAX_BODY_BYTES (bytes, 0 disables; default
+        5 MiB — staging large payloads belongs in the CLI/C2Stack, not here).
+        """
+        limit = max_body_bytes()
+        if limit > 0:
+            declared = request.headers.get("content-length")
+            if declared and declared.isdigit() and int(declared) > limit:
+                return JSONResponse(
+                    status_code=413,
+                    content={"detail": f"request body exceeds {limit} bytes"},
+                )
+            received = 0
+            original_receive = request._receive    # starlette exposes no public hook for this
+
+            async def guarded_receive():
+                nonlocal received
+                message = await original_receive()
+                if message.get("type") == "http.request":
+                    received += len(message.get("body", b""))
+                    if received > limit:
+                        raise _BodyTooLarge()
+                return message
+
+            request._receive = guarded_receive
+        try:
+            return await call_next(request)
+        except _BodyTooLarge:
+            return JSONResponse(
+                status_code=413,
+                content={"detail": f"request body exceeds {limit} bytes"},
+            )
 
     @app.get("/health")
     def health() -> dict[str, object]:
@@ -185,16 +287,15 @@ def create_app(
         }
 
     def _require_auth(http_request: Request, x_api_key: str | None) -> None:
-        """Remote callers must present the API key; loopback callers are trusted.
+        """Remote callers must present the API key; direct-loopback callers are trusted.
 
         Applied to EVERY route (campaign, builders, C2, AD) — a remote caller
         reaching a key-less route could otherwise execute C2 shells or approve
         HITL gates without credentials.
         """
-        client_host = http_request.client.host if http_request.client else None
         if (
             api_key
-            and not _is_loopback_host(client_host)
+            and _caller_is_remote(http_request)
             and (not x_api_key or not hmac.compare_digest(x_api_key, api_key))
         ):
             raise HTTPException(status_code=401, detail="Invalid or missing API key")
@@ -207,10 +308,10 @@ def create_app(
             x_api_key: str | None = Header(default=None, alias="X-API-Key"),
         ) -> OperationResponse:
             _require_auth(http_request, x_api_key)
-            client_host = http_request.client.host if http_request.client else None
 
             try:
-                if not _is_loopback_host(client_host):
+                if _caller_is_remote(http_request):
+                    client_host = http_request.client.host if http_request.client else None
                     caller = x_api_key or client_host or "anonymous"
                     limiter.check(f"{caller}|{path}")
                 return handler(request)
@@ -245,10 +346,10 @@ def create_app(
         x_api_key: str | None = Header(default=None, alias="X-API-Key"),
     ) -> Job:
         _require_auth(http_request, x_api_key)
-        client_host = http_request.client.host if http_request.client else None
 
         try:
-            if not _is_loopback_host(client_host):
+            if _caller_is_remote(http_request):
+                client_host = http_request.client.host if http_request.client else None
                 caller = x_api_key or client_host or "anonymous"
                 limiter.check(f"{caller}|/jobs")
 
@@ -302,7 +403,7 @@ def create_app(
     ) -> dict[str, object]:
         _require_auth(http_request, x_api_key)
         try:
-            return campaign_run_phase(payload, ungated=bool(policy.ungated))
+            return campaign_run_phase(payload, ungated=bool(policy.ungated), policy=policy)
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
         except FileNotFoundError as exc:
@@ -328,7 +429,7 @@ def create_app(
     ) -> dict[str, object]:
         _require_auth(http_request, x_api_key)
         try:
-            return campaign_stream(payload, ungated=bool(policy.ungated))
+            return campaign_stream(payload, ungated=bool(policy.ungated), policy=policy)
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
         except FileNotFoundError as exc:
@@ -369,22 +470,17 @@ def create_app(
         x_api_key: str | None = Header(default=None, alias="X-API-Key"),
     ) -> dict[str, object]:
         _require_auth(http_request, x_api_key)
-        query = payload.query
-        limit = payload.limit
-        # Structured graph mock/query response for agent DAG analysis
-        return {
-            "query": query,
-            "limit": limit,
-            "results": [
-                {
-                    "source": "DOMAIN_USERS",
-                    "edge": "MemberOf",
-                    "target": "ENGINEERING_DEPT",
-                    "escalation_vector": "DCSync_ACL",
-                }
-            ],
-            "status": "ok",
-        }
+        # Honest 501: no BloodHound/Neo4j connector ships with RedStrike. The
+        # previous response was a hardcoded mock — an LLM agent could act on
+        # fabricated edges. Use /ad/* collection or import collector output.
+        raise HTTPException(
+            status_code=501,
+            detail=(
+                "bloodhound/query is not implemented: RedStrike has no BloodHound/Neo4j "
+                "connector. Collect with the sharphound intents and query /ad/*, or run "
+                "BloodHound itself against Neo4j."
+            ),
+        )
 
     @app.post("/campaign/recommend")
     def campaign_recommend_route(
@@ -393,38 +489,12 @@ def create_app(
         x_api_key: str | None = Header(default=None, alias="X-API-Key"),
     ) -> dict[str, object]:
         _require_auth(http_request, x_api_key)
-        engagement_id = payload.engagement_id
-        objective = payload.objective
-        return {
-            "engagement_id": engagement_id,
-            "objective": objective,
-            "recommendations": [
-                {
-                    "rank": 1,
-                    "intent": "find_delegation",
-                    "target": "dc01.example.lab",
-                    "rationale": "Identify unconstrained delegation targets for TGT extraction",
-                    "estimated_noise": "stealth",
-                    "success_probability": 0.9,
-                },
-                {
-                    "rank": 2,
-                    "intent": "certipy_find",
-                    "target": "dc01.example.lab",
-                    "rationale": "Audit ADCS Certificate Templates for ESC1/ESC4 escalation",
-                    "estimated_noise": "stealth",
-                    "success_probability": 0.85,
-                },
-                {
-                    "rank": 3,
-                    "intent": "request_tgt",
-                    "target": "dc01.example.lab",
-                    "rationale": "Kerberoast SPNs discovered from domain user enumeration",
-                    "estimated_noise": "balanced",
-                    "success_probability": 0.7,
-                },
-            ],
-        }
+        try:
+            return campaign_recommend(payload)
+        except FileNotFoundError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except (ValueError, KeyError) as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
 
     @app.post("/c2/sessions")
     def api_c2_sessions(
@@ -556,14 +626,31 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--api-key", default=None, help="Optional API key for non-local callers")
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", default=8890, type=int)
+    parser.add_argument(
+        "--rate-limit-db",
+        default=None,
+        help="SQLite path for SHARED rate limiting across workers/restarts "
+        "(default: <redstrike home>/.redstrike/rate-limit.db; env REDSTRIKE_RATE_LIMIT_DB)",
+    )
     args = parser.parse_args(argv)
     if args.ungated and not args.scope:
         parser.error("--ungated requires --scope with non-empty allowed_targets and allowed_domains")
 
     import uvicorn
 
+    rate_limit_db = args.rate_limit_db or os.environ.get("REDSTRIKE_RATE_LIMIT_DB")
+    if not rate_limit_db:
+        home = os.environ.get("REDSTRIKE_HOME")
+        base = Path(home) if home else Path.home() / ".redstrike"
+        rate_limit_db = str(base / "rate-limit.db")
     try:
-        app = create_app(args.scope, args.api_key, args.profile, ungated=bool(args.ungated))
+        app = create_app(
+            args.scope,
+            args.api_key,
+            args.profile,
+            ungated=bool(args.ungated),
+            rate_limit_db=rate_limit_db,
+        )
     except (ValueError, PermissionError) as extra:
         parser.error(str(extra))
     uvicorn.run(app, host=args.host, port=args.port)

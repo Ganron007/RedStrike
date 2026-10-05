@@ -243,12 +243,25 @@ def test_teardown_queue() -> None:
     assert len(queue.pending) == 0
 
 
-def test_bloodhound_and_recommend_api() -> None:
-    client = TestClient(create_app(profile="campaign"))
-    bh_res = client.post("/bloodhound/query", json={"query": "MATCH (n) RETURN n LIMIT 5"})
-    assert bh_res.status_code == 200
-    assert bh_res.json()["status"] == "ok"
+def test_bloodhound_and_recommend_api(tmp_path, monkeypatch) -> None:
+    from redstrike.runtime.session import CampaignSession
 
-    rec_res = client.post("/campaign/recommend", json={"engagement_id": "test", "objective": "Domain Admins"})
+    monkeypatch.setenv("REDSTRIKE_HOME", str(tmp_path))
+    client = TestClient(create_app(profile="campaign"))
+
+    # No BloodHound/Neo4j connector ships: honest 501, not a fabricated graph.
+    bh_res = client.post("/bloodhound/query", json={"query": "MATCH (n) RETURN n LIMIT 5"})
+    assert bh_res.status_code == 501
+    assert "not implemented" in bh_res.json()["detail"]
+
+    rec_missing = client.post("/campaign/recommend", json={"engagement_id": "nope"})
+    assert rec_missing.status_code == 404
+
+    CampaignSession("test", ledger_root=tmp_path / "engagements")
+    rec_res = client.post(
+        "/campaign/recommend", json={"engagement_id": "test", "objective": "Domain Admins"}
+    )
     assert rec_res.status_code == 200
-    assert len(rec_res.json()["recommendations"]) >= 1
+    body = rec_res.json()
+    assert len(body["recommendations"]) >= 1
+    assert all("node_id" in entry and "actionable" in entry for entry in body["recommendations"])

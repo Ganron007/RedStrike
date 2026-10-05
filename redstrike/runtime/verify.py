@@ -18,8 +18,10 @@ those strings do not veto a matching marker.
 
 from __future__ import annotations
 
+import json
 import re
 from dataclasses import dataclass
+from typing import Any
 
 DEFAULT_FAIL_PATTERNS: tuple[str, ...] = (
     r"(?i)Access is denied",
@@ -57,18 +59,66 @@ class VerifyOutcome:
 
 
 def _waive_fail_pattern(pattern: str, matched: str, expected_errors: tuple[str, ...]) -> bool:
+    """Waive a matched fail pattern only when an expected-error token names it.
+
+    Matching is token-bounded: a short token like ``denied`` must appear as a
+    standalone word — it must NOT waive ``NT_STATUS_ACCESS_DENIED`` (the
+    underscore makes it part of a longer token), which previously let a vague
+    expectation mask a wholly different failure.
+    """
     for raw in expected_errors:
         token = (raw or "").strip()
         if not token:
             continue
-        if token.lower() in pattern.lower() or token.lower() in matched.lower():
-            return True
         try:
-            if re.search(token, pattern, re.IGNORECASE) or re.search(token, matched, re.IGNORECASE):
-                return True
+            bounded = re.compile(
+                rf"(?<![A-Za-z0-9_]){re.escape(token)}(?![A-Za-z0-9_])", re.IGNORECASE
+            )
         except re.error:
             continue
+        if bounded.search(pattern) or bounded.search(matched):
+            return True
     return False
+
+
+def _extract_json(text: str) -> Any | None:
+    """First JSON value in `text` (whole body, else the outermost {...}/[...])."""
+    stripped = text.strip()
+    for candidate in (stripped, _first_json_block(stripped)):
+        if not candidate:
+            continue
+        try:
+            return json.loads(candidate)
+        except ValueError:
+            continue
+    return None
+
+
+def _first_json_block(text: str) -> str | None:
+    for opener, closer in (("{", "}"), ("[", "]")):
+        start = text.find(opener)
+        end = text.rfind(closer)
+        if start != -1 and end > start:
+            return text[start : end + 1]
+    return None
+
+
+def json_path_value(payload: Any, path: str) -> Any:
+    """Dotted-path walk with list-index support (`tenantId`, `value.0.displayName`)."""
+    current = payload
+    for part in path.split("."):
+        if isinstance(current, dict):
+            if part not in current:
+                return None
+            current = current[part]
+        elif isinstance(current, list):
+            try:
+                current = current[int(part)]
+            except (ValueError, IndexError):
+                return None
+        else:
+            return None
+    return current
 
 
 def verify_step_output(
@@ -85,6 +135,7 @@ def verify_step_output(
     skipped: bool = False,
     stub: bool = False,
     awaiting_approval: bool = False,
+    success_json: tuple[str, str] | None = None,
 ) -> VerifyOutcome:
     marker = success_marker or default_success_marker(node_id)
     if dry_run:
@@ -109,6 +160,29 @@ def verify_step_output(
 
     if return_code != 0:
         return VerifyOutcome(False, "unverified", f"return_code={return_code}", marker)
+
+    if success_json is not None:
+        # Structured verification for JSON-emitting tools (az/Graph): replaces
+        # the stdout marker (the reason states the exact expectation).
+        path, expected_value = success_json
+        payload = _extract_json(text)
+        if payload is None:
+            return VerifyOutcome(
+                False, "unverified", f"no JSON found in output for success_json path '{path}'", marker
+            )
+        actual = json_path_value(payload, path)
+        if actual is None:
+            return VerifyOutcome(
+                False, "unverified", f"success_json path '{path}' missing from output", marker
+            )
+        if str(actual) != expected_value:
+            return VerifyOutcome(
+                False,
+                "unverified",
+                f"success_json {path}={actual!r} != expected {expected_value!r}",
+                marker,
+            )
+        return VerifyOutcome(True, "verified", f"success_json {path} == {expected_value}", marker)
 
     try:
         found = re.search(marker, text)

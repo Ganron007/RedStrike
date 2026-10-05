@@ -31,9 +31,11 @@ WORKDIR /app
 COPY pyproject.toml requirements.txt ./
 
 # Install python dependencies including AD tools & MCP
+# (NetExec ships from its git repo — there is no 'netexec' package on PyPI)
 RUN pip install --no-cache-dir -U pip setuptools wheel && \
     pip install --no-cache-dir -e ".[dev,mcp]" && \
-    pip install --no-cache-dir certipy-ad bloodyAD netexec impacket
+    pip install --no-cache-dir certipy-ad bloodyAD impacket && \
+    pip install --no-cache-dir "git+https://github.com/Pennyw0rth/NetExec"
 
 # Copy full application source
 COPY . .

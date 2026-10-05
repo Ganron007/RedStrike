@@ -29,5 +29,14 @@ def test_redstrike_check_subcommand(tmp_path: Path, monkeypatch) -> None:
     assert redstrike_main(["check", "--json", "--scope", str(tmp_path / "missing.yaml")]) == 0
 
 
-def test_redstrike_console_subcommand() -> None:
-    assert redstrike_main(["console"]) == 0
+def test_redstrike_console_subcommand(tmp_path: Path) -> None:
+    from redstrike.runtime.session import CampaignSession
+
+    CampaignSession("console-demo", ledger_root=tmp_path)
+    assert (
+        redstrike_main(
+            ["console", "--engage", "console-demo", "--ledger-root", str(tmp_path), "--json"]
+        )
+        == 0
+    )
+    assert redstrike_main(["console", "--engage", "missing", "--ledger-root", str(tmp_path)]) == 2

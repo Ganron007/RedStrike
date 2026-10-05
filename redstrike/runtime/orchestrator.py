@@ -7,7 +7,9 @@ from typing import Any
 
 from redstrike.c2 import get_c2_client
 from redstrike.core.models import C2Backend, CallKind, CallSpec
+from redstrike.core.policy import ScopePolicy, load_scope_policy
 from redstrike.core.runner import CommandRunner, redact_argv
+from redstrike.core.secrets import extract_secrets, scrub_output
 from redstrike.runtime.activity import ActivityJournal, resolve_activity_log
 from redstrike.runtime.beachhead import (
     Beachhead,
@@ -19,6 +21,8 @@ from redstrike.runtime.beachhead import (
 from redstrike.runtime.graph import (
     CampaignGraph,
     CampaignNode,
+    collect_cloud_targets,
+    collect_scope_targets,
     load_campaign_graph,
     parse_branches,
     parse_node_ids,
@@ -30,6 +34,8 @@ from redstrike.runtime.intents import DEFAULT_REGISTRY, IntentRegistry, UnknownI
 from redstrike.runtime.ledger import Credential, CredentialLedger, MissingCredentialError
 from redstrike.runtime.preflight import PreflightResult
 from redstrike.runtime.preflight import preflight as run_preflight
+from redstrike.runtime.teardown import load_queue as load_teardown_queue
+from redstrike.runtime.teardown import save_queue as save_teardown_queue
 from redstrike.runtime.verify import VerifyOutcome, verify_step_output
 from redstrike.runtime.ws01_transport import argv_for_plan
 
@@ -87,8 +93,11 @@ class StepResult:
             "skip_reason": self.skip_reason,
             "awaiting_approval": self.awaiting_approval,
             "error": self.error,
-            "stdout": self.stdout,
-            "stderr": self.stderr,
+            # Output is scrubbed for derived consumers (API/MCP/JSON summaries):
+            # credential material stays available to the raw journal/evidence
+            # paths. REDSTRIKE_RAW_OUTPUT=1 disables scrubbing locally.
+            "stdout": scrub_output(self.stdout),
+            "stderr": scrub_output(self.stderr),
             "exception_reason": self.plan.exception_reason,
             "started_at": self.started_at,
             "finished_at": self.finished_at,
@@ -141,6 +150,9 @@ def _verify_node(
     stderr: str = "",
     error: str | None = None,
 ) -> VerifyOutcome:
+    success_json = None
+    if node.success_json:
+        success_json = (node.success_json.get("path", ""), node.success_json.get("equals", ""))
     return verify_step_output(
         node_id=node.id,
         return_code=return_code,
@@ -154,6 +166,7 @@ def _verify_node(
         skipped=skipped,
         stub=stub or node.stub,
         awaiting_approval=awaiting_approval,
+        success_json=success_json,
     )
 
 
@@ -230,6 +243,10 @@ class CampaignOrchestrator:
         c2_backend: C2Backend | str = C2Backend.SLIVER,
         c2_session_id: str | None = None,
         c2_endpoint: str | None = None,
+        scope_path: str | None = None,
+        scope_policy: ScopePolicy | None = None,
+        resume: bool = False,
+        stop_on_failure: bool = False,
     ) -> None:
         self.engagement_id = engagement_id
         self.beachhead = Beachhead(beachhead)
@@ -256,6 +273,11 @@ class CampaignOrchestrator:
         )
         self.c2_session_id = c2_session_id
         self.c2_endpoint = c2_endpoint
+        self.scope_path = scope_path
+        self.scope_policy = scope_policy or (load_scope_policy(scope_path) if scope_path else None)
+        self.resume = resume
+        self.stop_on_failure = stop_on_failure
+        self.teardown = load_teardown_queue(self.store.dir / "teardown.json")
 
         self.router = BeachheadRouter(
             automation_root=self.automation_root,
@@ -377,6 +399,7 @@ class CampaignOrchestrator:
             branch=node.branch,
             intent=node.intent if use_intent else None,
             argv_override=argv_override,
+            timeout_seconds=node.timeout_seconds,
         )
         if call_spec is not None:
             plan = StepPlan(
@@ -478,19 +501,191 @@ class CampaignOrchestrator:
             auto_backend=self.c2_backend_auto,
         )
 
+    # ------------------------------------------------------- run machinery
+    def _ordered_nodes(self, nodes: list[CampaignNode]) -> list[CampaignNode]:
+        """Stable topological order over `depends_on` (cycle-free: validated at load)."""
+        by_id = {node.id: node for node in nodes}
+        ordered: list[CampaignNode] = []
+        placed: set[str] = set()
+
+        def _place(node: CampaignNode) -> None:
+            if node.id in placed:
+                return
+            for dep in node.depends_on:
+                if dep in by_id:
+                    _place(by_id[dep])
+            placed.add(node.id)
+            ordered.append(node)
+
+        for node in nodes:
+            _place(node)
+        return ordered
+
+    def _dependency_skip_reason(
+        self,
+        node: CampaignNode,
+        selected_ids: set[str],
+        outcomes: dict[str, str],
+        *,
+        preview: bool = False,
+    ) -> str | None:
+        """Why this node cannot run: unmet `depends_on` / `when` conditions.
+
+        ``preview=True`` (dry runs) counts a dry-run dependency as satisfied so
+        whole graphs can be previewed; live runs require a real verification.
+        """
+        satisfying = {"verified", "dry_run"} if preview else {"verified"}
+        for dep in node.depends_on:
+            if dep not in selected_ids:
+                return f"dependency '{dep}' is not part of this selection"
+            status = outcomes.get(dep)
+            if status is None:
+                return f"dependency '{dep}' has not run yet"
+            if status not in satisfying:
+                return f"dependency '{dep}' did not verify ({status})"
+        when = node.when or {}
+        for ref in when.get("verified", []):
+            if ref not in selected_ids:
+                return f"when.verified references '{ref}' outside this selection"
+            if outcomes.get(ref) not in satisfying:
+                return f"when.verified not met: '{ref}' is {outcomes.get(ref, 'not run')}"
+        for ref in when.get("unverified", []):
+            if ref not in selected_ids:
+                return f"when.unverified references '{ref}' outside this selection"
+            if outcomes.get(ref) == "verified":
+                return f"when.unverified falsified: '{ref}' verified"
+        for cred_name in when.get("cred", []):
+            if not self.ledger.has(cred_name):
+                return f"when.cred not met: credential '{cred_name}' missing from ledger"
+        return None
+
+    def _scope_block_reason(self, node: CampaignNode) -> str | None:
+        """Target-scope gate for live execution (declared targets only).
+
+        Host targets come from the node's `target`/`targets` and target-like
+        intent args (see graph.TARGET_ARG_KEYS); cloud targets come from
+        `tenant:`-style args and are checked against allowed_tenants /
+        allowed_cloud_domains. Opaque script nodes must declare `target(s)` to
+        be scope-checked. Fail closed: a policy that cannot check targets
+        (none configured / empty allow-lists) blocks the node.
+        """
+        targets = collect_scope_targets(node)
+        cloud_targets = collect_cloud_targets(node)
+        if not targets and not cloud_targets:
+            return None
+        policy = self.scope_policy
+        if policy is None:
+            return (
+                "live execution against target(s) "
+                + ", ".join([*targets, *cloud_targets])
+                + " requires a scope policy (pass --scope <file>)"
+            )
+        if targets and not (policy.allowed_targets or policy.allowed_domains or policy.require_scope):
+            return (
+                "live execution against target(s) "
+                + ", ".join(targets)
+                + " requires a scope policy (pass --scope <file> with allowed_targets)"
+            )
+        if cloud_targets and not policy.cloud_scope_configured():
+            return (
+                "live execution against tenant(s) "
+                + ", ".join(cloud_targets)
+                + " requires allowed_tenants/allowed_cloud_domains in the scope policy"
+            )
+        domain_raw = (node.intent_args or {}).get("domain")
+        domain = str(domain_raw) if domain_raw else None
+        for target in targets:
+            try:
+                policy.assert_target_in_scope(target, domain)
+            except PermissionError as exc:
+                return str(exc)
+        for tenant in cloud_targets:
+            try:
+                policy.assert_cloud_scope(tenant)
+            except PermissionError as exc:
+                return str(exc)
+        return None
+
+    def _record_completed(self, node: CampaignNode, finished_at: str | None) -> None:
+        self.state.completed_nodes[node.id] = {
+            "verified_at": finished_at or _utc_now(),
+            "phase": str(node.phase),
+            "intent": node.intent or node.script or "",
+        }
+
+    def _record_attempt(self, node: CampaignNode, *, verified: bool) -> None:
+        self.state.attempted_nodes[node.id] = {
+            "at": _utc_now(),
+            "verified": verified,
+            "phase": str(node.phase),
+        }
+
+    def _clear_rerun_state(self, nodes: list[CampaignNode]) -> None:
+        """Drop completion/attempt records for the selected nodes (`--rerun`)."""
+        cleared = 0
+        for node in nodes:
+            if self.state.completed_nodes.pop(node.id, None) is not None:
+                cleared += 1
+            self.state.attempted_nodes.pop(node.id, None)
+        if cleared:
+            self.activity.emit(
+                "rerun_cleared",
+                engagement_id=self.engagement_id,
+                nodes=cleared,
+            )
+
+    def _ledger_credential_from_output(
+        self, node: CampaignNode, stdout: str, stderr: str
+    ) -> Credential:
+        """Real material when parseable, honest placeholder otherwise."""
+        parsed = extract_secrets(f"{stdout}\n{stderr}")
+        primary = (
+            next((item for item in parsed if item.is_hash), None)
+            or next((item for item in parsed if item.kind in {"jwt", "token"}), None)
+            or (parsed[0] if parsed else None)
+        )
+        if primary is not None:
+            token_material = primary.kind in {"jwt", "token"}
+            return Credential(
+                name=node.produces_cred or node.id,
+                username=primary.username or (node.produces_cred or node.id),
+                domain=primary.domain,
+                nt_hash=None if token_material else primary.value,
+                token=primary.value if token_material else None,
+                cred_type="token" if token_material else "nt_hash",
+                source=f"earned:{node.id}",
+                notes=f"parsed {primary.kind} material from step output",
+            )
+        return Credential(
+            name=node.produces_cred or node.id,
+            username=node.produces_cred or node.id,
+            source=f"earned:{node.id}",
+            notes="placeholder — no credential material parsed from step output",
+        )
+
     def run(
         self,
         phase_spec: str = "1-3",
         *,
         dry_run: bool = True,
         stop_on_hitl: bool = True,
+        resume: bool | None = None,
+        stop_on_failure: bool | None = None,
+        rerun: bool = False,
     ) -> list[StepResult]:
         results: list[StepResult] = []
+        do_resume = self.resume if resume is None else resume
+        do_stop_on_failure = self.stop_on_failure if stop_on_failure is None else stop_on_failure
         self._resolve_c2()
         self.state.last_phase = phase_spec
         self.state.status = "running"
         pending: str | None = None
-        selected = self.select_nodes(phase_spec)
+        selected = self._ordered_nodes(self.select_nodes(phase_spec))
+        if rerun and not dry_run:
+            self._clear_rerun_state(selected)
+        selected_ids = {node.id for node in selected}
+        outcomes: dict[str, str] = {}
+        stopped_by: str | None = None
         self.activity.emit(
             "campaign_run_start",
             engagement_id=self.engagement_id,
@@ -535,7 +730,65 @@ class CampaignOrchestrator:
                         skip_reason="stub — not yet automated (graph placeholder)",
                     )
                 )
+                outcomes[node.id] = "skipped"
                 continue
+
+            dep_reason = self._dependency_skip_reason(node, selected_ids, outcomes, preview=dry_run)
+            if dep_reason:
+                self._push(results, 
+                    _step(
+                        _blocked_plan(
+                            node, self.beachhead, default_path, mechanism="dependency", operator=self.operator
+                        ),
+                        node,
+                        dry_run=dry_run,
+                        skipped=True,
+                        skip_reason=dep_reason,
+                        error=dep_reason,
+                    )
+                )
+                outcomes[node.id] = "skipped"
+                continue
+
+            if not dry_run and do_resume and node.id in self.state.completed_nodes:
+                prior = self.state.completed_nodes[node.id]
+                reason = f"already verified at {prior.get('verified_at', '?')} (resume)"
+                self._push(results, 
+                    _step(
+                        _blocked_plan(
+                            node, self.beachhead, default_path, mechanism="resumed", operator=self.operator
+                        ),
+                        node,
+                        dry_run=dry_run,
+                        skipped=True,
+                        skip_reason=reason,
+                    )
+                )
+                outcomes[node.id] = "verified"
+                continue
+
+            if not dry_run and do_resume and node.idempotent is False:
+                attempt = self.state.attempted_nodes.get(node.id)
+                if attempt is not None and not attempt.get("verified"):
+                    # A partially-applied non-idempotent step must not silently
+                    # run twice — operator investigates, then passes --rerun.
+                    reason = (
+                        f"previous attempt at {attempt.get('at', '?')} did not verify and "
+                        "node is marked non-idempotent (idempotent: false) — pass --rerun to force"
+                    )
+                    self._push(results, 
+                        _step(
+                            _blocked_plan(
+                                node, self.beachhead, default_path, mechanism="non-idempotent", operator=self.operator
+                            ),
+                            node,
+                            dry_run=dry_run,
+                            skipped=True,
+                            skip_reason=reason,
+                        )
+                    )
+                    outcomes[node.id] = "skipped"
+                    continue
 
             if hitl_required() and node.hitl_gate and not self.state.is_approved(node.hitl_gate):
                 # Preview without resolving intent/creds (approval may precede seed).
@@ -568,6 +821,7 @@ class CampaignOrchestrator:
                 )
                 if pending is None:
                     pending = node.hitl_gate
+                outcomes[node.id] = "awaiting"
                 # Never execute unapproved gates; dry-run lists them as GATE and continues.
                 if stop_on_hitl and not dry_run:
                     break
@@ -638,7 +892,28 @@ class CampaignOrchestrator:
 
             if dry_run:
                 self._push(results, _step(plan, node, dry_run=True, return_code=0))
+                outcomes[node.id] = "dry_run"
                 continue
+
+            scope_reason = self._scope_block_reason(node)
+            if scope_reason:
+                # Fail closed: block the node AND stop — continuing past an
+                # out-of-scope target would defeat the scope policy.
+                self._push(results, 
+                    _step(
+                        _blocked_plan(
+                            node, self.beachhead, default_path, mechanism="scope-block", operator=self.operator
+                        ),
+                        node,
+                        dry_run=dry_run,
+                        skipped=True,
+                        skip_reason=scope_reason,
+                        error=scope_reason,
+                    )
+                )
+                outcomes[node.id] = "skipped"
+                stopped_by = f"scope block on {node.id}: {scope_reason}"
+                break
 
             started = _utc_now()
             self.activity.emit(
@@ -651,7 +926,11 @@ class CampaignOrchestrator:
                 mechanism=plan.mechanism,
                 argv=plan.argv,
             )
-            completed = self.runner.run(argv_for_plan(plan))
+            command = argv_for_plan(plan)
+            if plan.timeout_seconds:
+                completed = self.runner.run(command, timeout_seconds=plan.timeout_seconds)
+            else:
+                completed = self.runner.run(command)
             finished = _utc_now()
             outcome = _verify_node(
                 node,
@@ -660,15 +939,33 @@ class CampaignOrchestrator:
                 stdout=completed.stdout,
                 stderr=completed.stderr,
             )
-            if outcome.verified and node.produces_cred and not self.ledger.has(node.produces_cred):
-                self.ledger.put(
-                    Credential(
-                        name=node.produces_cred,
-                        username=node.produces_cred,
-                        source=f"earned:{node.id}",
-                        notes="placeholder — set password after crack/capture",
+            if outcome.verified:
+                outcomes[node.id] = "verified"
+                self._record_completed(node, finished)
+                self._record_attempt(node, verified=True)
+                if node.produces_cred and not self.ledger.has(node.produces_cred):
+                    # Parse REAL credential material out of the step output;
+                    # fall back to an honest placeholder when nothing parsed.
+                    self.ledger.put(
+                        self._ledger_credential_from_output(node, completed.stdout, completed.stderr)
                     )
-                )
+                if node.teardown and node.teardown.get("command"):
+                    self.teardown.register(
+                        name=node.id,
+                        target=",".join(collect_scope_targets(node)) or "-",
+                        command=list(node.teardown["command"]),
+                        description=str(node.teardown["description"]),
+                    )
+                    save_teardown_queue(self.store.dir / "teardown.json", self.teardown)
+                    self.activity.emit(
+                        "teardown_registered",
+                        engagement_id=self.engagement_id,
+                        node_id=node.id,
+                        description=str(node.teardown["description"]),
+                    )
+            else:
+                outcomes[node.id] = "unverified"
+                self._record_attempt(node, verified=False)
             step = _step(
                 plan,
                 node,
@@ -681,6 +978,30 @@ class CampaignOrchestrator:
                 finished_at=finished,
             )
             self._push(results, step)
+
+            if do_stop_on_failure and not step.verified:
+                stopped_by = (
+                    f"stop_on_failure: step {node.id} did not verify "
+                    f"({step.verify_reason or step.error or 'no marker'})"
+                )
+                remaining = [
+                    nxt for nxt in selected
+                    if nxt.id not in {r.plan.node_id for r in results}
+                ]
+                for nxt in remaining:
+                    self._push(results, 
+                        _step(
+                            _blocked_plan(
+                                nxt, self.beachhead, default_path, mechanism="stopped", operator=self.operator
+                            ),
+                            nxt,
+                            dry_run=dry_run,
+                            skipped=True,
+                            skip_reason=stopped_by,
+                        )
+                    )
+                    outcomes[nxt.id] = "skipped"
+                break
 
         if pending:
             self.state.pending_gate = pending
@@ -695,6 +1016,7 @@ class CampaignOrchestrator:
             status=self.state.status,
             pending_gate=pending,
             step_count=len(results),
+            stopped_by=stopped_by,
         )
         return results
 

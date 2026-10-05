@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 from dataclasses import asdict, dataclass, field
+from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
 from typing import Any
@@ -17,6 +18,7 @@ class HitlGate(str, Enum):
     PERSISTENCE = "persistence"
     ACL_WRITE = "acl_write"
     SITE_TAKEOVER = "site_takeover"
+    CLOUD_TAKEOVER = "cloud_takeover"  # Phase 9: Entra/cloud identity takeover
 
 
 KNOWN_GATES = {g.value for g in HitlGate}
@@ -57,6 +59,14 @@ class EngagementState:
     pending_gate: str | None = None
     last_phase: str | None = None
     notes: str | None = None
+    #: Append-only audit trail of explicit operator approvals: {gate, note, ts}.
+    approvals: list[dict[str, str]] = field(default_factory=list)
+    #: Node ids verified live in this engagement (node_id -> {verified_at, phase,
+    #: intent}) — enables `--resume` to skip already-verified steps.
+    completed_nodes: dict[str, dict[str, str]] = field(default_factory=dict)
+    #: Every live execution attempt (node_id -> {at, verified}). Unverified
+    #: attempts on non-idempotent nodes refuse automatic re-runs under --resume.
+    attempted_nodes: dict[str, dict[str, Any]] = field(default_factory=dict)
     #: Process-local approvals (autonomous/ungated profiles). NEVER persisted:
     #: a later run in a gated profile must not inherit phantom approvals.
     _auto_approved: set[str] = field(default_factory=set, repr=False, compare=False)
@@ -86,6 +96,13 @@ class EngagementState:
         if persist:
             if value not in self.approved_gates:
                 self.approved_gates.append(value)
+            self.approvals.append(
+                {
+                    "gate": value,
+                    "note": note or "",
+                    "ts": datetime.now(timezone.utc).isoformat(),
+                }
+            )
         else:
             self._auto_approved.add(value)
         if self.pending_gate == value:
@@ -110,6 +127,17 @@ class EngagementState:
             pending_gate=data.get("pending_gate"),
             last_phase=data.get("last_phase"),
             notes=data.get("notes"),
+            approvals=[dict(item) for item in (data.get("approvals") or []) if isinstance(item, dict)],
+            completed_nodes={
+                str(node_id): dict(entry)
+                for node_id, entry in (data.get("completed_nodes") or {}).items()
+                if isinstance(entry, dict)
+            },
+            attempted_nodes={
+                str(node_id): dict(entry)
+                for node_id, entry in (data.get("attempted_nodes") or {}).items()
+                if isinstance(entry, dict)
+            },
         )
 
 

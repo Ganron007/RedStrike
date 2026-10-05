@@ -2,7 +2,7 @@
 
 RedStrike is a modular, policy-gated Active Directory, ADCS, and Hybrid Identity assessment framework. It provides two complementary execution models with native **[C2Stack](https://github.com/Ganron007/C2Stack)** in-memory post-exploitation support:
 
-1. **Deterministic DAG Graph Engine** — Executes structured, repeatable YAML attack graphs with dependency resolution, conditional branching, fail-closed verification, and dual-mode dispatch (Direct vs C2-Enabled).
+1. **Deterministic DAG Graph Engine** — Executes structured, repeatable YAML attack graphs with `depends_on` dependency gates (topological ordering, cycle validation), `when` conditions (`verified`/`unverified`/`cred`), fail-closed verification, and dual-mode dispatch (Direct vs C2-Enabled).
 2. **Autonomous LLM Agent Interface (FastMCP / REST API)** — Connects AI models (Claude, GPT-4o, Cursor, Cline) to explore and chain Active Directory attack paths dynamically via typed tool intents, BloodHound graph queries, and live C2 session orchestration (`c2_execute_assembly`, `c2_shell`, `c2_psexec`).
 
 ---
@@ -83,8 +83,9 @@ RedStrike eliminates shell injection vulnerabilities by constructing argument ve
 | `SqlBuilder` | MSSQL Database Instances | Linked database queries, `xp_cmdshell` execution |
 | `WinRSBuilder` | Windows Remote Management | WinRM / WinRS command execution |
 | `C2Adapters` | C2 Implants (Sliver, Meridian, Mythic, Havoc, Adaptix) | In-memory .NET `execute_assembly` (`Rubeus`, `SharpHound`), shell commands, PsExec lateral movement, covert DNS TXT tunneling |
+| `EntraBuilder` | Entra ID / Hybrid Identity | `az rest` Graph queries, AzureHound/Roadrecon collection, Seamless-SSO ticket forging (`cloud_takeover` gate), PRT workflows, ADFS spray shim |
 
-**Secret Redaction Invariant:** All builders automatically mask plaintext passwords, NT hashes, and Kerberos keys in logging, telemetry streams, and generated report artifacts.
+**Secret Redaction Invariant:** Builders mask plaintext passwords, NT hashes, and Kerberos keys in argv (logging + the activity journal); derived outputs (API/MCP responses, `--json` summaries, reports) are scrubbed of captured credential material (`REDSTRIKE_RAW_OUTPUT=1` opts out locally), and reports mask secrets unless `--include-secrets` is passed.
 
 ---
 
@@ -109,7 +110,7 @@ RedStrike seamlessly dispatches commands across heterogeneous infrastructure:
 ### Verification Pipeline
 1. **Return Code Inspection:** Process exit code must be `0` (or expected return code).
 2. **Pattern Verification:** Analyzes process output against known tool failure strings (`KDC_ERR_C_PRINCIPAL_UNKNOWN`, `Access Denied`, `STATUS_LOGON_FAILURE`).
-3. **Cryptographic Success Markers:** Steps can declare deterministic success markers (`RECON_01_USERS_OK`) written to stdout upon confirmed execution.
+3. **Deterministic Success Markers:** Steps declare success markers (`RECON_01_USERS_OK`) written to stdout on confirmed execution; verification also fails on known error patterns (regex-based, with per-node `expected_errors` waivers).
 
 ### Teardown Queue
 Tracks all post-exploitation state modifications:
@@ -118,7 +119,7 @@ Tracks all post-exploitation state modifications:
 - Modified Active Directory DACLs and template permissions.
 - Staged persistence artifacts.
 
-The orchestrator executes teardown tasks in reverse chronological order at engagement conclusion.
+Verified nodes that declare `teardown:` register their cleanup command with the queue (persisted to `teardown.json`); `redstrike campaign teardown --execute` runs pending actions in reverse registration order (operator-gated — listing is the default).
 
 ---
 

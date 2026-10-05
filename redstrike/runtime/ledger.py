@@ -1,10 +1,15 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
+
+from redstrike.runtime import crypto
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -16,6 +21,14 @@ class Credential:
     domain: str | None = None
     source: str = "seed"
     notes: str | None = None
+    #: password | nt_hash | ticket | cert | token | federated (Phase 9: tokens)
+    cred_type: str | None = None
+    #: Token/PFX material that is neither a password nor an NT hash.
+    token: str | None = None
+    expires_at: str | None = None
+
+    def has_material(self) -> bool:
+        return bool(self.password or self.nt_hash or self.token)
 
 
 class MissingCredentialError(LookupError):
@@ -23,7 +36,14 @@ class MissingCredentialError(LookupError):
 
 
 class CredentialLedger:
-    """Per-engagement credential store under ~/.redstrike/engagements/<id>/creds.json."""
+    """Per-engagement credential store under ~/.redstrike/engagements/<id>/creds.json.
+
+    The file carries an HMAC-SHA256 seal over its contents (see
+    ``redstrike/runtime/crypto.py``): tampering is detected and fails closed
+    unless ``REDSTRIKE_LEDGER_UNVERIFIED=1`` is set for recovery. With the
+    optional ``cryptography`` package and ``REDSTRIKE_LEDGER_ENCRYPT=1`` the
+    ledger is additionally encrypted at rest (AES-256-GCM).
+    """
 
     def __init__(
         self,
@@ -46,12 +66,65 @@ class CredentialLedger:
         self.dir = Path(base) / engagement_id
         self.path = self.dir / "creds.json"
         self._creds: dict[str, Credential] = {}
+        self._key: bytes | None = None
         if self.path.is_file():
             self._load()
 
+    def _key_bytes(self, *, create: bool) -> bytes:
+        if self._key is None or create:
+            self._key = crypto.load_key(self.dir, create=create)
+        return self._key
+
     def _load(self) -> None:
         raw = json.loads(self.path.read_text(encoding="utf-8"))
-        items = raw.get("credentials", raw) if isinstance(raw, dict) else raw
+        if not isinstance(raw, dict):
+            raise crypto.IntegrityError(
+                f"ledger {self.path} is not a sealed JSON object (legacy or corrupt)"
+            )
+
+        integrity = raw.get("integrity")
+        if "encrypted" in raw:
+            # The seal covers the CIPHERTEXT envelope; verify before decrypting.
+            if integrity:
+                try:
+                    key = self._key_bytes(create=False)
+                    if not crypto.verify(raw["encrypted"], integrity, key=key):
+                        raise crypto.IntegrityError(
+                            f"ledger {self.path} failed HMAC verification (tampered or wrong key)"
+                        )
+                except crypto.IntegrityError:
+                    if not crypto.unverified_allowed():
+                        raise
+                    logger.warning(
+                        "ledger %s failed integrity verification; loading UNVERIFIED (operator override)",
+                        self.path,
+                    )
+            plaintext = crypto.decrypt_text(raw["encrypted"], key=self._key_bytes(create=False))
+            raw = json.loads(plaintext) if plaintext else {}
+            integrity = None  # consumed with the envelope
+
+        items = raw.get("credentials", raw) if isinstance(raw, dict) else {}
+
+        if integrity:
+            try:
+                key = self._key_bytes(create=False)
+                if not crypto.verify(items, integrity, key=key):
+                    raise crypto.IntegrityError(
+                        f"ledger {self.path} failed HMAC verification (tampered or wrong key)"
+                    )
+            except crypto.IntegrityError:
+                if not crypto.unverified_allowed():
+                    raise
+                logger.warning(
+                    "ledger %s failed integrity verification; loading UNVERIFIED (operator override)",
+                    self.path,
+                )
+        elif raw and not crypto.unverified_allowed() and "encrypted" not in raw:
+            logger.warning(
+                "ledger %s has no integrity seal (legacy file); it will be sealed on next save",
+                self.path,
+            )
+
         self._creds = {}
         if isinstance(items, dict):
             for name, payload in items.items():
@@ -63,12 +136,28 @@ class CredentialLedger:
 
     def save(self) -> None:
         self.dir.mkdir(parents=True, exist_ok=True)
-        payload = {
+        key = self._key_bytes(create=True)
+        credentials = {name: asdict(cred) for name, cred in sorted(self._creds.items())}
+        payload: dict[str, Any] = {
             "engagement_id": self.engagement_id,
-            "credentials": {name: asdict(cred) for name, cred in sorted(self._creds.items())},
+            "credentials": credentials,
         }
+        envelope: dict[str, Any] = {"engagement_id": self.engagement_id}
+        if crypto.encryption_requested():
+            encrypted = crypto.encrypt_text(json.dumps(payload), key=key)
+            if encrypted is not None:
+                envelope["encrypted"] = encrypted
+                envelope["integrity"] = crypto.seal(encrypted, key=key)
+            else:
+                logger.warning(
+                    "REDSTRIKE_LEDGER_ENCRYPT is set but the 'cryptography' package is "
+                    "not installed; storing the ledger sealed but NOT encrypted"
+                )
+        if "encrypted" not in envelope:
+            envelope["credentials"] = credentials
+            envelope["integrity"] = crypto.seal(credentials, key=key)
         tmp = self.path.with_suffix(".tmp")
-        tmp.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+        tmp.write_text(json.dumps(envelope, indent=2) + "\n", encoding="utf-8")
         os.replace(tmp, self.path)
         try:
             os.chmod(self.path, 0o600)
@@ -100,6 +189,22 @@ class CredentialLedger:
         self._creds[cred.name] = cred
         self.save()
 
+    def setdefault(self, cred: Credential) -> Credential:
+        """Flow-preserving insert: never downgrade an entry that already has
+        material with a placeholder, but DO upgrade a placeholder when real
+        material arrives (e.g. a seed name later resolved by a parser).
+        """
+        existing = self._creds.get(cred.name)
+        if existing is None:
+            self._creds[cred.name] = cred
+            self.save()
+            return cred
+        if not existing.has_material() and cred.has_material():
+            self._creds[cred.name] = cred
+            self.save()
+            return cred
+        return existing
+
     def has(self, name: str) -> bool:
         return name in self._creds
 
@@ -128,4 +233,7 @@ def _from_payload(name: str, payload: dict[str, Any]) -> Credential:
         domain=payload.get("domain"),
         source=str(payload.get("source") or "seed"),
         notes=payload.get("notes"),
+        cred_type=payload.get("cred_type"),
+        token=payload.get("token"),
+        expires_at=payload.get("expires_at"),
     )

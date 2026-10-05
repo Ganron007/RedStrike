@@ -4,6 +4,7 @@ from redstrike.builders.adcs_modern import AdcsModernBuilder
 from redstrike.builders.bloodyad import BloodyADBuilder
 from redstrike.builders.certipy import CertipyBuilder
 from redstrike.builders.coerce import CoerceBuilder
+from redstrike.builders.entra import EntraBuilder
 from redstrike.builders.impacket import ImpacketBuilder
 from redstrike.builders.kerbrute import KerbruteBuilder
 from redstrike.builders.mimikatz import MimikatzBuilder
@@ -19,6 +20,7 @@ __all__ = [
     "BloodyADBuilder",
     "CertipyBuilder",
     "CoerceBuilder",
+    "EntraBuilder",
     "ImpacketBuilder",
     "KerbruteBuilder",
     "MimikatzBuilder",

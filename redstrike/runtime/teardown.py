@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import json
 import logging
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -81,3 +84,55 @@ class TeardownQueue:
 
     def clear(self) -> None:
         self._actions.clear()
+
+
+def save_queue(path: Path, queue: TeardownQueue) -> None:
+    """Persist registered cleanup actions next to the engagement state.
+
+    Only the serializable fields are stored (name/target/command/description/
+    executed/success) — ``cleanup_func`` callables live in memory for a single
+    process; the command vector is what `redstrike teardown --execute` runs.
+    """
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "actions": [
+            {
+                "name": action.name,
+                "target": action.target,
+                "command": list(action.command),
+                "description": action.description,
+                "executed": action.executed,
+                "success": action.success,
+            }
+            for action in queue.all_actions
+        ]
+    }
+    tmp = path.with_suffix(".tmp")
+    tmp.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+    tmp.replace(path)
+
+
+def load_queue(path: Path) -> TeardownQueue:
+    path = Path(path)
+    queue = TeardownQueue()
+    if not path.is_file():
+        return queue
+    try:
+        payload: dict[str, Any] = json.loads(path.read_text(encoding="utf-8"))
+    except (ValueError, OSError) as exc:
+        logger.warning("teardown queue %s unreadable (%s); starting empty", path, exc)
+        return queue
+    for item in payload.get("actions") or []:
+        if not isinstance(item, dict) or not item.get("name"):
+            continue
+        action = TeardownAction(
+            name=str(item["name"]),
+            target=str(item.get("target") or ""),
+            command=[str(part) for part in (item.get("command") or [])],
+            description=str(item.get("description") or ""),
+        )
+        action.executed = bool(item.get("executed") or False)
+        action.success = item.get("success")
+        queue._actions.append(action)
+    return queue

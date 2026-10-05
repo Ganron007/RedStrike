@@ -72,6 +72,7 @@ class StepPlan:
     produces_beachhead: str | None = None
     operator: OperatorMode = OperatorMode.PROVISIONING
     call_spec: CallSpec | None = None
+    timeout_seconds: int | None = None
 
 
 class BeachheadRouter:
@@ -142,6 +143,7 @@ class BeachheadRouter:
         argv_override: list[str] | None = None,
         pivot_to: str | None = None,
         produces_beachhead: str | None = None,
+        timeout_seconds: int | None = None,
     ) -> StepPlan:
         path = self.effective_path(declared_path=declared_path, beachhead=beachhead)
         native = self.operator is OperatorMode.WS01
@@ -203,4 +205,5 @@ class BeachheadRouter:
             pivot_to=pivot_to,
             produces_beachhead=produces_beachhead,
             operator=self.operator,
+            timeout_seconds=timeout_seconds,
         )

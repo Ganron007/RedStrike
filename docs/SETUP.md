@@ -312,6 +312,20 @@ Notes:
 - Havoc in-memory .NET execution (`dotnet`) requires the assembly staged inside the portal container first: `docker cp <assembly> c2stack-portal-1:/tmp/`.
 - Mythic task output is read from Mythic's `response` table via the `c2stack-mythic_postgres-1` container; `psexec`-style movement on Apollo is intentionally rejected (use `shell` + `sc.exe` or `wmiexecute`).
 
+### 3. (Optional) Entra ID / hybrid tooling
+
+`redstrike check --version-gated` covers the Phase 9 hybrid category. Install what your engagement needs:
+
+- **Azure CLI** — `az rest`/`az login` (any current 2.x; verified against 2.82.0).
+- **AzureHound v2** (SpectreOps BloodHound CE) — `azurehound list -u <user> -p <pass> -t <tenant> -o out.json` (flags after `list`, per the upstream README); for CLI-auth, acquire a token with `az account get-access-token --resource https://graph.microsoft.com` and pass `--jwt` (there is no `--az-cli-auth` flag).
+- **ROADtools** — `pip install roadtools`; `roadrecon auth` (password, `--device-code -c <client-id>` per the CARTP lab, `--access-token`, or `--prt`) writes `.roadtools_auth`; `roadrecon gather` builds `roadrecon.db`. The **roadtx** hybrid flows (cloud-Kerberos-trust chain per the HackTricks/dirkjanm research) are driven by `entra.roadtx_gettokens` (`-r aadgraph`) and `entra.roadtx_prt` (`--key-pem`/`--cert-pem`), with the research's standalone scripts (`modifyuser.py`, `partialtofulltgt.py`) via the `entra.hybrid_script` raw shim.
+- **Monkey365 / GraphRunner** — course tools (CARTP LO7 / CARTE device-code phishing): `entra.monkey365` and `entra.graphrunner` wrap the lab-documented invocations; MFASweep.ps1 is manifest-tracked.
+- **Token caches** — `entra.token_artifacts` locates Azure/MSAL token caches (filenames per HackTricks' Azure post-exploitation notes) under an operator-supplied root; harvested JWTs land in the ledger as `cred_type: token`.
+- **AADInternals** — `Install-Module AADInternals` (PowerShell); probed via `Get-Module -ListAvailable` (verified against 0.9.7).
+- **ADFS spray** — no canonical tool (forge your own choice); drive it with the raw-args shim `entra.adfs_spray`.
+
+Cloud runs fail closed until `scope.yaml` lists `allowed_tenants` (and/or `allowed_cloud_domains`); the cloud-takeover step (`entra.kerberos_ticket`) is additionally gated by the `cloud_takeover` HITL gate.
+
 ### 3. Build, stage, and inspect the stack (`redstrike c2`)
 
 RedStrike drives the whole C2Stack lifecycle through its Flight Control API — implant builds, file staging, fleet view, and redirector checks:
@@ -331,7 +345,61 @@ redstrike c2 task --backend havoc --session <id> --command "whoami"
 
 ---
 
-## Practice on a lab you own
+## Tool provisioning — where tools live and how they get there
+
+RedStrike carries **adapters + pins + recipes**, not vendored binaries. Three execution domains, three provisioning tiers:
+
+| Domain | What runs there | Provisioning |
+|---|---|---|
+| **Linux operator host** | nxc, certipy, bloodyAD, impacket, kerbrute, az, azurehound, roadtools/roadtx | `redstrike check` shows the manifest `install` recipe per tool (pip/apt/go). Optional: point execution at a **container** (e.g. C2Stack's Kali workstation) with `REDSTRIKE_LINUX_CONTAINER=c2stack-kali` — every Linux tool then runs via `docker exec -i c2stack-kali …`, `redstrike check` probes versions *inside* the container, and `ssh`/`scp`/`bash` are never wrapped. |
+| **Windows beachhead (ws01)** | Rubeus.exe, SharpSCCM.exe, mimikatz.exe, SharpHound.exe, AADInternals/GraphRunner/MFASweep PS modules | (1) install manually; (2) **tools-dir autodiscovery** — set `REDSTRIKE_WS01_TOOLS_DIR=C:\Tools` and bare `.exe` names in intents resolve to that directory at run time (multi-dir: `C:\Tools;D:\RedTeam`, first entry wins); `redstrike check` SSH-probes presence there when `REDSTRIKE_WS01_HOST` is set; (3) **`redstrike stage`** — `--plan` shows the tooling plan; `--download` fetches the **sha256-pinned** upstream artifact (SharpHound 2.17.0, mimikatz 2.2.0, SharpSCCM 2.0.14), verifies, extracts from the zip, and scp's it into the tools dir; `--file` stages operator-supplied binaries and **records** their hash (Rubeus has no upstream binary release — compile or verify a mirror). |
+| **C2 sessions** | assemblies/BOFs/beacons | `redstrike c2 stage` + the C2 build endpoints (Phase 8) |
+
+Pin semantics, stated plainly: a `sha256` in the manifest covers the **downloaded artifact**; archive-shipped tools (mimikatz, SharpHound) are verified at download time, and a `--file` input is the extracted binary whose hash is recorded (never silently claimed as "verified"). Downloads happen on the operator host (lab VMs often lack egress) and are pushed over SSH.
+
+```bash
+redstrike check                                  # recipes + presence (container/ws01/ssh aware)
+redstrike install --plan                         # Linux host: what runs vs what is manual
+redstrike install --apply [--only certipy,impacket]   # runs the pip/go recipes on the Linux target
+redstrike stage --plan                           # what goes to the beachhead and from where
+redstrike stage --tool sharphound --download     # fetch → sha256 verify → extract → scp
+redstrike stage --tool rubeus --file ./Rubeus.exe
+```
+
+**Linux host provisioning** (`redstrike install`) executes the manifest recipes on whichever Linux target the transport selects — local, `docker exec` container, or the `REDSTRIKE_LINUX_SSH` remote host — using the same CommandRunner dispatch as tool execution (so ssh wrapping/redaction are identical). Prose recipes (Azure CLI installer notes, PowerShell modules, operator-supplied scripts) are listed as *manual* and never guessed at.
+
+### Topology matrix (engine host × tool target)
+
+RedStrike runs on Windows or Linux and reaches tools locally or remotely. `redstrike check --json` reports the active topology under `topology`:
+
+| Engine runs on | Linux tools | Windows tools | Configuration |
+|---|---|---|---|
+| **Kali (native)** | local PATH | ws01 over SSH (or C2 sessions) | `REDSTRIKE_WS01_*` |
+| **Kali + C2Stack Kali container** | `docker exec -i c2stack-kali …` | ws01 over SSH | `REDSTRIKE_LINUX_CONTAINER=c2stack-kali` |
+| **Windows → remote Kali** | ssh to the Kali VM/container | local dir (engine is on the Windows host) or remote ws01 | `REDSTRIKE_LINUX_SSH=user@kali` (+`REDSTRIKE_LINUX_SSH_KEY`, `:port`/`REDSTRIKE_LINUX_SSH_PORT`) and/or `REDSTRIKE_LOCAL_TOOLS_DIR=C:\Tools` |
+| **Windows (assumed-breach host, e.g. ws01 itself)** | ssh out to Kali if needed | local directory / PATH on that host | `REDSTRIKE_LOCAL_TOOLS_DIR` (or `--operator ws01` for campaign steps) |
+| **Linux provisioning VM (AD-network-adjacent)** | local — this box IS the tool host; `redstrike install --apply` provisions it | ws01 at the lab address (SSH user per lab config) | run RedStrike on the box, or point `REDSTRIKE_LINUX_SSH=user@prov.vm` at it from Windows; `--operator provisioning` for campaign scripts |
+
+Environment reference (all optional; exactly one of container/ssh for Linux):
+
+| Variable | Meaning |
+|---|---|
+| `REDSTRIKE_LOCAL_TOOLS_DIR` | `;`-separated local tool dirs; resolution fallback when a bare name is not on PATH (works on Windows and Linux) |
+| `REDSTRIKE_LINUX_CONTAINER` | run Linux tools via `docker exec -i <name>` (e.g. `c2stack-kali`) |
+| `REDSTRIKE_LINUX_SSH` | `user@host[:port]` — run Linux tools on a REMOTE host over SSH (ssh/scp/bash are never wrapped); mutually exclusive with the container |
+| `REDSTRIKE_LINUX_SSH_KEY` | SSH key for the remote Linux tool host |
+| `REDSTRIKE_WINDOWS_HOST` / `_USER` / `_SSH_KEY` | Windows beachhead transport + tool host (legacy `REDSTRIKE_WS01_*` names still honored) |
+| `REDSTRIKE_WINDOWS_TOOLS_DIR` | Windows tool directory (`;`-separated; first entry used); intents resolve bare `.exe` names there and `redstrike check` probes it over SSH (legacy alias `REDSTRIKE_WS01_TOOLS_DIR`) |
+| `REDSTRIKE_WINDOWS_KNOWN_HOSTS` | pin the beachhead host key (strict checking) instead of accept-new |
+| `REDSTRIKE_LINUX_TOOLS_DIR` | tool directory on the container/ssh Linux target (e.g. an isolated venv bin) — bare names resolve there instead of the host PATH |
+
+**Isolated toolchain (recommended for a dedicated attack box):** `redstrike install --apply --venv /opt/redstrike/venv` creates a venv on the target, installs the pip tools there (go/apt recipes stay system), and prints the `REDSTRIKE_LINUX_TOOLS_DIR=/opt/redstrike/venv/bin` to export — so RedStrike never depends on the host's system packages.
+
+**Running under WSL on Windows:** no special support needed — WSL *is* a Linux host for RedStrike, and Windows tools are reachable through interop by pointing the local tools dir at the mounted drive: `REDSTRIKE_LOCAL_TOOLS_DIR=/mnt/c/Tools`. Bare `.exe` names then resolve to Windows binaries and execute through WSL interop.
+
+Setting up the remote Kali side (once, on the Kali VM): `sudo apt install -y openssh-server && sudo systemctl enable --now ssh`, add your public key to `~/.ssh/authorized_keys`, then confirm: `ssh -i <key> user@kali 'command -v certipy || echo missing'`. `redstrike check` will probe each manifest tool over that SSH session and report versions.
+
+---
 
 Standalone RedStrike can target **any authorized lab** if **you** write the graph, seed,
 and scope. Do not copy lab password files into this git tree.
@@ -365,6 +433,15 @@ docker run --rm -it -p 8890:8890 redstrike api --host 0.0.0.0 --port 8890
 | Dry-run looks for scripts under cwd | Pass `--automation-root examples/automation` |
 | `--execute` pauses immediately | Approve the HITL gate named in `pending_gate` |
 | API `401` from another host | Send `X-API-Key` matching `--api-key`; prefer loopback |
+
+---
+
+## Practice on a lab you own
+
+RedStrike targets operator-owned lab environments: create your own scope policy, seed
+credentials, and run the graphs in `examples/` against hosts you are authorized to test.
+The C2Stack lab (Sliver/Meridian/Havoc/Adaptix/Mythic behind a redirector) is the reference
+practice range — see the C2Stack practice guide for its walkthroughs.
 
 ---
 

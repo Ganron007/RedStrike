@@ -105,6 +105,10 @@ PROFILE_ALIASES = {
 class ScopePolicy(BaseModel):
     allowed_targets: list[str] = Field(default_factory=list)
     allowed_domains: list[str] = Field(default_factory=list)
+    #: Entra ID tenants (GUID or *.onmicrosoft.com) authorized for cloud ops.
+    allowed_tenants: list[str] = Field(default_factory=list)
+    #: Cloud DNS domains (e.g. contoso.onmicrosoft.com, contoso.com when verified).
+    allowed_cloud_domains: list[str] = Field(default_factory=list)
     allowed_modes: list[EngagementMode] = Field(
         default_factory=lambda: [EngagementMode.OBSERVE, EngagementMode.ASSESS]
     )
@@ -155,6 +159,48 @@ class ScopePolicy(BaseModel):
             domain, self.allowed_domains
         ):
             raise PermissionError(f"Domain '{domain}' is outside allowed scope")
+
+    def assert_target_in_scope(self, target: str, domain: str | None = None) -> None:
+        """Target-scope enforcement for the campaign path.
+
+        Mode/high-risk adjudication on the campaign path belongs to HITL gates,
+        so this checks ONLY the scope lists (and scope-readiness for profiles
+        that require a scope file).
+        """
+        if self.require_scope:
+            self.require_scope_ready()
+        if (self.allowed_targets or self.require_scope) and not _target_in_scope(
+            target, self.allowed_targets, self.allowed_domains
+        ):
+            raise PermissionError(f"Target '{target}' is outside allowed scope")
+        if domain and (self.allowed_domains or self.require_scope) and not _domain_in_scope(
+            domain, self.allowed_domains
+        ):
+            raise PermissionError(f"Domain '{domain}' is outside allowed scope")
+
+    def cloud_scope_configured(self) -> bool:
+        return bool(self.allowed_tenants or self.allowed_cloud_domains)
+
+    def assert_cloud_scope(self, tenant: str) -> None:
+        """Entra ID tenant scope check (GUID or '*.<domain>' string).
+
+        A tenant matches an allowed entry by exact (case-insensitive) string or
+        by cloud-domain suffix (``contoso.onmicrosoft.com`` allows
+        ``tenant.onmicrosoft.com`` only if listed; the domain forms are matched
+        with the same suffix rule as AD domains).
+        """
+        if self.require_scope:
+            self.require_scope_ready()
+        needle = tenant.strip().lower().rstrip(".")
+        for entry in self.allowed_tenants:
+            if needle == entry.strip().lower().rstrip("."):
+                return
+        if self.allowed_cloud_domains and _domain_in_scope(tenant, self.allowed_cloud_domains):
+            return
+        raise PermissionError(
+            f"Tenant '{tenant}' is outside allowed scope "
+            f"(allowed_tenants={self.allowed_tenants or '[]'})"
+        )
 
 
 def apply_ungated_overrides(policy: ScopePolicy) -> ScopePolicy:

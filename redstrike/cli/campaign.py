@@ -6,11 +6,17 @@ import os
 import sys
 from pathlib import Path
 
+from redstrike.core.policy import POLICY_PROFILES, PROFILE_ALIASES
 from redstrike.runtime.beachhead import Beachhead, OperatorMode, detect_default_operator
 from redstrike.runtime.graph import KNOWN_BRANCHES, STREAM_SPECS
 from redstrike.runtime.hitl import KNOWN_GATES, hitl_required
 from redstrike.runtime.session import CampaignSession, default_automation_root, default_seed_path
 from redstrike.runtime.streams import resolve_stream
+
+
+def profile_choices() -> list[str]:
+    """Every profile the policy layer actually understands (aliases included)."""
+    return sorted(set(POLICY_PROFILES) | set(PROFILE_ALIASES))
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -39,7 +45,7 @@ def build_parser() -> argparse.ArgumentParser:
         p.add_argument(
             "--profile",
             default=None,
-            choices=["gated", "autonomous", "standalone", "campaign", "lab-readonly", "lab-ungated"],
+            choices=profile_choices(),
             help="Execution profile: gated (HITL approval, default) or autonomous (unrestricted under scope)",
         )
         p.add_argument(
@@ -119,12 +125,38 @@ def build_parser() -> argparse.ArgumentParser:
     approve.add_argument("--gate", required=True, choices=sorted(KNOWN_GATES))
     approve.add_argument("--note", default=None)
 
+    teardown = sub.add_parser(
+        "teardown",
+        help="List (or execute) cleanup actions registered by verified nodes",
+    )
+    add_common(teardown)
+    teardown.add_argument(
+        "--execute",
+        action="store_true",
+        help="Run pending teardown commands (operator-gated; default is list-only)",
+    )
+
     run = sub.add_parser("run", help="Plan or execute campaign phases / branches")
     add_common(run, beachhead_required=True)
     run.add_argument("--phase", default="1-3", help="e.g. 1-3 or 0.5-8 (ignored when --nodes is set)")
     run.add_argument("--execute", action="store_true")
     run.add_argument("--no-stop-on-hitl", action="store_true")
     run.add_argument("--no-preflight", action="store_true")
+    run.add_argument(
+        "--resume",
+        action="store_true",
+        help="Skip nodes already verified live in this engagement (see state.completed_nodes)",
+    )
+    run.add_argument(
+        "--stop-on-failure",
+        action="store_true",
+        help="Stop the run at the first live step that does not verify (remaining nodes reported as skipped)",
+    )
+    run.add_argument(
+        "--rerun",
+        action="store_true",
+        help="Force re-execution of the selected nodes (clears their completed/attempted records)",
+    )
     run.add_argument(
         "--prefer-script",
         action="store_true",
@@ -176,7 +208,109 @@ def _session_from_args(args: argparse.Namespace) -> CampaignSession:
         c2_backend=getattr(args, "c2_backend", "sliver"),
         c2_session_id=getattr(args, "c2_session", None),
         c2_endpoint=getattr(args, "c2_endpoint", None),
+        scope_path=getattr(args, "scope", None),
+        resume=bool(getattr(args, "resume", False)),
+        stop_on_failure=bool(getattr(args, "stop_on_failure", False)),
     )
+
+
+def _run_teardown(args: argparse.Namespace) -> int:
+    """List or execute cleanup actions registered by verified nodes."""
+    from redstrike.core.runner import CommandRunner, redact_argv
+    from redstrike.runtime.hitl import EngagementStore
+    from redstrike.runtime.teardown import load_queue, save_queue
+
+    store = EngagementStore(args.engage, root=Path(args.ledger_root) if getattr(args, "ledger_root", None) else None)
+    queue_path = store.dir / "teardown.json"
+    queue = load_queue(queue_path)
+    actions = queue.all_actions
+
+    if not args.execute:
+        _print(
+            {
+                "engagement_id": args.engage,
+                "queue": str(queue_path),
+                "pending": [
+                    {
+                        "name": a.name,
+                        "target": a.target,
+                        "description": a.description,
+                        "command": redact_argv(a.command),
+                        "executed": a.executed,
+                    }
+                    for a in queue.pending
+                ],
+                "executed": [
+                    {"name": a.name, "success": a.success}
+                    for a in actions
+                    if a.executed
+                ],
+            },
+            as_json=args.json,
+        )
+        return 0
+
+    runner = CommandRunner()
+    summary: list[dict[str, object]] = []
+    failed = 0
+    for action in reversed(queue.pending):
+        if not action.command:
+            action.executed = True
+            action.success = False
+            summary.append(
+                {
+                    "name": action.name,
+                    "target": action.target,
+                    "description": action.description,
+                    "error": "no teardown command declared (description-only action)",
+                }
+            )
+            failed += 1
+            continue
+        try:
+            result = runner.run(list(action.command))
+        except (FileNotFoundError, ValueError) as exc:
+            action.executed = True
+            action.success = False
+            failed += 1
+            summary.append(
+                {
+                    "name": action.name,
+                    "target": action.target,
+                    "description": action.description,
+                    "command": redact_argv(list(action.command)),
+                    "error": str(exc),
+                    "success": False,
+                }
+            )
+            continue
+        action.executed = True
+        action.success = bool(result.success)
+        if not result.success:
+            failed += 1
+        summary.append(
+            {
+                "name": action.name,
+                "target": action.target,
+                "description": action.description,
+                "command": redact_argv(list(action.command)),
+                "return_code": result.return_code,
+                "stdout": result.stdout[-2000:],
+                "stderr": result.stderr[-2000:],
+                "success": action.success,
+            }
+        )
+    save_queue(queue_path, queue)
+    _print(
+        {
+            "engagement_id": args.engage,
+            "executed": summary,
+            "succeeded": len(summary) - failed,
+            "failed": failed,
+        },
+        as_json=args.json,
+    )
+    return 1 if failed else 0
 
 
 def _execute_unverified(data: dict) -> bool:
@@ -295,6 +429,9 @@ def main(argv: list[str] | None = None) -> int:
         _print(session.approve(args.gate, note=args.note), as_json=args.json)
         return 0
 
+    if args.command == "teardown":
+        return _run_teardown(args)
+
     if args.command == "status":
         _print(session.status(), as_json=True)
         return 0
@@ -307,6 +444,9 @@ def main(argv: list[str] | None = None) -> int:
                 stop_on_hitl=not args.no_stop_on_hitl,
                 profile=args.profile,
                 include_preflight=not args.no_preflight,
+                resume=bool(getattr(args, "resume", False)) or None,
+                stop_on_failure=bool(getattr(args, "stop_on_failure", False)) or None,
+                rerun=bool(getattr(args, "rerun", False)),
             )
         except ValueError as exc:
             print(str(exc), file=sys.stderr)

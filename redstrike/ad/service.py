@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import threading
 import time
 from collections import defaultdict
@@ -13,6 +14,9 @@ from redstrike.core.errors import GuardrailViolationError
 from redstrike.core.models import ADRequest, EvidenceRecord, Finding, OperationResponse, RiskLevel
 from redstrike.core.policy import ScopePolicy
 from redstrike.core.runner import CommandRunner
+from redstrike.runtime.evidence_store import EvidenceStore
+
+logger = logging.getLogger(__name__)
 
 
 class ActiveDirectoryAssessmentService:
@@ -31,6 +35,28 @@ class ActiveDirectoryAssessmentService:
         self._active_by_domain: dict[str, int] = defaultdict(int)
         self._last_finish_by_target: dict[str, float] = {}
         self._last_finish_by_domain: dict[str, float] = {}
+        self._evidence_stores: dict[str, EvidenceStore] = {}
+
+    def _evidence_store(self, engagement_id: str) -> EvidenceStore:
+        store = self._evidence_stores.get(engagement_id)
+        if store is None:
+            store = EvidenceStore(engagement_id)
+            self._evidence_stores[engagement_id] = store
+        return store
+
+    def _persist(self, request: ADRequest, response: OperationResponse) -> None:
+        """Persist evidence/findings when the request names an engagement.
+
+        Best-effort: a broken engagement directory must never fail a request.
+        """
+        if not request.engagement_id:
+            return
+        try:
+            self._evidence_store(request.engagement_id).record(
+                evidence=response.evidence, findings=response.findings
+            )
+        except Exception as exc:  # noqa: BLE001 - persistence must not break assessment
+            logger.warning("evidence persistence failed for %s: %s", request.engagement_id, exc)
 
     def domain_users(self, request: ADRequest) -> OperationResponse:
         return self._run("domain_users", "T1087.002", request, self.builder.users)
@@ -58,6 +84,7 @@ class ActiveDirectoryAssessmentService:
                     ],
                 )
             )
+        self._persist(request, response)
         return response
 
     def shares(self, request: ADRequest) -> OperationResponse:
@@ -123,7 +150,11 @@ class ActiveDirectoryAssessmentService:
                 source_system=request.source_system,
                 evidence_tags=request.evidence_tags,
             )
-            return OperationResponse(success=result.success, result=result, evidence=evidence, run_id=request.run_id)
+            response = OperationResponse(
+                success=result.success, result=result, evidence=evidence, run_id=request.run_id
+            )
+            self._persist(request, response)
+            return response
         finally:
             self._release_guardrails(request.target, domain_key)
 

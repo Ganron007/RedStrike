@@ -611,7 +611,10 @@ def create_mcp(api_url: str):
         cypher_query: str,
         limit: int = 50,
     ) -> dict[str, Any]:
-        """Execute a BloodHound OpenCypher graph query to find attack paths to High Value Targets."""
+        """UNAVAILABLE (returns 501): RedStrike ships no BloodHound/Neo4j connector.
+
+        Kept for API-shape compatibility; use sharphound collection intents and
+        the /ad/* routes instead, or query BloodHound's own Neo4j directly."""
         return _post(
             api_url,
             "/bloodhound/query",
@@ -622,12 +625,17 @@ def create_mcp(api_url: str):
     def recommend_next_steps(
         engagement_id: str,
         objective: str = "Domain Admins",
+        limit: int = 3,
     ) -> dict[str, Any]:
-        """Analyze current CredentialLedger and discovered entities to recommend top 3 ranked next-best-action intents."""
+        """Rank the engagement's next best actions from its real state.
+
+        Every entry is derived from the campaign graph, the credential ledger,
+        and `state.completed_nodes` (nodes already verified are excluded;
+        missing-credential nodes are flagged non-actionable)."""
         return _post(
             api_url,
             "/campaign/recommend",
-            {"engagement_id": engagement_id, "objective": objective},
+            {"engagement_id": engagement_id, "objective": objective, "limit": limit},
         )
 
     @mcp.tool()

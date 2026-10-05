@@ -7,12 +7,18 @@ from pydantic import BaseModel, Field
 from redstrike.core.models import EngagementMode
 from redstrike.core.policy import ScopePolicy
 from redstrike.core.runner import CommandRunner, redact_argv
-from redstrike.runtime.hitl import KNOWN_GATES
+from redstrike.core.secrets import scrub_output
+from redstrike.runtime.graph import (
+    collect_scope_targets,
+    load_campaign_graph,
+    resolve_graph_path,
+)
+from redstrike.runtime.hitl import KNOWN_GATES, EngagementStore
 from redstrike.runtime.intents import DEFAULT_REGISTRY
+from redstrike.runtime.ledger import CredentialLedger
 from redstrike.runtime.session import CampaignSession
 from redstrike.runtime.streams import resolve_stream
 
-_INTENT_TARGET_KEYS = ("host", "dc", "server", "kdc_host", "kdc", "ca", "target")
 _INTENT_DOMAIN_KEYS = ("domain",)
 
 
@@ -53,6 +59,9 @@ class CampaignRunRequest(BaseModel):
     profile: str | None = None
     prefer_script: bool = False
     nodes: str | None = None
+    resume: bool = False
+    stop_on_failure: bool = False
+    rerun: bool = False
     c2_enabled: bool = False
     c2_backend: str = "sliver"  # sliver | meridian | mythic | havoc | adaptix
     c2_session: str | None = None
@@ -121,25 +130,27 @@ class IntentExecuteRequest(BaseModel):
     mode: EngagementMode = EngagementMode.VALIDATE
 
 
-def scope_from_intent_args(args: dict[str, Any]) -> tuple[str, str | None]:
-    """Pick a host/DC from builder args so scope can be enforced (host before target)."""
-    target: str | None = None
-    for key in _INTENT_TARGET_KEYS:
-        value = args.get(key)
-        if value:
-            target = str(value)
-            break
+def scope_from_intent_args(args: dict[str, Any]) -> tuple[str, str | None, list[str]]:
+    """Every host/DC/target-like value in builder args so scope can be enforced.
+
+    Returns ``(primary_target, domain, all_targets)`` — ALL targets are
+    validated by callers (a single-key check missed secondary hosts such as
+    ``dc_ip``).
+    """
+    from redstrike.runtime.graph import targets_from_args
+
+    targets = targets_from_args(args)
+    if not targets:
+        raise PermissionError(
+            "intent args must include host/dc/server/target so scope can be enforced"
+        )
     domain: str | None = None
     for key in _INTENT_DOMAIN_KEYS:
         value = args.get(key)
         if value:
             domain = str(value)
             break
-    if not target:
-        raise PermissionError(
-            "intent args must include host/dc/server/target so scope can be enforced"
-        )
-    return target, domain
+    return targets[0], domain, targets
 
 
 def resolve_run_flags(
@@ -160,6 +171,8 @@ def _session(
     | CampaignApproveRequest
     | CampaignStatusRequest
     | CampaignStreamRequest,
+    *,
+    policy: ScopePolicy | None = None,
 ) -> CampaignSession:
     return CampaignSession(
         req.engagement_id,
@@ -177,6 +190,9 @@ def _session(
         c2_backend=getattr(req, "c2_backend", "sliver"),
         c2_session_id=getattr(req, "c2_session", None),
         c2_endpoint=getattr(req, "c2_endpoint", None),
+        scope_policy=policy,
+        resume=bool(getattr(req, "resume", False)),
+        stop_on_failure=bool(getattr(req, "stop_on_failure", False)),
     )
 
 
@@ -197,24 +213,26 @@ def intent_execute(
 ) -> dict[str, Any]:
     if not policy.ungated:
         raise PermissionError("intent execute requires --ungated (scope-gated lab mode)")
-    target, domain = scope_from_intent_args(req.args)
-    policy.assert_allowed(
-        action="intent_execute",
-        target=target,
-        domain=domain,
-        mode=req.mode,
-    )
+    target, domain, targets = scope_from_intent_args(req.args)
+    for candidate in targets:
+        policy.assert_allowed(
+            action="intent_execute",
+            target=candidate,
+            domain=domain,
+            mode=req.mode,
+        )
     argv = DEFAULT_REGISTRY.build(req.intent, req.args)
     result = (runner or CommandRunner()).run(argv)
     return {
         "intent": req.intent,
         "argv": redact_argv(argv),
         "return_code": result.return_code,
-        "stdout": result.stdout,
-        "stderr": result.stderr,
+        "stdout": scrub_output(result.stdout),
+        "stderr": scrub_output(result.stderr),
         "success": result.success,
         "timed_out": result.timed_out,
         "target": target,
+        "targets": targets,
         "domain": domain,
     }
 
@@ -229,17 +247,20 @@ def campaign_approve(req: CampaignApproveRequest) -> dict[str, Any]:
     return _session(req).approve(req.gate, note=req.note)
 
 
-def campaign_run_phase(req: CampaignRunRequest, *, ungated: bool = False) -> dict[str, Any]:
+def campaign_run_phase(
+    req: CampaignRunRequest, *, ungated: bool = False, policy: ScopePolicy | None = None
+) -> dict[str, Any]:
     dry_run, stop_on_hitl = resolve_run_flags(
         dry_run=req.dry_run,
         stop_on_hitl=req.stop_on_hitl,
         ungated=ungated,
     )
-    return _session(req).run_phase(
+    return _session(req, policy=policy).run_phase(
         req.phase,
         dry_run=dry_run,
         stop_on_hitl=stop_on_hitl,
         profile=req.profile,
+        rerun=bool(req.rerun),
     )
 
 
@@ -247,7 +268,61 @@ def campaign_status(req: CampaignStatusRequest) -> dict[str, Any]:
     return _session(req).status()
 
 
-def campaign_stream(req: CampaignStreamRequest, *, ungated: bool = False) -> dict[str, Any]:
+def campaign_recommend(req: Any) -> dict[str, Any]:
+    """Real next-best-action ranking from the engagement's own state.
+
+    Ranks the unexecuted, non-stub graph nodes: nodes whose required
+    credential is already in the ledger come first (actionable now); nodes
+    blocked on a missing credential follow. No invented probabilities — every
+    field is derived from the graph, the ledger, and `state.completed_nodes`.
+    """
+    graph_path = resolve_graph_path(explicit=getattr(req, "graph", None))
+    graph = load_campaign_graph(graph_path)
+    store = EngagementStore(req.engagement_id)
+    state = store.load()
+    if state is None:
+        raise FileNotFoundError(f"engagement '{req.engagement_id}' not found at {store.dir}")
+    ledger = CredentialLedger(req.engagement_id)
+
+    completed = state.completed_nodes
+    recommendations: list[dict[str, Any]] = []
+    for node in graph.nodes:
+        if node.stub or node.id in completed:
+            continue
+        blocked_by = None
+        if node.requires_cred and not ledger.has(node.requires_cred):
+            blocked_by = f"requires credential '{node.requires_cred}' (not yet in ledger)"
+        recommendations.append(
+            {
+                "node_id": node.id,
+                "phase": node.phase,
+                "title": node.title,
+                "intent": node.intent,
+                "hitl_gate": node.hitl_gate,
+                "targets": collect_scope_targets(node),
+                "actionable": blocked_by is None,
+                "blocked_by": blocked_by,
+            }
+        )
+    recommendations.sort(key=lambda item: (not item["actionable"], item["phase"], item["node_id"]))
+    limit = max(1, int(getattr(req, "limit", 3) or 3))
+    return {
+        "engagement_id": req.engagement_id,
+        "objective": req.objective,
+        "graph": str(graph_path),
+        "graph_name": graph.name,
+        "status": state.status,
+        "pending_gate": state.pending_gate,
+        "completed_nodes": sorted(completed),
+        "ledger_creds": ledger.names(),
+        "actionable_count": sum(1 for item in recommendations if item["actionable"]),
+        "recommendations": recommendations[:limit],
+    }
+
+
+def campaign_stream(
+    req: CampaignStreamRequest, *, ungated: bool = False, policy: ScopePolicy | None = None
+) -> dict[str, Any]:
     spec = resolve_stream(req.stream)
     session = CampaignSession(
         req.engagement_id,
@@ -258,6 +333,7 @@ def campaign_stream(req: CampaignStreamRequest, *, ungated: bool = False) -> dic
         seed_path=req.seed,
         branches=spec["branch"],
         profile=req.profile,
+        scope_policy=policy,
     )
     dry_run, _ = resolve_run_flags(dry_run=req.dry_run, stop_on_hitl=None, ungated=ungated)
     data = session.run_phase(
@@ -288,8 +364,8 @@ def c2_execute_assembly(req: C2ExecuteAssemblyRequest) -> dict[str, Any]:
     return {
         "ok": res.success,
         "return_code": res.return_code,
-        "stdout": res.stdout,
-        "stderr": res.stderr,
+        "stdout": scrub_output(res.stdout),
+        "stderr": scrub_output(res.stderr),
         "duration_seconds": res.duration_seconds,
     }
 
@@ -301,8 +377,8 @@ def c2_shell(req: C2ShellRequest) -> dict[str, Any]:
     return {
         "ok": res.success,
         "return_code": res.return_code,
-        "stdout": res.stdout,
-        "stderr": res.stderr,
+        "stdout": scrub_output(res.stdout),
+        "stderr": scrub_output(res.stderr),
         "duration_seconds": res.duration_seconds,
     }
 
@@ -314,8 +390,8 @@ def c2_psexec(req: C2PsExecRequest) -> dict[str, Any]:
     return {
         "ok": res.success,
         "return_code": res.return_code,
-        "stdout": res.stdout,
-        "stderr": res.stderr,
+        "stdout": scrub_output(res.stdout),
+        "stderr": scrub_output(res.stderr),
         "duration_seconds": res.duration_seconds,
     }
 

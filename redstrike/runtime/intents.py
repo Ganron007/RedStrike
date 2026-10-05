@@ -10,6 +10,7 @@ from redstrike.builders import (
     BloodyADBuilder,
     CertipyBuilder,
     CoerceBuilder,
+    EntraBuilder,
     ImpacketBuilder,
     KerbruteBuilder,
     MimikatzBuilder,
@@ -48,6 +49,7 @@ class IntentRegistry:
         self._sharphound = SharpHoundBuilder()
         self._adcs_modern = AdcsModernBuilder()
         self._netexec = NetExecCommandBuilder()
+        self._entra = EntraBuilder()
 
         self._intents: dict[str, IntentFn] = {
             # ADCS (Certipy + Modern)
@@ -138,6 +140,31 @@ class IntentRegistry:
             "c2.havoc.list_sessions": self._c2_list_sessions_builder(C2Backend.HAVOC),
             "c2.adaptix.shell": self._c2_shell_builder(C2Backend.ADAPTIX),
             "c2.adaptix.list_sessions": self._c2_list_sessions_builder(C2Backend.ADAPTIX),
+            # Entra ID / Hybrid Identity (Phase 9.2). Cloud-takeover steps are
+            # HITL-gated at the graph level via `hitl_gate: cloud_takeover`.
+            "entra.az_login": self._entra.az_login_service_principal,
+            "entra.account_show": self._entra.az_account_show,
+            "entra.account_list": self._entra.az_account_list,
+            "entra.signed_in_user": self._entra.az_signed_in_user,
+            "entra.role_assignment_list": self._entra.az_role_assignment_list,
+            "entra.token_artifacts": self._entra.token_artifacts,
+            "entra.graph_query": self._entra.graph_query,
+            "entra.azurehound_collect": self._entra.azurehound_collect,
+            "entra.azurehound_collect_jwt": self._entra.azurehound_collect_jwt,
+            "entra.user_role_enum": self._entra.user_role_enum,
+            "entra.roadrecon_auth": self._entra.roadrecon_auth,
+            "entra.roadrecon_auth_device_code": self._entra.roadrecon_auth_device_code,
+            "entra.roadrecon_auth_token": self._entra.roadrecon_auth_token,
+            "entra.roadrecon_auth_prt": self._entra.roadrecon_auth_prt,
+            "entra.roadrecon_gather": self._entra.roadrecon_gather,
+            "entra.roadtx_gettokens": self._entra.roadtx_gettokens,
+            "entra.roadtx_prt": self._entra.roadtx_prt,
+            "entra.hybrid_script": self._entra.hybrid_script,
+            "entra.kerberos_ticket": self._entra.seamless_sso_ticket,
+            "entra.prt_token": self._entra.prt_token,
+            "entra.adfs_spray": self._entra.adfs_spray,
+            "entra.monkey365": self._entra.monkey365,
+            "entra.graphrunner": self._entra.graphrunner,
         }
 
     @staticmethod

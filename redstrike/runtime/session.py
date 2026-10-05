@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 from typing import Any
 
+from redstrike.core.policy import ScopePolicy
 from redstrike.runtime.beachhead import Beachhead, OperatorMode, detect_default_operator
 from redstrike.runtime.hitl import KNOWN_GATES, EngagementStore, hitl_required
 from redstrike.runtime.orchestrator import CampaignOrchestrator, StepResult
@@ -58,6 +59,10 @@ class CampaignSession:
         c2_backend: str = "sliver",
         c2_session_id: str | None = None,
         c2_endpoint: str | None = None,
+        scope_path: str | None = None,
+        scope_policy: ScopePolicy | None = None,
+        resume: bool = False,
+        stop_on_failure: bool = False,
     ) -> None:
         self.engagement_id = engagement_id
         self.operator = OperatorMode(operator) if operator else detect_default_operator()
@@ -72,6 +77,10 @@ class CampaignSession:
         self.c2_backend = c2_backend
         self.c2_session_id = c2_session_id
         self.c2_endpoint = c2_endpoint
+        self.scope_path = scope_path
+        self.scope_policy = scope_policy
+        self.resume = resume
+        self.stop_on_failure = stop_on_failure
         self.store = EngagementStore(engagement_id, root=ledger_root)
         self.state = self.store.get_or_create(
             beachhead=beachhead,
@@ -116,6 +125,10 @@ class CampaignSession:
             c2_backend=self.c2_backend,
             c2_session_id=self.c2_session_id,
             c2_endpoint=self.c2_endpoint,
+            scope_path=self.scope_path,
+            scope_policy=self.scope_policy,
+            resume=self.resume,
+            stop_on_failure=self.stop_on_failure,
         )
 
     def start(self) -> dict[str, Any]:
@@ -152,11 +165,21 @@ class CampaignSession:
         stop_on_hitl: bool = True,
         profile: str | None = None,
         include_preflight: bool = True,
+        resume: bool | None = None,
+        stop_on_failure: bool | None = None,
+        rerun: bool = False,
     ) -> dict[str, Any]:
         if not hitl_required():
             stop_on_hitl = False
         orch = self._orchestrator()
-        results = orch.run(phase, dry_run=dry_run, stop_on_hitl=stop_on_hitl)
+        results = orch.run(
+            phase,
+            dry_run=dry_run,
+            stop_on_hitl=stop_on_hitl,
+            resume=resume,
+            stop_on_failure=stop_on_failure,
+            rerun=rerun,
+        )
         self.state = orch.state
         summary = orch.summary(results)
         if include_preflight:

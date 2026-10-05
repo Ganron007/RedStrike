@@ -58,9 +58,12 @@ ALLOWED_JOB_ACTIONS = {
 class JobStore:
     # In-memory store. Single-process only (see B3): state is not shared across
     # uvicorn workers or reloads. `max_jobs` bounds memory by evicting the oldest
-    # finished jobs first.
-    def __init__(self, max_jobs: int = 1000) -> None:
+    # finished jobs first. Completed jobs stop deduplicating after
+    # `completed_ttl_seconds` (a repeated request re-runs instead of being
+    # handed a stale COMPLETED result forever).
+    def __init__(self, max_jobs: int = 1000, completed_ttl_seconds: float = 900.0) -> None:
         self._max_jobs = max(1, max_jobs)
+        self._completed_ttl = max(0.0, completed_ttl_seconds)
         self._lock = threading.Lock()
         self._jobs: dict[str, Job] = {}
         self._by_key: dict[str, str] = {}
@@ -111,7 +114,9 @@ class JobStore:
             existing_id = self._by_key.get(key)
             if existing_id and existing_id in self._jobs:
                 existing = self._jobs[existing_id]
-                if existing.status in (JobStatus.PENDING, JobStatus.RUNNING, JobStatus.COMPLETED):
+                if existing.status in (JobStatus.PENDING, JobStatus.RUNNING):
+                    return existing
+                if existing.status is JobStatus.COMPLETED and self._within_ttl(existing):
                     return existing
             job = Job(action=action, target=request.target, domain=request.domain, dedupe_key=key)
             self._jobs[job.id] = job
@@ -121,6 +126,13 @@ class JobStore:
         thread = threading.Thread(target=self._execute, args=(job, request, worker), daemon=True)
         thread.start()
         return job
+
+    def _within_ttl(self, job: Job) -> bool:
+        if self._completed_ttl <= 0:
+            return False
+        finished = job.finished_at or job.created_at
+        age = (_now() - finished).total_seconds()
+        return age <= self._completed_ttl
 
     def _execute(
         self, job: Job, request: ADRequest, worker: Callable[[ADRequest], OperationResponse]

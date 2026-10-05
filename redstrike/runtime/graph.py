@@ -40,6 +40,110 @@ class CampaignNode:
     success_marker: str | None = None  # regex; default {id with '-'→'_'}_OK
     fail_patterns: tuple[str, ...] = ()
     expected_errors: tuple[str, ...] = ()  # waived default fail patterns (e.g. T028)
+    targets: tuple[str, ...] = ()  # explicit scope targets checked before live runs
+    depends_on: tuple[str, ...] = ()  # node ids that must run (and verify) first
+    when: dict[str, Any] | None = None  # run conditions: verified/unverified/cred (see CONDITION_KEYS)
+    timeout_seconds: int | None = None  # per-node execution timeout override
+    teardown: dict[str, Any] | None = None  # {"description": str, "command": [argv]} — reversible action
+    idempotent: bool | None = None  # False: never auto-re-run after an unverified attempt
+    #: Structured verification for JSON-emitting tools (az/Graph): {"path": "tenantId",
+    #: "equals": "<value>"} — replaces the stdout marker when set.
+    success_json: dict[str, str] | None = None
+
+
+#: Supported `when:` condition keys (all values str or list[str]):
+#:   verified:    listed node ids must have verified earlier in this run
+#:   unverified:  listed node ids must NOT have verified (branch on failure)
+#:   cred:        listed credential names must exist in the ledger
+CONDITION_KEYS = ("verified", "unverified", "cred")
+
+#: Intent-arg keys whose values are scope targets (checked against the scope
+#: policy before live execution). "listener" is deliberately absent: coercion
+#: listeners are OUR host, not a target.
+TARGET_ARG_KEYS = (
+    "target",
+    "targets",
+    "host",
+    "hosts",
+    "dc",
+    "dc_ip",
+    "server",
+    "server_ip",
+    "kdc",
+    "kdc_host",
+    "ca",
+    "ca_host",
+    "computer",
+    "computers",
+)
+
+#: Intent-arg keys naming a CLOUD (Entra ID) target — validated against
+#: allowed_tenants / allowed_cloud_domains instead of the host lists.
+CLOUD_TARGET_ARG_KEYS = ("tenant", "tenant_id", "tenant_name", "cloud_domain")
+
+
+def _as_str_tuple(value: Any, *, field: str, index: int) -> tuple[str, ...]:
+    if value in (None, "", "null"):
+        return ()
+    if isinstance(value, str):
+        return (value,)
+    if isinstance(value, (list, tuple)):
+        items = tuple(str(item) for item in value if str(item).strip())
+        if len(items) != len(value):
+            raise ValueError(f"nodes[{index}].{field} entries must be non-empty strings")
+        return items
+    raise ValueError(f"nodes[{index}].{field} must be a string or list of strings")
+
+
+def targets_from_args(args: dict[str, Any]) -> list[str]:
+    """Every target-like value in an intent-args mapping (order preserved)."""
+    values: list[str] = []
+    for key in TARGET_ARG_KEYS:
+        raw = args.get(key)
+        if raw in (None, ""):
+            continue
+        if isinstance(raw, (list, tuple)):
+            values.extend(str(item) for item in raw if str(item).strip())
+        else:
+            values.append(str(raw))
+    seen: list[str] = []
+    for value in values:
+        text = value.strip()
+        if text and text not in seen:
+            seen.append(text)
+    return seen
+
+
+def collect_scope_targets(node: CampaignNode) -> list[str]:
+    """Every scope target a node declares: explicit `target(s)` plus all
+    target-like intent args (host/dc/kdc/ca/... — see TARGET_ARG_KEYS)."""
+    values: list[str] = [str(item) for item in node.targets]
+    seen: list[str] = []
+    for value in [*values, *targets_from_args(node.intent_args or {})]:
+        text = value.strip()
+        if text and text not in seen:
+            seen.append(text)
+    return seen
+
+
+def collect_cloud_targets(node: CampaignNode) -> list[str]:
+    """Cloud (Entra ID) targets a node declares: `tenant:`-style intent args or
+    an explicit `targets:` entry on a cloud-only node (see CLOUD_TARGET_ARG_KEYS)."""
+    values: list[str] = []
+    for key in CLOUD_TARGET_ARG_KEYS:
+        raw = (node.intent_args or {}).get(key)
+        if raw in (None, ""):
+            continue
+        if isinstance(raw, (list, tuple)):
+            values.extend(str(item) for item in raw if str(item).strip())
+        else:
+            values.append(str(raw))
+    seen: list[str] = []
+    for value in values:
+        text = value.strip()
+        if text and text not in seen:
+            seen.append(text)
+    return seen
 
 
 @dataclass(frozen=True)
@@ -67,11 +171,48 @@ def load_campaign_graph(path: Path | str) -> CampaignGraph:
             raise TypeError(f"nodes[{index}] must be a mapping")
         nodes.append(_parse_node(item, index))
 
+    _validate_dependency_graph(nodes)
+
     return CampaignGraph(
         version=int(data.get("version") or 1),
         name=str(data.get("name") or Path(path).stem),
         nodes=tuple(nodes),
     )
+
+
+def _validate_dependency_graph(nodes: list[CampaignNode]) -> None:
+    """Fail fast on unknown dependency refs or cycles (see `depends_on`)."""
+    by_id = {node.id: node for node in nodes}
+    for node in nodes:
+        for dep in node.depends_on:
+            if dep not in by_id:
+                raise ValueError(
+                    f"node '{node.id}'.depends_on references unknown node '{dep}'"
+                )
+        for key in ("verified", "unverified"):
+            for ref in (node.when or {}).get(key, []):
+                if ref not in by_id:
+                    raise ValueError(
+                        f"node '{node.id}'.when.{key} references unknown node '{ref}'"
+                    )
+
+    visiting: set[str] = set()
+    visited: set[str] = set()
+
+    def _visit(node_id: str, chain: tuple[str, ...]) -> None:
+        if node_id in visited:
+            return
+        if node_id in visiting:
+            cycle = " -> ".join((*chain, node_id))
+            raise ValueError(f"depends_on cycle detected: {cycle}")
+        visiting.add(node_id)
+        for dep in by_id[node_id].depends_on:
+            _visit(dep, (*chain, node_id))
+        visiting.discard(node_id)
+        visited.add(node_id)
+
+    for node in nodes:
+        _visit(node.id, ())
 
 
 def resolve_graph_path(
@@ -147,22 +288,14 @@ def parse_branches(branch_spec: str | None) -> set[str]:
         name = part.strip()
         if not name:
             continue
-        # Normalize case for letter branches
-        if len(name) == 1:
+        if name.lower() in KNOWN_BRANCHES:
+            name = name.lower()
+        elif len(name) == 1:
             name = name.upper()
-        elif name.lower() == "sql-ai":
-            name = "sql-ai"
-        elif name.lower() == "spine":
-            name = "spine"
         if name not in KNOWN_BRANCHES:
             raise ValueError(f"unknown branch '{part}'; known={sorted(KNOWN_BRANCHES)} or 'all'")
         selected.add(name)
-    if "spine" not in selected and selected:
-        # Operator asked only for branches — honor that
-        return selected
-    if not selected:
-        return {"spine"}
-    return selected
+    return selected or {"spine"}
 
 
 def parse_node_ids(node_spec: str | None) -> tuple[str, ...] | None:
@@ -233,6 +366,76 @@ def _parse_node(item: dict[str, Any], index: int) -> CampaignNode:
     produces_beachhead = item.get("produces_beachhead")
     marker_raw = item.get("success_marker")
     success_marker = None if marker_raw in (None, "null", "") else str(marker_raw)
+
+    targets = _as_str_tuple(item.get("targets") if item.get("targets") is not None else item.get("target"), field="targets", index=index)
+    depends_on = _as_str_tuple(item.get("depends_on"), field="depends_on", index=index)
+    if node_id in depends_on:
+        raise ValueError(f"nodes[{index}].depends_on cannot reference the node itself")
+
+    when_raw = item.get("when")
+    when: dict[str, Any] | None = None
+    if when_raw not in (None, "null"):
+        if not isinstance(when_raw, dict) or not when_raw:
+            raise ValueError(f"nodes[{index}].when must be a non-empty mapping")
+        unknown_keys = [key for key in when_raw if key not in CONDITION_KEYS]
+        if unknown_keys:
+            raise ValueError(
+                f"nodes[{index}].when has unsupported keys {unknown_keys} (known={list(CONDITION_KEYS)})"
+            )
+        when = {
+            key: list(_as_str_tuple(value, field=f"when.{key}", index=index))
+            for key, value in when_raw.items()
+        }
+
+    timeout_raw = item.get("timeout_seconds")
+    timeout_seconds: int | None = None
+    if timeout_raw not in (None, "null", ""):
+        try:
+            timeout_seconds = int(timeout_raw)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"nodes[{index}].timeout_seconds must be an integer") from exc
+        if timeout_seconds <= 0:
+            raise ValueError(f"nodes[{index}].timeout_seconds must be positive")
+
+    teardown_raw = item.get("teardown")
+    teardown: dict[str, Any] | None = None
+    if teardown_raw not in (None, "null"):
+        if not isinstance(teardown_raw, dict) or not str(teardown_raw.get("description") or "").strip():
+            raise ValueError(
+                f"nodes[{index}].teardown must be a mapping with a 'description'"
+            )
+        command_raw = teardown_raw.get("command")
+        command: list[str] | None = None
+        if command_raw not in (None, "null", ""):
+            command = [str(part) for part in _as_str_tuple(command_raw, field="teardown.command", index=index)]
+        teardown = {
+            "description": str(teardown_raw["description"]).strip(),
+            "command": command,
+        }
+
+    idempotent_raw = item.get("idempotent")
+    idempotent: bool | None = None
+    if idempotent_raw not in (None, "null", ""):
+        if isinstance(idempotent_raw, bool):
+            idempotent = idempotent_raw
+        elif str(idempotent_raw).strip().lower() in {"true", "yes", "1", "false", "no", "0"}:
+            idempotent = str(idempotent_raw).strip().lower() in {"true", "yes", "1"}
+        else:
+            raise ValueError(f"nodes[{index}].idempotent must be a boolean")
+
+    success_json_raw = item.get("success_json")
+    success_json: dict[str, str] | None = None
+    if success_json_raw not in (None, "null"):
+        if not isinstance(success_json_raw, dict):
+            raise ValueError(f"nodes[{index}].success_json must be a mapping")
+        path_raw = success_json_raw.get("path")
+        if path_raw in (None, "") :
+            raise ValueError(f"nodes[{index}].success_json requires a 'path'")
+        success_json = {
+            "path": str(path_raw),
+            "equals": str(success_json_raw.get("equals", "")),
+        }
+
     return CampaignNode(
         id=node_id,
         phase=phase,
@@ -253,6 +456,13 @@ def _parse_node(item: dict[str, Any], index: int) -> CampaignNode:
         success_marker=success_marker,
         fail_patterns=_parse_string_tuple(item.get("fail_patterns"), index, "fail_patterns"),
         expected_errors=_parse_string_tuple(item.get("expected_errors"), index, "expected_errors"),
+        targets=targets,
+        depends_on=depends_on,
+        when=when,
+        timeout_seconds=timeout_seconds,
+        teardown=teardown,
+        idempotent=idempotent,
+        success_json=success_json,
     )
 
 

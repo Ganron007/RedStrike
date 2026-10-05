@@ -20,8 +20,11 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser("campaign", help="Campaign orchestrator (same as redstrike-campaign)")
     sub.add_parser("graph", help="DAG Graph orchestrator (run custom or generic graphs)")
     sub.add_parser("c2", help="C2Stack Flight Control client (fleet, builds, staging, tasking)")
+    sub.add_parser("report", help="Engagement report (markdown/JSON from state + journal + ledger)")
+    sub.add_parser("stage", help="Provision Windows beachhead tooling (pinned downloads / local files)")
+    sub.add_parser("install", help="Provision Linux tooling from manifest recipes (local/container/ssh)")
     sub.add_parser("api", help="HTTP API (same as redstrike-api)")
-    sub.add_parser("console", help="Interactive TUI campaign dashboard")
+    sub.add_parser("console", help="Read-only campaign dashboard")
 
     args, rest = parser.parse_known_args(argv)
     if args.command == "check":
@@ -42,15 +45,27 @@ def main(argv: list[str] | None = None) -> int:
         from redstrike.cli.c2 import main as c2_main
 
         return c2_main(rest)
+    if args.command == "report":
+        from redstrike.cli.report import main as report_main
+
+        return report_main(rest)
+    if args.command == "stage":
+        from redstrike.cli.stage import main as stage_main
+
+        return stage_main(rest)
+    if args.command == "install":
+        from redstrike.cli.install import main as install_main
+
+        return install_main(rest)
     if args.command == "api":
         from redstrike.api.server import main as api_main
 
         api_main(rest)
         return 0
     if args.command == "console":
-        from redstrike.cli.console import run_console
+        from redstrike.cli.console import main as console_main
 
-        return run_console()
+        return console_main(rest)
     parser.error(f"unknown command: {args.command}")
     return 2
 
