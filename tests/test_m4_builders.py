@@ -223,9 +223,9 @@ def test_certipy_unpac_and_template() -> None:
 
 def test_sharpsccm_extensions() -> None:
     builder = SharpSCCMBuilder()
-    exec_argv = builder.exec_script(server="mbr02", script_body="whoami", device="WS01")
+    exec_argv = builder.exec_script(server="mbr02", script_body="whoami", device="WINDOWS-HOST")
     assert "-b" in exec_argv and "whoami" in exec_argv
-    assert "-d" in exec_argv and "WS01" in exec_argv
+    assert "-d" in exec_argv and "WINDOWS-HOST" in exec_argv
 
     admin_argv = builder.adminservice_query(server="mbr02", endpoint="SMS_Application")
     assert "adminservice" in admin_argv

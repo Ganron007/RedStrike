@@ -206,7 +206,7 @@ redstrike campaign teardown --engage default --execute # run them (nodes declare
 redstrike console --engage default                     # read-only live dashboard (--watch to follow)
 ```
 
-Tools are provided, not vendored: `redstrike check` prints per-tool install recipes and probes versions (locally, inside a container, or on the Windows beachhead), `REDSTRIKE_LINUX_CONTAINER=c2stack-kali` runs Linux tooling via `docker exec` in C2Stack's Kali workstation, `REDSTRIKE_WS01_TOOLS_DIR` lets Windows intents resolve bare tool names on the target, and `redstrike stage --download` fetches **sha256-pinned** upstream releases (SharpHound/mimikatz/SharpSCCM) onto the beachhead (Rubeus upstream is source-only — `--file` with recorded hash). See `docs/SETUP.md` → *Tool provisioning*.
+Tools are provided, not vendored: `redstrike check` prints per-tool install recipes and probes versions (locally, inside a container, or on the Windows beachhead), `REDSTRIKE_LINUX_CONTAINER=c2stack-kali` runs Linux tooling via `docker exec` in C2Stack's Kali workstation, `REDSTRIKE_WINDOWS_TOOLS_DIR` lets Windows intents resolve bare tool names on the target, and `redstrike stage --download` fetches **sha256-pinned** upstream releases (SharpHound/mimikatz/SharpSCCM) onto the beachhead (Rubeus upstream is source-only — `--file` with recorded hash). See `docs/SETUP.md` → *Tool provisioning*.
 
 The credential ledger is HMAC-SHA256 sealed (tamper-evident; legacy files are re-sealed on next save, `REDSTRIKE_LEDGER_UNVERIFIED=1` is the recovery override). Install the `crypto` extra and set `REDSTRIKE_LEDGER_ENCRYPT=1` for AES-256-GCM encryption at rest.
 

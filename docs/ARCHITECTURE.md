@@ -94,7 +94,7 @@ RedStrike eliminates shell injection vulnerabilities by constructing argument ve
 RedStrike seamlessly dispatches commands across heterogeneous infrastructure:
 
 1. **Linux / Kali Local:** Native subprocess execution for Linux-native tooling (`netexec`, `certipy`, `bloodyAD`, `impacket`).
-2. **Windows Beachhead:** Transparent OpenSSH wrapper or native PowerShell execution for Windows binaries (`Rubeus.exe`, `SharpSCCM.exe`, `Mimikatz.exe`). Configured via `REDSTRIKE_WS01_HOST`, `REDSTRIKE_WS01_USER`, and `REDSTRIKE_WS01_SSH_KEY`.
+2. **Windows Beachhead:** Transparent OpenSSH wrapper or native PowerShell execution for Windows binaries (`Rubeus.exe`, `SharpSCCM.exe`, `Mimikatz.exe`). Configured via `REDSTRIKE_WINDOWS_HOST`, `REDSTRIKE_WINDOWS_USER`, and `REDSTRIKE_WINDOWS_SSH_KEY`.
 3. **C2 Implant Execution (via C2Stack):** Dispatches in-memory .NET tools and lateral movement directly through active C2 sessions via `CallSpec` primitives:
    - **Sliver** (v1.7.7): In-memory assembly execution and remote commands through the `sliver-client` CLI (`127.0.0.1:31337`).
    - **Meridian**: Custom Go stdlib implant with X25519/AES-GCM encryption and chunked DNS TXT covert egress over UDP 15353 (driven through the `c2stack-meridian-1` container CLI).

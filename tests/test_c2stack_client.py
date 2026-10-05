@@ -21,12 +21,12 @@ FLEET = {
     "count": 2,
     "sessions": [
         {
-            "id": "4555ab0e", "backend": "havoc", "hostname": "WS01",
-            "username": "vagrant", "os": "Windows 10", "is_alive": True,
+            "id": "4555ab0e", "backend": "havoc", "hostname": "WINDOWS-HOST",
+            "username": "operator", "os": "Windows 10", "is_alive": True,
         },
         {
-            "id": "a5d9dc29", "backend": "sliver", "hostname": "ws01",
-            "username": "WS01\\vagrant", "os": "windows/amd64", "is_alive": False,
+            "id": "a5d9dc29", "backend": "sliver", "hostname": "windows",
+            "username": "WIN-TARGET\\operator", "os": "windows/amd64", "is_alive": False,
         },
     ],
     "backends": {

@@ -134,7 +134,7 @@ def linux_ssh_base() -> list[str] | None:
     """SSH transport for a REMOTE Linux tool host (Kali VM / SSH-enabled container).
 
     ``REDSTRIKE_LINUX_SSH=user@host`` (± ``:port`` or ``REDSTRIKE_LINUX_SSH_PORT``,
-    ``REDSTRIKE_LINUX_SSH_KEY``) — the mirror of the ws01 transport for the
+    ``REDSTRIKE_LINUX_SSH_KEY``) — the mirror of the windows-host transport for the
     Linux side, so RedStrike can run on Windows and drive a dedicated Kali.
     Mutually exclusive with ``REDSTRIKE_LINUX_CONTAINER``.
     """

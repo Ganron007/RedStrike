@@ -49,7 +49,7 @@ class CampaignSession:
         automation_root: Path | str | None = None,
         graph_path: Path | str | None = None,
         ledger_root: Path | None = None,
-        allow_mbr01_stage: bool = False,
+        allow_stage: bool = False,
         seed_path: Path | str | None = None,
         branches: str | None = None,
         prefer_script: bool = False,
@@ -84,12 +84,12 @@ class CampaignSession:
         self.store = EngagementStore(engagement_id, root=ledger_root)
         self.state = self.store.get_or_create(
             beachhead=beachhead,
-            allow_mbr01_stage=allow_mbr01_stage,
+            allow_stage=allow_stage,
             operator=self.operator.value,
         )
         self.state.beachhead = beachhead
         self.state.operator = self.operator.value
-        self.state.allow_mbr01_stage = allow_mbr01_stage
+        self.state.allow_stage = allow_stage
         if not hitl_required(profile):
             # Process-local auto-approval only: persisting wildcard approvals
             # would silently pre-approve a LATER gated run of this engagement.
@@ -116,7 +116,7 @@ class CampaignSession:
             automation_root=self.automation_root,
             graph_path=self.graph_path,
             ledger_root=self.ledger_root,
-            allow_mbr01_stage=self.state.allow_mbr01_stage,
+            allow_stage=self.state.allow_stage,
             engagement_state=self.state,
             branches=self.branches,
             prefer_script=self.prefer_script,
@@ -139,7 +139,7 @@ class CampaignSession:
             "engagement_id": self.engagement_id,
             "beachhead": self.state.beachhead,
             "operator": self.operator.value,
-            "allow_mbr01_stage": self.state.allow_mbr01_stage,
+            "allow_stage": self.state.allow_stage,
             "approved_gates": list(self.state.approved_gates),
             "known_gates": sorted(KNOWN_GATES),
             "hitl_required": hitl_required(),

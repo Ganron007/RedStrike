@@ -35,7 +35,7 @@ def build_parser() -> argparse.ArgumentParser:
             default=None,
             help="JSON seed credentials (default: REDSTRIKE_SEED or examples/seed.example.json)",
         )
-        p.add_argument("--allow-mbr01-stage", action="store_true")
+        p.add_argument("--allow-stage", action="store_true")
         p.add_argument("--json", action="store_true")
         p.add_argument(
             "--branch",
@@ -63,8 +63,8 @@ def build_parser() -> argparse.ArgumentParser:
             choices=[m.value for m in OperatorMode],
             default=None,
             help=(
-                "Where the orchestrator runs: provisioning (SSH to Windows beachhead) "
-                "or ws01 (native on that host). Default: win32→ws01, else provisioning "
+                "Where the orchestrator runs: linux (SSH to the Windows target) "
+                "or windows (native on that host). Default: win32→windows, else linux "
                 "(override with REDSTRIKE_OPERATOR)."
             ),
         )
@@ -173,10 +173,10 @@ def build_parser() -> argparse.ArgumentParser:
 
     stream = sub.add_parser(
         "stream",
-        help=f"Run standalone E/F streams (known={sorted(STREAM_SPECS)}) — no ws01 routing",
+        help=f"Run standalone E/F streams (known={sorted(STREAM_SPECS)}) — no windows-target routing",
     )
     add_common(stream)
-    # Streams always egress from provisioning; default beachhead=linux (override add_common).
+    # Streams always egress from the linux operator; default beachhead=linux (override add_common).
     for action in stream._actions:
         if getattr(action, "dest", None) == "beachhead":
             action.default = "linux"
@@ -198,7 +198,7 @@ def _session_from_args(args: argparse.Namespace) -> CampaignSession:
         operator=operator,
         automation_root=automation_root,
         graph_path=args.graph,
-        allow_mbr01_stage=bool(getattr(args, "allow_mbr01_stage", False)),
+        allow_stage=bool(getattr(args, "allow_stage", False)),
         seed_path=seed or default_seed_path(),
         branches=getattr(args, "branch", "spine"),
         prefer_script=bool(getattr(args, "prefer_script", False)),
@@ -340,10 +340,10 @@ def _print(data: dict, *, as_json: bool) -> None:
         if state.get("pending_gate"):
             print(f"pending_gate={state['pending_gate']} status={state.get('status')}")
         print(
-            f"ws01_exec={data.get('ws01_exec_count', 0)} "
-            f"local_ws01={data.get('local_ws01_count', 0)} "
+            f"windows_exec={data.get('windows_exec_count', 0)} "
+            f"local_windows={data.get('local_windows_count', 0)} "
             f"linux_direct={data.get('linux_direct_count', 0)} "
-            f"mbr01={data.get('mbr01_count', 0)} "
+            f"stage={data.get('stage_count', 0)} "
             f"awaiting={data.get('awaiting_approval_count', 0)} "
             f"stubs={data.get('stub_count', 0)} "
             f"verified={data.get('verified_count', 0)} "
@@ -467,7 +467,7 @@ def main(argv: list[str] | None = None) -> int:
             operator=getattr(args, "operator", None) or detect_default_operator(),
             automation_root=Path(args.automation_root) if args.automation_root else default_automation_root(),
             graph_path=args.graph,
-            allow_mbr01_stage=bool(getattr(args, "allow_mbr01_stage", False)),
+            allow_stage=bool(getattr(args, "allow_stage", False)),
             seed_path=(args.seed if getattr(args, "seed", None) else None) or default_seed_path(),
             branches=spec["branch"],
             prefer_script=False,

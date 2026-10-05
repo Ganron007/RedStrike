@@ -74,7 +74,7 @@ redstrike check --scope scope.yaml
 Before touching any live domain controller, test campaign orchestration using RedStrike's dry-run engine:
 
 ```bash
-redstrike-campaign run --phase 1-3 --beachhead windows --operator provisioning --engage demo \
+redstrike-campaign run --phase 1-3 --beachhead windows --operator linux --engage demo \
   --graph examples/campaign-graph.m1.yaml \
   --seed examples/seed.example.json \
   --automation-root examples/automation

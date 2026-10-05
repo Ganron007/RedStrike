@@ -59,7 +59,7 @@ def test_stream_e_f_dry_run_standalone(automation_root: Path, tmp_path: Path) ->
     e_summary = e_session.run_phase("9", dry_run=True, include_preflight=False)
     assert "DEMO-E" in {s["node_id"] for s in e_summary["steps"]}
     assert "DEMO-RECON" not in {s["node_id"] for s in e_summary["steps"]}
-    assert e_summary["ws01_exec_count"] == 0
+    assert e_summary["windows_exec_count"] == 0
 
     f_session = CampaignSession(
         "stream-f-demo",
@@ -72,7 +72,7 @@ def test_stream_e_f_dry_run_standalone(automation_root: Path, tmp_path: Path) ->
     )
     f_summary = f_session.run_phase("10", dry_run=True, include_preflight=False)
     assert "DEMO-F" in {s["node_id"] for s in f_summary["steps"]}
-    assert f_summary["ws01_exec_count"] == 0
+    assert f_summary["windows_exec_count"] == 0
 
 
 def test_cli_stream_e_standalone(

@@ -21,16 +21,16 @@ SEED = EXAMPLES / "seed.example.json"
 def automation_root(tmp_path: Path) -> Path:
     root = tmp_path / "linux"
     for rel in (
-        "campaign-a/T003-asrep-ws01.sh",
-        "campaign-a/T002-kerb-ws01.sh",
-        "campaign-a/T041-xpcmd-ws01.sh",
-        "campaign-a/T043-impersonate-ws01.sh",
-        "campaign-a/T009-dcsync-ws01.sh",
-        "campaign-a/T010-golden-ws01.sh",
-        "campaign-a/T011-silver-ws01.sh",
-        "campaign-a/T012-diamond-ws01.sh",
-        "campaign-a/T033-xforest-ws01.sh",
-        "campaign-a/T042-clr-ws01.sh",
+        "campaign-a/T003-asrep-windows-host.sh",
+        "campaign-a/T002-kerb-windows-host.sh",
+        "campaign-a/T041-xpcmd-windows-host.sh",
+        "campaign-a/T043-impersonate-windows-host.sh",
+        "campaign-a/T009-dcsync-windows-host.sh",
+        "campaign-a/T010-golden-windows-host.sh",
+        "campaign-a/T011-silver-windows-host.sh",
+        "campaign-a/T012-diamond-windows-host.sh",
+        "campaign-a/T033-xforest-windows-host.sh",
+        "campaign-a/T042-clr-windows-host.sh",
         "campaign-a/T028-nullsession.sh",
         "attacks/WT017-printerbug-spoolsample.sh",
         "campaign-a/demo-recon.sh",
@@ -120,12 +120,12 @@ def test_autonomous_profile_skips_hitl(automation_root: Path, tmp_path: Path) ->
     assert summary["state"]["status"] != "paused"
 
 
-def test_mbr01_still_requires_flag(automation_root: Path) -> None:
+def test_stage_still_requires_flag(automation_root: Path) -> None:
     from redstrike.runtime.beachhead import BeachheadRouter
 
-    router = BeachheadRouter(automation_root=automation_root, allow_mbr01_stage=False)
+    router = BeachheadRouter(automation_root=automation_root, allow_stage=False)
     with pytest.raises(PermissionError):
-        router.effective_path(declared_path="stage_mbr01", beachhead=Beachhead.WINDOWS)
+        router.effective_path(declared_path="stage", beachhead=Beachhead.WINDOWS)
 
 
 def test_api_campaign_routes(automation_root: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -136,7 +136,7 @@ def test_api_campaign_routes(automation_root: Path, tmp_path: Path, monkeypatch:
         json={
             "engagement_id": "api-lab",
             "beachhead": "windows",
-            "operator": "provisioning",
+            "operator": "linux",
             "automation_root": str(automation_root),
             "graph": str(EXAMPLES / "campaign-graph.m1.yaml"),
             "seed": str(EXAMPLES / "seed.example.json"),
@@ -144,14 +144,14 @@ def test_api_campaign_routes(automation_root: Path, tmp_path: Path, monkeypatch:
     )
     assert start.status_code == 200
     assert start.json()["ok"] is True
-    assert start.json()["operator"] == "provisioning"
+    assert start.json()["operator"] == "linux"
 
     run = client.post(
         "/campaign/run_phase",
         json={
             "engagement_id": "api-lab",
             "beachhead": "windows",
-            "operator": "provisioning",
+            "operator": "linux",
             "phase": "1-3",
             "dry_run": True,
             "automation_root": str(automation_root),
@@ -160,8 +160,8 @@ def test_api_campaign_routes(automation_root: Path, tmp_path: Path, monkeypatch:
         },
     )
     assert run.status_code == 200
-    assert run.json()["ws01_exec_count"] >= 1
-    assert run.json()["operator"] == "provisioning"
+    assert run.json()["windows_exec_count"] >= 1
+    assert run.json()["operator"] == "linux"
 
     status = client.post("/campaign/status", json={"engagement_id": "api-lab"})
     assert status.status_code == 200

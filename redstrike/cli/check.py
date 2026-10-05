@@ -288,13 +288,13 @@ def collect_checks(*, scope_path: Path, ungated: bool = False) -> list[CheckItem
                     f"execution delegated to ssh target '{ssh_base[-1]}'"
                     + ("" if reachable else " (unreachable)")
                 )
-    ws01_ok, ws01_detail = _windows_tools_probe()
+    windows_ok, windows_detail = _windows_tools_probe()
     if windows_host():
         items.append(
             CheckItem(
-                "ws01-tools",
-                ws01_ok,
-                ws01_detail,
+                "windows-tools",
+                windows_ok,
+                windows_detail,
                 required_for_execute=False,
                 required_for_core=False,
             )
@@ -344,7 +344,7 @@ def run_check(
             "API (lab ungated): redstrike-api --ungated --scope scope.yaml",
             (
                 "Campaign dry-run: redstrike-campaign run --phase 1-3 --beachhead windows "
-                "--operator provisioning --engage demo --graph examples/campaign-graph.m1.yaml "
+                "--operator linux --engage demo --graph examples/campaign-graph.m1.yaml "
                 "--seed examples/seed.example.json --automation-root examples/automation"
             ),
             "Live standalone --execute needs PATH tools plus HITL. Lab: --ungated --scope (no HITL).",

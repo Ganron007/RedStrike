@@ -26,7 +26,7 @@ class CampaignStartRequest(BaseModel):
     engagement_id: str
     beachhead: str = "windows"
     operator: str | None = None
-    allow_mbr01_stage: bool = False
+    allow_stage: bool = False
     graph: str | None = None
     automation_root: str | None = None
     seed: str | None = None
@@ -40,7 +40,7 @@ class CampaignApproveRequest(BaseModel):
     note: str | None = None
     beachhead: str = "windows"
     operator: str | None = None
-    allow_mbr01_stage: bool = False
+    allow_stage: bool = False
     branches: str = "spine"
 
 
@@ -51,7 +51,7 @@ class CampaignRunRequest(BaseModel):
     phase: str = "1-3"
     dry_run: bool | None = None
     stop_on_hitl: bool | None = None
-    allow_mbr01_stage: bool = False
+    allow_stage: bool = False
     graph: str | None = None
     automation_root: str | None = None
     seed: str | None = None
@@ -180,7 +180,7 @@ def _session(
         operator=getattr(req, "operator", None),
         automation_root=getattr(req, "automation_root", None),
         graph_path=getattr(req, "graph", None),
-        allow_mbr01_stage=bool(getattr(req, "allow_mbr01_stage", False)),
+        allow_stage=bool(getattr(req, "allow_stage", False)),
         seed_path=getattr(req, "seed", None),
         branches=getattr(req, "branches", "spine") or "spine",
         prefer_script=bool(getattr(req, "prefer_script", False)),

@@ -12,7 +12,7 @@ These must stay off git (already gitignored where applicable):
 | `scope.yaml` | Your real target IP/CIDRs and domains |
 | Engagement seed JSON with real passwords | Credential material and NT hashes |
 | `--api-key` values / `REDSTRIKE_API_KEY` | Access to the API and FastMCP server |
-| SSH private keys (`REDSTRIKE_WS01_SSH_KEY`) | Windows beachhead host access |
+| SSH private keys (`REDSTRIKE_WINDOWS_SSH_KEY`) | Windows beachhead host access |
 | `.env`, `.pypirc`, `dist/` | Secrets and build artifacts |
 | Custom engagement graphs with real target names | Customer infrastructure data |
 

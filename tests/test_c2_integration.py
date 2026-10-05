@@ -26,7 +26,7 @@ from redstrike.runtime.beachhead import (
 )
 from redstrike.runtime.intents import IntentRegistry
 from redstrike.runtime.orchestrator import CampaignOrchestrator
-from redstrike.runtime.ws01_transport import argv_for_plan
+from redstrike.runtime.windows_transport import argv_for_plan
 
 
 class MockC2Client(BaseC2Client):
@@ -38,8 +38,8 @@ class MockC2Client(BaseC2Client):
             C2Session(
                 id="test-session-uuid-1",
                 backend=backend,
-                hostname="WS01",
-                username="analyst_t1",
+                hostname="win-target",
+                username="operator",
                 os="windows",
                 arch="amd64",
                 transport="http",
@@ -78,7 +78,7 @@ class MockC2Client(BaseC2Client):
         return CommandResult(
             command=["c2:mock", "shell", "--session", session_id, command],
             return_code=0,
-            stdout="whoami -> child\\analyst_t1",
+            stdout="whoami -> child\\operator",
             stderr="",
             duration_seconds=0.2,
         )
@@ -174,13 +174,13 @@ def test_beachhead_router_c2_session():
         c2_session_id="sess-xyz",
     )
     path = router.effective_path(
-        declared_path="ws01",
+        declared_path="windows",
         beachhead=Beachhead.SESSION,
     )
     assert path == ExecutionPath.C2_IMPLANT
 
 
-def test_ws01_transport_c2_plan():
+def test_windows_transport_c2_plan():
     """Verify argv_for_plan returns CallSpec directly for C2 execution path."""
     spec = CallSpec(
         kind=CallKind.C2,
@@ -196,7 +196,7 @@ def test_ws01_transport_c2_plan():
         path=ExecutionPath.C2_IMPLANT,
         beachhead=Beachhead.SESSION,
         argv=spec.to_display_command(),
-        uses_ws01_exec=False,
+        uses_windows_exec=False,
         mechanism="c2:sliver",
         script="",
         requires_cred=None,
@@ -244,10 +244,10 @@ def test_meridian_client_cli_flow():
         if argv == ["sessions", "--json"]:
             return 0, json.dumps([{
                 "id": "sess-1",
-                "hostname": "WS01",
+                "hostname": "win-target",
                 "os": "windows",
                 "arch": "amd64",
-                "user": "analyst_t1",
+                "user": "operator",
                 "listener": "http",
                 "last_seen": 1700000000,
                 "alive": True,
@@ -263,7 +263,7 @@ def test_meridian_client_cli_flow():
 
         sessions = client.list_sessions()
         assert len(sessions) == 1
-        assert sessions[0].hostname == "WS01"
+        assert sessions[0].hostname == "win-target"
         assert sessions[0].remote_address == "10.0.0.5"
 
         unsupported = client.execute_assembly("sess-1", "Rubeus.exe")
@@ -326,21 +326,21 @@ LIVE_SLIVER_TWO_TABLES = (
     "                                Integrity   Operating System   Locale   Last Message                                Health\n"
     "========== =================== =========== =================================== ========== ============== ============================================"
     " =========== ================== ======== =========================================== ========\n"
-    " a5d9dc29   PREVIOUS_INTEREST   http(s)     tcp(172.19.0.3:49546)->172.19.0.1   ws01       WS01\\vagrant   "
-    "C:\\Users\\vagrant\\Downloads\\slvs.exe (7280)   -           windows/amd64      en-GB    Sun Oct  4 03:01:07 UTC 2026 (47m52s ago)   [DEAD]\n"
-    " f5eab021   PREVIOUS_INTEREST   http(s)     tcp(172.19.0.3:49564)->172.19.0.1   ws01       WS01\\vagrant   "
-    "C:\\Users\\vagrant\\Downloads\\slvs.exe (3460)   -           windows/amd64      en-GB    Sun Oct  4 03:01:07 UTC 2026 (47m52s ago)   [DEAD]\n"
+    " a5d9dc29   PREVIOUS_INTEREST   http(s)     tcp(172.19.0.3:49546)->172.19.0.1   tgt1       TGT1\\manager   "
+    "C:\\Users\\manager\\Downloads\\slvs.exe (7280)   -           windows/amd64      en-GB    Sun Oct  4 03:01:07 UTC 2026 (47m52s ago)   [DEAD]\n"
+    " f5eab021   PREVIOUS_INTEREST   http(s)     tcp(172.19.0.3:49564)->172.19.0.1   tgt1       TGT1\\manager   "
+    "C:\\Users\\manager\\Downloads\\slvs.exe (3460)   -           windows/amd64      en-GB    Sun Oct  4 03:01:07 UTC 2026 (47m52s ago)   [DEAD]\n"
     " ID         Name               Tasks   Transport   Remote Address                      Hostname   Username"
     "           Process (PID)                                                   Integrity   Operating System   Locale   Last Check-In"
     "                                   Next Check-In\n"
     "========== ================== ======= =========== =================================== ========== =================="
     " =============================================================== =========== ================== ======== ==============================================="
     " ===============================================\n"
-    " 961b4851   STRONG_PEAR        0/2     http(s)     172.19.0.1:35284                    ws01       CHILD\\analyst_t1   "
-    "C:\\Users\\analyst_t1\\Downloads\\cadre-implant-direct.exe (1192)   -           windows/amd64      en-GB    "
+    " 961b4851   STRONG_PEAR        0/2     http(s)     172.19.0.1:35284                    tgt1       TESTLAB\\operator   "
+    "C:\\Users\\operator01\\Downloads\\implant-direct-final.exe (1192)   -           windows/amd64      en-GB    "
     "Fri Sep  4 07:15:19 UTC 2026 (716h33m40s ago)   Fri Sep  4 07:16:26 UTC 2026 (716h32m33s ago)\n"
-    " 4cabf88a   AWAKE_RICE         0/1     http(s)     tcp(172.19.0.2:44778)->172.19.0.1   ws01       CHILD\\analyst_t1   "
-    "C:\\Users\\analyst_t1\\Downloads\\cadre-implant-v2.exe (10720)      -           windows/amd64      en-GB    "
+    " 4cabf88a   AWAKE_RICE         0/1     http(s)     tcp(172.19.0.2:44778)->172.19.0.1   tgt1       TESTLAB\\operator   "
+    "C:\\Users\\operator01\\Downloads\\implant-v2-final.exe (10720)      -           windows/amd64      en-GB    "
     "Fri Sep  4 08:29:28 UTC 2026 (715h19m31s ago)   Fri Sep  4 08:30:48 UTC 2026 (715h18m11s ago)\n"
 )
 
@@ -360,8 +360,8 @@ def test_sliver_two_table_parse_uses_each_header():
 
     dead = _session_from_row(session_rows[0])
     assert dead.id == "a5d9dc29"
-    assert dead.hostname == "ws01"
-    assert dead.username == "WS01\\vagrant"
+    assert dead.hostname == "tgt1"
+    assert dead.username == "TGT1\\manager"
     assert dead.os == "windows" and dead.arch == "amd64"
     assert dead.transport == "http(s)"
     assert dead.remote_address == "tcp(172.19.0.3:49546)->172.19.0.1"
@@ -369,8 +369,8 @@ def test_sliver_two_table_parse_uses_each_header():
 
     beacon = _session_from_row(beacon_rows[0])
     assert beacon.id == "961b4851"
-    assert beacon.hostname == "ws01"
-    assert beacon.username == "CHILD\\analyst_t1"
+    assert beacon.hostname == "tgt1"
+    assert beacon.username == "TESTLAB\\operator"
     assert beacon.os == "windows"
     assert beacon.transport == "http(s)"
     assert beacon.remote_address == "172.19.0.1:35284"
@@ -455,8 +455,8 @@ def test_mythic_client_list_sessions():
     psql_rows = [
         {
             "id": "1",
-            "host": "WS01",
-            "user": "analyst_t1",
+            "host": "win-target",
+            "user": "operator",
             "os": "windows",
             "architecture": "amd64",
             "active": "true",
@@ -475,8 +475,8 @@ def test_mythic_client_list_sessions():
         s = sessions[0]
         assert s.id == "1"
         assert s.backend == C2Backend.MYTHIC
-        assert s.hostname == "WS01"
-        assert s.username == "analyst_t1"
+        assert s.hostname == "win-target"
+        assert s.username == "operator"
         assert s.os == "windows"
         assert s.is_alive is True
         assert s.remote_address == "10.0.0.5"
@@ -601,19 +601,19 @@ def _portal_sessions_payload() -> dict:
         "count": 3,
         "sessions": [
             {
-                "id": "4555ab0e", "backend": "havoc", "hostname": "WS01",
-                "username": "vagrant", "os": "Windows 10", "pid": "5272",
+                "id": "4555ab0e", "backend": "havoc", "hostname": "win-target",
+                "username": "operator", "os": "Windows 10", "pid": "5272",
                 "is_alive": True, "process": "demon.x64.exe", "listener": "null",
             },
             {
-                "id": "52804c91", "backend": "adaptix", "hostname": "WS01",
-                "username": "vagrant", "os": "Win 11 x64", "pid": "5256",
+                "id": "52804c91", "backend": "adaptix", "hostname": "win-target",
+                "username": "operator", "os": "Win 11 x64", "pid": "5256",
                 "is_alive": True, "internal_ip": "198.51.100.62",
                 "listener": "cadre_http",
             },
             {
-                "id": "23", "backend": "mythic", "hostname": "WS01",
-                "username": "mythic_user", "os": "Windows 10 x64",
+                "id": "23", "backend": "mythic", "hostname": "win-target",
+                "username": "operator", "os": "Windows 10 x64",
                 "is_alive": True,
             },
         ],
@@ -636,8 +636,8 @@ def test_portal_list_sessions_filters_and_maps():
         s = sessions[0]
         assert s.id == "4555ab0e"
         assert s.backend == C2Backend.HAVOC
-        assert s.hostname == "WS01"
-        assert s.username == "vagrant"
+        assert s.hostname == "win-target"
+        assert s.username == "operator"
         assert s.os == "Windows 10"
         assert s.is_alive is True
 
@@ -668,12 +668,12 @@ def test_portal_havoc_shell_output():
     client = PortalClient(backend=C2Backend.HAVOC, endpoint="http://portal:8000")
     response = {
         "ok": True, "backend": "havoc",
-        "result": {"task_id": "abc123", "output": "WS01\\vagrant", "errors": ""},
+        "result": {"task_id": "abc123", "output": "WIN-TARGET\\admin", "errors": ""},
     }
     with patch.object(client, "_post_json", return_value=response) as mock_post:
         res = client.shell("4555ab0e", "whoami")
         assert res.return_code == 0
-        assert res.stdout == "WS01\\vagrant"
+        assert res.stdout == "WIN-TARGET\\admin"
         assert mock_post.call_args[0][0] == "/api/ops/task"
         assert mock_post.call_args[0][1] == {
             "session_id": "4555ab0e",

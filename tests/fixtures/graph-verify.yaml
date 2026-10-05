@@ -5,7 +5,7 @@ nodes:
     phase: 0
     branch: spine
     title: Null session expect blocked
-    path: linux60
+    path: linux
     beachheads: [linux]
     script: campaign-a/t028.sh
     success_marker: T028_OK
@@ -18,7 +18,7 @@ nodes:
     phase: 4
     branch: spine
     title: ACL WriteDacl
-    path: linux60
+    path: linux
     beachheads: [linux]
     script: campaign-a/t013.sh
     requires_cred: null

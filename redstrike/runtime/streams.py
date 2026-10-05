@@ -1,6 +1,6 @@
 """Thin stream runners for Campaign E (network defense) and F (supply-chain).
 
-These are standalone exercise streams — no ws01 routing, no AD credential ledger
+These are standalone exercise streams — no windows-host routing, no AD credential ledger
 required. Operators use `redstrike-campaign stream E|F` or `--branch E|F` with
 phases 9 / 10.
 """
@@ -27,7 +27,7 @@ def stream_help() -> list[dict[str, Any]]:
             "branch": spec["branch"],
             "phase": spec["phase"],
             "default_beachhead": spec["beachhead"],
-            "notes": "external60_phase0 — no ws01 routing",
+            "notes": "external — no windows-host routing",
         }
         for name, spec in sorted(STREAM_SPECS.items())
     ]

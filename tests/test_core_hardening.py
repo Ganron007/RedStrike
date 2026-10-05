@@ -24,7 +24,7 @@ from redstrike.runtime.orchestrator import CampaignOrchestrator
 from redstrike.runtime.session import CampaignSession
 from redstrike.runtime.teardown import TeardownQueue, load_queue, save_queue
 from redstrike.runtime.verify import verify_step_output
-from redstrike.runtime.ws01_transport import argv_for_plan
+from redstrike.runtime.windows_transport import argv_for_plan
 
 KERBEROAST_OUTPUT = (
     "[*] Action: Kerberoasting\n"
@@ -66,21 +66,21 @@ name: hardening-fixture
 nodes:
   - id: BASE
     phase: 1
-    path: linux60
+    path: linux
     beachheads: [linux]
     title: base step
     script: s/base.sh
     produces_cred: krb_hash
   - id: DEP
     phase: 2
-    path: linux60
+    path: linux
     beachheads: [linux]
     title: depends on base
     script: s/dep.sh
     depends_on: [BASE]
   - id: COND
     phase: 3
-    path: linux60
+    path: linux
     beachheads: [linux]
     title: conditional on base
     script: s/cond.sh
@@ -88,7 +88,7 @@ nodes:
       verified: [BASE]
   - id: SCOPED
     phase: 4
-    path: linux60
+    path: linux
     beachheads: [linux]
     title: scope-checked intent node
     intent: certipy.find
@@ -98,7 +98,7 @@ nodes:
     targets: ["10.0.0.5"]
   - id: TD
     phase: 5
-    path: linux60
+    path: linux
     beachheads: [linux]
     title: node with declared teardown
     script: s/td.sh
@@ -108,7 +108,7 @@ nodes:
       command: ["rm", "-f", "/tmp/rs-test-artifact"]
   - id: NONIDEM
     phase: 6
-    path: linux60
+    path: linux
     beachheads: [linux]
     title: non-idempotent node
     script: s/nonidem.sh
@@ -144,7 +144,7 @@ def _orchestrator(
     orch = CampaignOrchestrator(
         engagement_id=kwargs.pop("engagement_id", "hardening"),
         beachhead=Beachhead.LINUX,
-        operator=OperatorMode.PROVISIONING,
+        operator=OperatorMode.LINUX,
         automation_root=automation_root,
         graph_path=fixture_graph,
         ledger_root=tmp_path / "ledgers",
@@ -440,7 +440,7 @@ def test_per_node_timeout_passed_to_runner(tmp_path: Path, automation_root: Path
     orch = CampaignOrchestrator(
         engagement_id="timeout-eng",
         beachhead=Beachhead.LINUX,
-        operator=OperatorMode.PROVISIONING,
+        operator=OperatorMode.LINUX,
         automation_root=automation_root,
         graph_path=fixture_graph,
         ledger_root=tmp_path / "ledgers",
@@ -547,10 +547,10 @@ def test_http_call_spec_never_ssh_wrapped() -> None:
         node_id="H1",
         title="http node",
         phase=1,
-        path=ExecutionPath.WS01,
+        path=ExecutionPath.WINDOWS,
         beachhead=Beachhead.WINDOWS,
         argv=spec.to_display_command(),
-        uses_ws01_exec=False,
+        uses_windows_exec=False,
         mechanism="intent:http.test",
         script="",
         requires_cred=None,

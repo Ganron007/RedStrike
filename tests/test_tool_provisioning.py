@@ -1,4 +1,4 @@
-"""Tool-provisioning tests: container transport, ws01 tools-dir, pins, staging."""
+"""Tool-provisioning tests: container transport, windows-host tools-dir, pins, staging."""
 
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ import pytest
 
 from redstrike.core.manifest import TOOL_MANIFEST, ToolSpec, probe_tool_version
 from redstrike.core.runner import CommandRunner, linux_container
-from redstrike.runtime.ws01_transport import wrap_argv_for_ws01, ws01_tools_dir
+from redstrike.runtime.windows_transport import windows_tools_dir, wrap_argv_for_windows
 
 # ---------------------------------------------------------------------------
 # Manifest provisioning data
@@ -84,7 +84,7 @@ def test_runner_never_wraps_transport_binaries(monkeypatch) -> None:
     monkeypatch.setattr(runner_mod, "resolve_executable", lambda name: f"/usr/bin/{name}")
     monkeypatch.setattr(runner_mod, "which", lambda name: f"/usr/bin/{name}")
 
-    CommandRunner().run(["ssh", "ws01", "whoami"])
+    CommandRunner().run(["ssh", "windows", "whoami"])
     assert _FakePopen.captured[0][0] == "/usr/bin/ssh"  # not docker-wrapped
 
 
@@ -119,28 +119,28 @@ def test_container_aware_probe(monkeypatch) -> None:
 # Windows tools-dir autodiscovery
 # ---------------------------------------------------------------------------
 
-def test_ws01_tools_dir_and_resolution(monkeypatch) -> None:
-    from redstrike.runtime import ws01_transport as transport
+def test_windows_tools_dir_and_resolution(monkeypatch) -> None:
+    from redstrike.runtime import windows_transport as transport
 
-    monkeypatch.setenv("REDSTRIKE_WS01_TOOLS_DIR", "C:\\Tools;D:\\RedTeam")
-    monkeypatch.setenv("REDSTRIKE_WS01_HOST", "ws01.lab")
+    monkeypatch.setenv("REDSTRIKE_WINDOWS_TOOLS_DIR", "C:\\Tools;D:\\RedTeam")
+    monkeypatch.setenv("REDSTRIKE_WINDOWS_HOST", "windows-host.lab")
     monkeypatch.setattr(transport.shutil, "which", lambda name: r"C:\Windows\ssh.exe")
-    assert ws01_tools_dir() == "C:\\Tools"
+    assert windows_tools_dir() == "C:\\Tools"
 
-    wrapped = wrap_argv_for_ws01(["Rubeus.exe", "asreproast", "/format:hashcat"])
+    wrapped = wrap_argv_for_windows(["Rubeus.exe", "asreproast", "/format:hashcat"])
     remote_command = wrapped[-1]
     assert "C:\\Tools\\Rubeus.exe" in remote_command
     assert "asreproast" in remote_command
 
     # Non-executables and explicit paths are never prefixed.
-    assert "C:\\\\Tools\\\\bash" not in " ".join(wrap_argv_for_ws01(["bash", "script.sh"]))
-    explicit = wrap_argv_for_ws01(["C:\\Other\\Rubeus.exe", "asreproast"])
+    assert "C:\\\\Tools\\\\bash" not in " ".join(wrap_argv_for_windows(["bash", "script.sh"]))
+    explicit = wrap_argv_for_windows(["C:\\Other\\Rubeus.exe", "asreproast"])
     assert "C:\\Tools\\C:\\Other" not in explicit[-1]
 
 
-def test_ws01_tools_dir_unset(monkeypatch) -> None:
-    monkeypatch.delenv("REDSTRIKE_WS01_TOOLS_DIR", raising=False)
-    assert ws01_tools_dir() is None
+def test_windows_tools_dir_unset(monkeypatch) -> None:
+    monkeypatch.delenv("REDSTRIKE_WINDOWS_TOOLS_DIR", raising=False)
+    assert windows_tools_dir() is None
 
 
 # ---------------------------------------------------------------------------
@@ -150,7 +150,7 @@ def test_ws01_tools_dir_unset(monkeypatch) -> None:
 def test_stage_plan_lists_pins(monkeypatch, capsys) -> None:
     from redstrike.cli import stage as stage_cli
 
-    monkeypatch.setenv("REDSTRIKE_WS01_TOOLS_DIR", "C:\\Tools")
+    monkeypatch.setenv("REDSTRIKE_WINDOWS_TOOLS_DIR", "C:\\Tools")
     assert stage_cli.main(["--plan", "--json"]) == 0
     import json as _json
 
@@ -164,8 +164,8 @@ def test_stage_plan_lists_pins(monkeypatch, capsys) -> None:
 def test_stage_file_hash_mismatch_refused(monkeypatch, tmp_path, capsys) -> None:
     from redstrike.cli import stage as stage_cli
 
-    monkeypatch.setenv("REDSTRIKE_WS01_TOOLS_DIR", "C:\\Tools")
-    monkeypatch.setenv("REDSTRIKE_WS01_HOST", "ws01.lab")
+    monkeypatch.setenv("REDSTRIKE_WINDOWS_TOOLS_DIR", "C:\\Tools")
+    monkeypatch.setenv("REDSTRIKE_WINDOWS_HOST", "windows-host.lab")
     fake = tmp_path / "SharpSCCM.exe"  # pinned artifact that is NOT an archive
     fake.write_bytes(b"NOT the real SharpSCCM")
     rc = stage_cli.main(["--tool", "sharpsccm", "--file", str(fake)])
@@ -181,8 +181,8 @@ def test_stage_file_unpinned_records_hash(monkeypatch, tmp_path, capsys) -> None
     local = tmp_path / "Rubeus.exe"
     local.write_bytes(payload)
 
-    monkeypatch.setenv("REDSTRIKE_WS01_TOOLS_DIR", "C:\\Tools")
-    monkeypatch.setenv("REDSTRIKE_WS01_HOST", "ws01.lab")
+    monkeypatch.setenv("REDSTRIKE_WINDOWS_TOOLS_DIR", "C:\\Tools")
+    monkeypatch.setenv("REDSTRIKE_WINDOWS_HOST", "windows-host.lab")
     pushed: dict = {}
 
     def fake_ensure(settings, directory):
@@ -211,8 +211,8 @@ def test_stage_file_archive_pin_not_applied_to_extracted(monkeypatch, tmp_path, 
 
     local = tmp_path / "mimikatz.exe"
     local.write_bytes(b"MZ-extracted-mimikatz")
-    monkeypatch.setenv("REDSTRIKE_WS01_TOOLS_DIR", "C:\\Tools")
-    monkeypatch.setenv("REDSTRIKE_WS01_HOST", "ws01.lab")
+    monkeypatch.setenv("REDSTRIKE_WINDOWS_TOOLS_DIR", "C:\\Tools")
+    monkeypatch.setenv("REDSTRIKE_WINDOWS_HOST", "windows-host.lab")
     monkeypatch.setattr(stage_cli, "_ensure_remote_dir", lambda s, d: None)
     monkeypatch.setattr(stage_cli, "_push", lambda s, p, d, n: f"{d}\\{n}")
     rc = stage_cli.main(["--tool", "mimikatz", "--file", str(local), "--json"])
@@ -256,8 +256,8 @@ def test_stage_download_happy_path(monkeypatch, tmp_path, capsys) -> None:
         return f"{directory}\\{stage_name}"
 
     monkeypatch.setattr(stage_cli, "_push", fake_push)
-    monkeypatch.setenv("REDSTRIKE_WS01_TOOLS_DIR", "C:\\Tools")
-    monkeypatch.setenv("REDSTRIKE_WS01_HOST", "ws01.lab")
+    monkeypatch.setenv("REDSTRIKE_WINDOWS_TOOLS_DIR", "C:\\Tools")
+    monkeypatch.setenv("REDSTRIKE_WINDOWS_HOST", "windows-host.lab")
 
     rc = stage_cli.main(["--tool", "mimikatz", "--download", "--json"])
     assert rc == 0
@@ -272,8 +272,8 @@ def test_stage_download_happy_path(monkeypatch, tmp_path, capsys) -> None:
 def test_stage_download_unpinned_refused(monkeypatch, capsys) -> None:
     from redstrike.cli import stage as stage_cli
 
-    monkeypatch.setenv("REDSTRIKE_WS01_TOOLS_DIR", "C:\\Tools")
-    monkeypatch.setenv("REDSTRIKE_WS01_HOST", "ws01.lab")
+    monkeypatch.setenv("REDSTRIKE_WINDOWS_TOOLS_DIR", "C:\\Tools")
+    monkeypatch.setenv("REDSTRIKE_WINDOWS_HOST", "windows-host.lab")
     rc = stage_cli.main(["--tool", "rubeus", "--download"])
     assert rc == 2
     assert "no pinned upstream artifact" in capsys.readouterr().err
@@ -292,7 +292,7 @@ def test_extract_member_reports_available_names() -> None:
 def test_stage_requires_tools_dir(monkeypatch, tmp_path, capsys) -> None:
     from redstrike.cli import stage as stage_cli
 
-    monkeypatch.delenv("REDSTRIKE_WS01_TOOLS_DIR", raising=False)
+    monkeypatch.delenv("REDSTRIKE_WINDOWS_TOOLS_DIR", raising=False)
     local = tmp_path / "Rubeus.exe"
     local.write_bytes(b"MZ")
     with pytest.raises(SystemExit):
@@ -404,11 +404,11 @@ def test_check_topology_and_conflict_item(monkeypatch) -> None:
 
     monkeypatch.setattr(check_mod, "linux_container", lambda: "c2stack-kali")
     monkeypatch.setenv("REDSTRIKE_LINUX_SSH", "operator@kali.lab")
-    monkeypatch.setenv("REDSTRIKE_WS01_HOST", "192.168.77.62")
-    monkeypatch.setenv("REDSTRIKE_WS01_TOOLS_DIR", r"C:\Tools")
+    monkeypatch.setenv("REDSTRIKE_WINDOWS_HOST", "192.168.100.62")
+    monkeypatch.setenv("REDSTRIKE_WINDOWS_TOOLS_DIR", r"C:\Tools")
     topo = check_mod.topology()
     assert "CONFLICT" in (topo["linux_execution"] or "")
-    assert topo["windows_execution"] == "ssh:192.168.77.62"
+    assert topo["windows_execution"] == "ssh:192.168.100.62"
     assert topo["windows_tools_dir"] == r"C:\Tools"
 
     monkeypatch.setattr(check_mod, "_ssh_probe_once", lambda base: False)
@@ -427,8 +427,8 @@ def test_check_topology_local_defaults(monkeypatch) -> None:
     for var in (
         "REDSTRIKE_LINUX_CONTAINER",
         "REDSTRIKE_LINUX_SSH",
-        "REDSTRIKE_WS01_HOST",
-        "REDSTRIKE_WS01_TOOLS_DIR",
+        "REDSTRIKE_WINDOWS_HOST",
+        "REDSTRIKE_WINDOWS_TOOLS_DIR",
         "REDSTRIKE_LOCAL_TOOLS_DIR",
     ):
         monkeypatch.delenv(var, raising=False)
@@ -568,10 +568,10 @@ def test_install_retries_externally_managed_pip(monkeypatch, capsys) -> None:
 # Isolation + canonical env names
 # ---------------------------------------------------------------------------
 
-def test_canonical_windows_env_with_ws01_alias(monkeypatch) -> None:
+def test_canonical_windows_env_with_windows_alias(monkeypatch) -> None:
     from redstrike.core.env import windows_host, windows_tools_dir, windows_user
 
-    monkeypatch.setenv("REDSTRIKE_WS01_HOST", "legacy.host")
+    monkeypatch.setenv("REDSTRIKE_WINDOWS_HOST", "legacy.host")
     assert windows_host() == "legacy.host"  # back-compat alias
     monkeypatch.setenv("REDSTRIKE_WINDOWS_HOST", "canonical.host")
     assert windows_host() == "canonical.host"  # canonical wins
@@ -594,10 +594,10 @@ def test_linux_remote_tools_dir_resolution(monkeypatch) -> None:
     )
     monkeypatch.setattr(runner_mod, "which", lambda name: "/usr/bin/ssh" if name == "ssh" else None)
 
-    CommandRunner().run(["certipy", "find", "-u", "analyst_t1"])
+    CommandRunner().run(["certipy", "find", "-u", "operator"])
     executed = _FakePopen.captured[0]
     assert "/opt/redstrike/venv/bin/certipy" in executed[-1]  # venv bin resolved
-    assert "analyst_t1" in executed[-1]
+    assert "operator" in executed[-1]
 
     # explicit paths are never rewritten
     _FakePopen.captured.clear()

@@ -48,11 +48,11 @@ def test_resolve_graph_uses_bundled_example() -> None:
     assert path.resolve() == GRAPH.resolve()
 
 
-def test_windows_beachhead_uses_ws01_exec(automation_root: Path, tmp_path: Path) -> None:
+def test_windows_beachhead_uses_windows_exec(automation_root: Path, tmp_path: Path) -> None:
     orch = CampaignOrchestrator(
         engagement_id="lab-win",
         beachhead=Beachhead.WINDOWS,
-        operator=OperatorMode.PROVISIONING,
+        operator=OperatorMode.LINUX,
         automation_root=automation_root,
         graph_path=GRAPH,
         ledger_root=tmp_path / "ledgers",
@@ -61,12 +61,12 @@ def test_windows_beachhead_uses_ws01_exec(automation_root: Path, tmp_path: Path)
     results = orch.run("1-3", dry_run=True)
     summary = orch.summary(results)
 
-    assert summary["mbr01_count"] == 0
-    assert all(r.plan.uses_ws01_exec for r in results if not r.skipped)
-    assert all(r.plan.path is ExecutionPath.WS01 for r in results if not r.skipped)
-    assert summary["ws01_exec_count"] + summary.get("intent_count", 0) >= 4
+    assert summary["stage_count"] == 0
+    assert all(r.plan.uses_windows_exec for r in results if not r.skipped)
+    assert all(r.plan.path is ExecutionPath.WINDOWS for r in results if not r.skipped)
+    assert summary["windows_exec_count"] + summary.get("intent_count", 0) >= 4
     assert all(
-        r.plan.mechanism == "ws01-exec" or r.plan.mechanism.startswith("intent:")
+        r.plan.mechanism == "windows-exec" or r.plan.mechanism.startswith("intent:")
         for r in results
         if not r.skipped
     )
@@ -80,11 +80,11 @@ def test_windows_beachhead_uses_ws01_exec(automation_root: Path, tmp_path: Path)
     assert payload["verify_status"] == "dry_run"
 
 
-def test_ws01_operator_uses_local_mechanism(automation_root: Path, tmp_path: Path) -> None:
+def test_windows_operator_uses_local_mechanism(automation_root: Path, tmp_path: Path) -> None:
     orch = CampaignOrchestrator(
         engagement_id="lab-native",
         beachhead=Beachhead.WINDOWS,
-        operator=OperatorMode.WS01,
+        operator=OperatorMode.WINDOWS,
         automation_root=automation_root,
         graph_path=GRAPH,
         ledger_root=tmp_path / "ledgers",
@@ -94,16 +94,16 @@ def test_ws01_operator_uses_local_mechanism(automation_root: Path, tmp_path: Pat
     results = orch.run("1-3", dry_run=True)
     summary = orch.summary(results)
 
-    assert summary["operator"] == "ws01"
-    assert summary["ws01_exec_count"] == 0
-    assert summary["local_ws01_count"] >= 1
-    assert all(not r.plan.uses_ws01_exec for r in results if not r.skipped)
+    assert summary["operator"] == "windows"
+    assert summary["windows_exec_count"] == 0
+    assert summary["local_windows_count"] >= 1
+    assert all(not r.plan.uses_windows_exec for r in results if not r.skipped)
     assert all(
-        r.plan.mechanism == "local-ws01" for r in results if not r.skipped and r.plan.script
+        r.plan.mechanism == "local-windows" for r in results if not r.skipped and r.plan.script
     )
 
 
-def test_linux_beachhead_no_ws01_exec(automation_root: Path, tmp_path: Path) -> None:
+def test_linux_beachhead_no_windows_exec(automation_root: Path, tmp_path: Path) -> None:
     orch = CampaignOrchestrator(
         engagement_id="lab-lin",
         beachhead=Beachhead.LINUX,
@@ -115,33 +115,33 @@ def test_linux_beachhead_no_ws01_exec(automation_root: Path, tmp_path: Path) -> 
     results = orch.run("1-3", dry_run=True)
     summary = orch.summary(results)
 
-    assert summary["ws01_exec_count"] == 0
-    assert summary["mbr01_count"] == 0
-    assert all(not r.plan.uses_ws01_exec for r in results if not r.skipped)
-    assert all(r.plan.path is ExecutionPath.LINUX60 for r in results if not r.skipped)
-    assert all("ws01-exec" not in " ".join(r.plan.argv) for r in results)
+    assert summary["windows_exec_count"] == 0
+    assert summary["stage_count"] == 0
+    assert all(not r.plan.uses_windows_exec for r in results if not r.skipped)
+    assert all(r.plan.path is ExecutionPath.LINUX for r in results if not r.skipped)
+    assert all("windows-exec" not in " ".join(r.plan.argv) for r in results)
     assert summary["linux_direct_count"] + summary.get("intent_count", 0) >= 4
 
 
-def test_mbr01_blocked_without_flag(automation_root: Path) -> None:
-    router = BeachheadRouter(automation_root=automation_root, allow_mbr01_stage=False)
-    with pytest.raises(PermissionError, match="stage_mbr01"):
-        router.effective_path(declared_path="stage_mbr01", beachhead=Beachhead.WINDOWS)
+def test_stage_blocked_without_flag(automation_root: Path) -> None:
+    router = BeachheadRouter(automation_root=automation_root, allow_stage=False)
+    with pytest.raises(PermissionError, match="stage"):
+        router.effective_path(declared_path="stage", beachhead=Beachhead.WINDOWS)
 
 
-def test_mbr01_allowed_with_flag(automation_root: Path) -> None:
-    router = BeachheadRouter(automation_root=automation_root, allow_mbr01_stage=True)
+def test_stage_allowed_with_flag(automation_root: Path) -> None:
+    router = BeachheadRouter(automation_root=automation_root, allow_stage=True)
     plan = router.plan_step(
         node_id="X",
         title="exception",
         phase=5,
-        declared_path="stage_mbr01",
+        declared_path="stage",
         beachhead=Beachhead.WINDOWS,
         script="campaign-a/demo-recon.sh",
-        exception_reason="ws01 blocked by defense",
+        exception_reason="windows-host blocked by defense",
     )
-    assert plan.path is ExecutionPath.STAGE_MBR01
-    assert plan.uses_ws01_exec is False
+    assert plan.path is ExecutionPath.STAGE
+    assert plan.uses_windows_exec is False
     assert plan.exception_reason is not None
 
 
@@ -194,7 +194,7 @@ def test_cli_dry_run_windows(automation_root: Path, tmp_path: Path, monkeypatch:
             "--beachhead",
             "windows",
             "--operator",
-            "provisioning",
+            "linux",
             "--engage",
             "cli-lab",
             "--graph",
@@ -221,7 +221,7 @@ def test_select_nodes_by_id_ignores_phase_and_branch(automation_root: Path, tmp_
     orch = CampaignOrchestrator(
         engagement_id="nodes-filter",
         beachhead=Beachhead.WINDOWS,
-        operator=OperatorMode.PROVISIONING,
+        operator=OperatorMode.LINUX,
         automation_root=automation_root,
         graph_path=GRAPH,
         ledger_root=tmp_path / "ledgers",

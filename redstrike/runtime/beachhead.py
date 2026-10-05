@@ -19,33 +19,53 @@ class OperatorMode(str, Enum):
     """Where the CampaignOrchestrator process runs.
 
     Distinct from Beachhead (attack-identity / preferred path):
-    - provisioning: orchestrator on a Linux operator host → SSH into the Windows beachhead
-    - ws01: orchestrator already on the domain-joined Windows beachhead (no SSH wrap)
+    - linux: orchestrator on a Linux operator host → SSH into the Windows target
+    - windows: orchestrator already on the Windows target host (no SSH wrap)
     - c2: orchestrator driving post-exploitation through C2 implants
+
+    Pre-0.6 values ("provisioning", "ws01") parse as aliases.
     """
 
-    PROVISIONING = "provisioning"
-    WS01 = "ws01"
+    LINUX = "linux"
+    WINDOWS = "windows"
     C2 = "c2"
+
+    @classmethod
+    def _missing_(cls, value: object) -> OperatorMode | None:
+        # Back-compat with engagements configured before the generic rename.
+        return {"provisioning": cls.LINUX, "ws01": cls.WINDOWS}.get(str(value).lower())
 
 
 class ExecutionPath(str, Enum):
-    WS01 = "ws01"
-    LINUX60 = "linux60"
+    WINDOWS = "windows"
+    LINUX = "linux"
     DIRECT = "direct"
-    STAGE_MBR01 = "stage_mbr01"
-    EXTERNAL60_PHASE0 = "external60_phase0"
+    STAGE = "stage"
+    EXTERNAL = "external"
     C2_IMPLANT = "c2_implant"
+
+    @classmethod
+    def _missing_(cls, value: object) -> ExecutionPath | None:
+        # Back-compat with graphs written before the generic rename.
+        return {
+            "ws01": cls.WINDOWS,
+            "linux60": cls.LINUX,
+            "stage_mbr01": cls.STAGE,
+            "external60_phase0": cls.EXTERNAL,
+        }.get(str(value).lower())
 
 
 def detect_default_operator() -> OperatorMode:
-    """Prefer native ws01 when running on Windows; otherwise provisioning hybrid."""
+    """Prefer the Windows target host when running on Windows; else the Linux host."""
     env = os.environ.get("REDSTRIKE_OPERATOR", "").strip().lower()
-    if env in {m.value for m in OperatorMode}:
-        return OperatorMode(env)
+    if env:
+        try:
+            return OperatorMode(env)
+        except ValueError:
+            pass
     if sys.platform == "win32":
-        return OperatorMode.WS01
-    return OperatorMode.PROVISIONING
+        return OperatorMode.WINDOWS
+    return OperatorMode.LINUX
 
 
 @dataclass(frozen=True)
@@ -58,7 +78,7 @@ class StepPlan:
     path: ExecutionPath
     beachhead: Beachhead
     argv: list[str]
-    uses_ws01_exec: bool
+    uses_windows_exec: bool
     mechanism: str
     script: str
     requires_cred: str | None
@@ -70,27 +90,27 @@ class StepPlan:
     intent: str | None = None
     pivot_to: str | None = None
     produces_beachhead: str | None = None
-    operator: OperatorMode = OperatorMode.PROVISIONING
+    operator: OperatorMode = OperatorMode.LINUX
     call_spec: CallSpec | None = None
     timeout_seconds: int | None = None
 
 
 class BeachheadRouter:
-    """Route campaign steps: ws01 primary, linux60 alt, stage_mbr01 exception-only, c2_implant."""
+    """Route campaign steps: windows target primary, linux alt, stage exception-only, c2_implant."""
 
     def __init__(
         self,
         *,
         automation_root: Path,
-        allow_mbr01_stage: bool = False,
+        allow_stage: bool = False,
         bash: str = "bash",
-        operator: OperatorMode | str = OperatorMode.PROVISIONING,
+        operator: OperatorMode | str = OperatorMode.LINUX,
         c2_enabled: bool = False,
         c2_backend: C2Backend | str = C2Backend.SLIVER,
         c2_session_id: str | None = None,
     ) -> None:
         self.automation_root = Path(automation_root)
-        self.allow_mbr01_stage = allow_mbr01_stage
+        self.allow_stage = allow_stage
         self.bash = bash
         self.operator = OperatorMode(operator)
         self.c2_enabled = c2_enabled
@@ -108,21 +128,21 @@ class BeachheadRouter:
         if declared is ExecutionPath.C2_IMPLANT or beachhead is Beachhead.SESSION:
             return ExecutionPath.C2_IMPLANT
 
-        if declared is ExecutionPath.STAGE_MBR01:
-            if not self.allow_mbr01_stage:
+        if declared is ExecutionPath.STAGE:
+            if not self.allow_stage:
                 raise PermissionError(
-                    "path stage_mbr01 is exception-only; pass allow_mbr01_stage=True "
-                    "or --allow-mbr01-stage"
+                    "path stage is exception-only; pass allow_stage=True "
+                    "or --allow-stage"
                 )
             return declared
 
-        if declared is ExecutionPath.EXTERNAL60_PHASE0:
+        if declared is ExecutionPath.EXTERNAL:
             return declared
 
-        # Beachhead overrides spine default (graph usually declares ws01).
+        # Beachhead overrides spine default (graph usually declares windows).
         if beachhead is Beachhead.WINDOWS:
-            return ExecutionPath.WS01
-        return ExecutionPath.LINUX60
+            return ExecutionPath.WINDOWS
+        return ExecutionPath.LINUX
 
     def plan_step(
         self,
@@ -146,40 +166,40 @@ class BeachheadRouter:
         timeout_seconds: int | None = None,
     ) -> StepPlan:
         path = self.effective_path(declared_path=declared_path, beachhead=beachhead)
-        native = self.operator is OperatorMode.WS01
+        native = self.operator is OperatorMode.WINDOWS
 
         if stub and not argv_override and not intent:
             argv: list[str] = []
             mechanism = "stub"
-            uses_ws01 = False
+            uses_windows_exec = False
         elif argv_override is not None:
             argv = list(argv_override)
             mechanism = f"intent:{intent}" if intent else "typed"
-            # Intents on path ws01: remote SSH only under provisioning operator.
-            uses_ws01 = path is ExecutionPath.WS01 and not native
+            # Intents on path windows: remote SSH only under the linux operator.
+            uses_windows_exec = path is ExecutionPath.WINDOWS and not native
         elif script:
             script_path = (self.automation_root / script).resolve()
             argv = [self.bash, str(script_path)]
-            if path is ExecutionPath.WS01:
+            if path is ExecutionPath.WINDOWS:
                 if native:
-                    mechanism = "local-ws01"
-                    uses_ws01 = False
+                    mechanism = "local-windows"
+                    uses_windows_exec = False
                 else:
-                    mechanism = "ws01-exec"
-                    uses_ws01 = True
-            elif path is ExecutionPath.LINUX60:
-                mechanism = "direct-linux60"
-                uses_ws01 = False
-            elif path is ExecutionPath.STAGE_MBR01:
-                mechanism = "stage_mbr01"
-                uses_ws01 = False
+                    mechanism = "windows-exec"
+                    uses_windows_exec = True
+            elif path is ExecutionPath.LINUX:
+                mechanism = "direct-linux"
+                uses_windows_exec = False
+            elif path is ExecutionPath.STAGE:
+                mechanism = "stage"
+                uses_windows_exec = False
             else:
-                mechanism = "external60_phase0"
-                uses_ws01 = False
+                mechanism = "external"
+                uses_windows_exec = False
         else:
             argv = []
             mechanism = "stub"
-            uses_ws01 = False
+            uses_windows_exec = False
 
         return StepPlan(
             node_id=node_id,
@@ -188,14 +208,14 @@ class BeachheadRouter:
             path=path,
             beachhead=beachhead,
             argv=argv,
-            uses_ws01_exec=uses_ws01 if not stub else False,
+            uses_windows_exec=uses_windows_exec if not stub else False,
             mechanism=mechanism,
             script=script,
             requires_cred=requires_cred,
             produces_cred=produces_cred,
             exception_reason=(
-                exception_reason or "operator-approved mbr01 stage"
-                if path is ExecutionPath.STAGE_MBR01 and not stub
+                exception_reason or "operator-approved stage"
+                if path is ExecutionPath.STAGE and not stub
                 else exception_reason
             ),
             hitl_gate=hitl_gate,

@@ -52,8 +52,8 @@ def hitl_required(profile: str | None = None) -> bool:
 class EngagementState:
     engagement_id: str
     beachhead: str = "windows"
-    operator: str = "provisioning"
-    allow_mbr01_stage: bool = False
+    operator: str = "linux"
+    allow_stage: bool = False
     approved_gates: list[str] = field(default_factory=list)
     status: str = "idle"  # idle | running | paused | complete
     pending_gate: str | None = None
@@ -120,8 +120,8 @@ class EngagementState:
         return cls(
             engagement_id=str(data["engagement_id"]),
             beachhead=str(data.get("beachhead") or "windows"),
-            operator=str(data.get("operator") or "provisioning"),
-            allow_mbr01_stage=bool(data.get("allow_mbr01_stage") or False),
+            operator=str(data.get("operator") or "linux"),
+            allow_stage=bool(data.get("allow_stage") or False),
             approved_gates=list(data.get("approved_gates") or []),
             status=str(data.get("status") or "idle"),
             pending_gate=data.get("pending_gate"),
@@ -179,8 +179,8 @@ class EngagementStore:
         self,
         *,
         beachhead: str = "windows",
-        allow_mbr01_stage: bool = False,
-        operator: str = "provisioning",
+        allow_stage: bool = False,
+        operator: str = "linux",
     ) -> EngagementState:
         existing = self.load()
         if existing is not None:
@@ -189,7 +189,7 @@ class EngagementStore:
             engagement_id=self.engagement_id,
             beachhead=beachhead,
             operator=operator,
-            allow_mbr01_stage=allow_mbr01_stage,
+            allow_stage=allow_stage,
             status="idle",
         )
         self.save(state)

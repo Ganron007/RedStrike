@@ -450,7 +450,7 @@ def create_mcp(api_url: str):
         engagement_id: str,
         beachhead: str = "windows",
         operator: str = "",
-        allow_mbr01_stage: bool = False,
+        allow_stage: bool = False,
         graph: str = "",
         automation_root: str = "",
         seed: str = "",
@@ -465,8 +465,8 @@ def create_mcp(api_url: str):
             {
                 "engagement_id": engagement_id,
                 "beachhead": beachhead,
-                "operator": operator or ("provisioning" if paths else None),
-                "allow_mbr01_stage": allow_mbr01_stage,
+                "operator": operator or ("linux" if paths else None),
+                "allow_stage": allow_stage,
                 "graph": graph or paths.get("graph"),
                 "automation_root": automation_root or paths.get("automation_root"),
                 "seed": seed or paths.get("seed"),
@@ -481,7 +481,7 @@ def create_mcp(api_url: str):
         gate: str,
         note: str = "",
         beachhead: str = "windows",
-        allow_mbr01_stage: bool = False,
+        allow_stage: bool = False,
     ) -> dict[str, Any]:
         """Approve a HITL gate (dcsync|ticket|forest|persistence|acl_write|site_takeover)."""
         return _post(
@@ -492,7 +492,7 @@ def create_mcp(api_url: str):
                 "gate": gate,
                 "note": note or None,
                 "beachhead": beachhead,
-                "allow_mbr01_stage": allow_mbr01_stage,
+                "allow_stage": allow_stage,
             },
         )
 
@@ -504,7 +504,7 @@ def create_mcp(api_url: str):
         phase: str = "0-10",
         dry_run: bool | None = None,
         stop_on_hitl: bool | None = None,
-        allow_mbr01_stage: bool = False,
+        allow_stage: bool = False,
         graph: str = "",
         automation_root: str = "",
         seed: str = "",
@@ -521,11 +521,11 @@ def create_mcp(api_url: str):
             {
                 "engagement_id": engagement_id,
                 "beachhead": beachhead,
-                "operator": operator or ("provisioning" if paths else None),
+                "operator": operator or ("linux" if paths else None),
                 "phase": phase,
                 "dry_run": dry_run,
                 "stop_on_hitl": stop_on_hitl,
-                "allow_mbr01_stage": allow_mbr01_stage,
+                "allow_stage": allow_stage,
                 "graph": graph or paths.get("graph"),
                 "automation_root": automation_root or paths.get("automation_root"),
                 "seed": seed or paths.get("seed"),
@@ -563,7 +563,7 @@ def create_mcp(api_url: str):
         seed: str = "",
         profile: str = "",
     ) -> dict[str, Any]:
-        """Run Campaign E (phase 9) or F (phase 10) thin stream — no ws01 routing."""
+        """Run Campaign E (phase 9) or F (phase 10) thin stream — no windows-host routing."""
         paths = cadre_remote_paths()
         return _post(
             api_url,

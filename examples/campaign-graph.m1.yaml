@@ -8,7 +8,7 @@ nodes:
     phase: 1
     branch: spine
     title: Demo recon
-    path: ws01
+    path: windows
     beachheads: [windows, linux]
     script: campaign-a/demo-recon.sh
     requires_cred: null
@@ -18,7 +18,7 @@ nodes:
     phase: 2
     branch: spine
     title: Demo credential step
-    path: ws01
+    path: windows
     beachheads: [windows, linux]
     script: campaign-a/demo-creds.sh
     requires_cred: operator_user
@@ -28,7 +28,7 @@ nodes:
     phase: 3
     branch: spine
     title: Demo typed intent
-    path: ws01
+    path: windows
     beachheads: [windows, linux]
     script: campaign-a/demo-exec.sh
     intent: certipy.find
@@ -42,7 +42,7 @@ nodes:
     phase: 3
     branch: spine
     title: Demo lateral script
-    path: ws01
+    path: windows
     beachheads: [windows, linux]
     script: campaign-a/demo-lateral.sh
     requires_cred: operator_user
@@ -52,7 +52,7 @@ nodes:
     phase: 4
     branch: A
     title: Demo branch A
-    path: ws01
+    path: windows
     beachheads: [windows]
     script: attacks/demo-acl.sh
     requires_cred: operator_user
@@ -62,7 +62,7 @@ nodes:
     phase: 6
     branch: spine
     title: Demo HITL-gated step
-    path: ws01
+    path: windows
     beachheads: [windows]
     script: campaign-a/demo-gated.sh
     hitl_gate: dcsync
@@ -73,7 +73,7 @@ nodes:
     phase: 9
     branch: E
     title: Demo stream E
-    path: external60_phase0
+    path: external
     beachheads: [linux]
     script: campaign-e/demo-e.sh
     requires_cred: null
@@ -83,7 +83,7 @@ nodes:
     phase: 10
     branch: F
     title: Demo stream F
-    path: external60_phase0
+    path: external
     beachheads: [linux]
     script: campaign-f/demo-f.sh
     requires_cred: null
@@ -93,7 +93,7 @@ nodes:
     phase: 8
     branch: spine
     title: Demo stub placeholder
-    path: ws01
+    path: windows
     beachheads: [windows, linux]
     script: ""
     stub: true

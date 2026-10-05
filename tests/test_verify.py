@@ -23,7 +23,7 @@ LIVE_T013_FALSE_OK = """=== T013 WriteDacl | RUN-T013-WRITEDACL-20260822 | T0=20
 LIVE_T004_BH_FALSE_OK = """=== T004-BH BloodHound collection | RUN-T004-BH-20260822 | T0=2026-08-22T05:29:01Z ===
 
 MANUAL STEP REQUIRED (WinRM cannot bind to LDAP for SharpHound):
-On ws01, run as child.example.lab\\analyst_t1 (RDP or runas):
+On windows-host, run as child.example.lab\\operator (RDP or runas):
 T004_INFO: no zip found in C:\\Tools\\ADTools\\T004-bh-out — run the manual step first.
 === T004-BH run complete ===
 """
@@ -44,7 +44,7 @@ T003_OK
 def test_default_marker_normalizes_hyphens() -> None:
     assert default_success_marker("T013") == r"T013_OK"
     assert default_success_marker("H-ASSUME") == r"H_ASSUME_OK"
-    assert default_success_marker("T004-MBR01-BH") == r"T004_MBR01_BH_OK"
+    assert default_success_marker("T004-STAGE-BH") == r"T004_STAGE_BH_OK"
 
 
 def test_live_t013_access_denied_is_not_verified() -> None:
@@ -145,7 +145,7 @@ def test_orchestrator_execute_rejects_live_false_ok(tmp_path: Path) -> None:
     orch = CampaignOrchestrator(
         engagement_id="verify-live",
         beachhead=Beachhead.LINUX,
-        operator=OperatorMode.PROVISIONING,
+        operator=OperatorMode.LINUX,
         automation_root=tmp_path / "linux",
         graph_path=graph,
         ledger_root=tmp_path / "ledgers",
@@ -181,8 +181,8 @@ def test_cli_execute_exits_1_on_unverified(tmp_path: Path, monkeypatch) -> None:
                 "node_id": "T013",
                 "phase": 4,
                 "branch": "A",
-                "path": "ws01",
-                "mechanism": "ws01-exec",
+                "path": "windows",
+                "mechanism": "windows-exec",
                 "dry_run": False,
                 "skipped": False,
                 "verified": False,

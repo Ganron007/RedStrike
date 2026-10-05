@@ -3,8 +3,8 @@
 Three tiers for Windows-side tools (rubeus, mimikatz, sharphound, SharpSCCM, …):
 
 1. **manual install** — operator stages the file themselves;
-2. **tools-dir autodiscovery** — `REDSTRIKE_WINDOWS_TOOLS_DIR` (alias `REDSTRIKE_WS01_TOOLS_DIR`) let RedStrike
-   resolve bare tool names on the remote host (see ws01_transport);
+2. **tools-dir autodiscovery** — `REDSTRIKE_WINDOWS_TOOLS_DIR` lets RedStrike
+   resolve bare tool names on the remote host (see windows_transport);
 3. **download via setup** — this command: pinned upstream releases
    (`source_url` + `sha256` in the tool manifest) are fetched, hash-verified,
    optionally extracted from their zip, and pushed to the beachhead with scp.
@@ -52,7 +52,7 @@ def _env(name: str) -> str | None:
     return value or None
 
 
-def _ws01_settings(args: argparse.Namespace) -> dict[str, str | None]:
+def _windows_settings(args: argparse.Namespace) -> dict[str, str | None]:
     host = args.host or windows_host()
     user = args.user or windows_user() or "operator"
     key = args.key or windows_key()
@@ -105,7 +105,7 @@ def _ensure_remote_dir(settings: dict[str, str | None], directory: str) -> None:
     )
     done = _run([*ssh, f"{settings['user']}@{settings['host']}", remote], timeout=30)
     if done.returncode != 0:
-        raise RuntimeError(f"could not create {directory} on ws01: {done.stderr.strip()[:200]}")
+        raise RuntimeError(f"could not create {directory} on the windows target: {done.stderr.strip()[:200]}")
 
 
 def _push(settings: dict[str, str | None], local_path: Path, directory: str, stage_name: str) -> str:
@@ -231,10 +231,10 @@ def _stage_one(args: argparse.Namespace) -> int:
 
     digest = _sha256(payload)
 
-    settings = _ws01_settings(args)
+    settings = _windows_settings(args)
     if not settings["host"]:
         print(
-            "no beachhead configured: set REDSTRIKE_WINDOWS_HOST/USER/SSH_KEY (or legacy REDSTRIKE_WS01_*) or pass --host/--user/--key",
+            "no beachhead configured: set REDSTRIKE_WINDOWS_HOST/USER/SSH_KEY or pass --host/--user/--key",
             file=sys.stderr,
         )
         return 1

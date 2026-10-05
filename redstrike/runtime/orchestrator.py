@@ -37,7 +37,7 @@ from redstrike.runtime.preflight import preflight as run_preflight
 from redstrike.runtime.teardown import load_queue as load_teardown_queue
 from redstrike.runtime.teardown import save_queue as save_teardown_queue
 from redstrike.runtime.verify import VerifyOutcome, verify_step_output
-from redstrike.runtime.ws01_transport import argv_for_plan
+from redstrike.runtime.windows_transport import argv_for_plan
 
 
 def _utc_now() -> str:
@@ -78,7 +78,7 @@ class StepResult:
             "path": self.plan.path.value,
             "beachhead": self.plan.beachhead.value,
             "operator": self.plan.operator.value,
-            "uses_ws01_exec": self.plan.uses_ws01_exec,
+            "uses_windows_exec": self.plan.uses_windows_exec,
             "mechanism": self.plan.mechanism,
             "argv": redact_argv(self.plan.argv),
             "requires_cred": self.plan.requires_cred,
@@ -114,7 +114,7 @@ def _blocked_plan(
     path: ExecutionPath,
     *,
     mechanism: str = "blocked",
-    operator: OperatorMode = OperatorMode.PROVISIONING,
+    operator: OperatorMode = OperatorMode.LINUX,
 ) -> StepPlan:
     return StepPlan(
         node_id=node.id,
@@ -123,7 +123,7 @@ def _blocked_plan(
         path=path,
         beachhead=beachhead,
         argv=[],
-        uses_ws01_exec=False,
+        uses_windows_exec=False,
         mechanism=mechanism,
         script=node.script,
         requires_cred=node.requires_cred,
@@ -231,13 +231,13 @@ class CampaignOrchestrator:
         automation_root: Path | str,
         graph_path: Path | str | None = None,
         ledger_root: Path | None = None,
-        allow_mbr01_stage: bool = False,
+        allow_stage: bool = False,
         runner: CommandRunner | None = None,
         engagement_state: EngagementState | None = None,
         branches: str | set[str] | None = None,
         intents: IntentRegistry | None = None,
         prefer_script: bool = False,
-        operator: OperatorMode | str = OperatorMode.PROVISIONING,
+        operator: OperatorMode | str = OperatorMode.LINUX,
         node_ids: str | tuple[str, ...] | None = None,
         c2_enabled: bool = False,
         c2_backend: C2Backend | str = C2Backend.SLIVER,
@@ -259,7 +259,7 @@ class CampaignOrchestrator:
         self.store = EngagementStore(engagement_id, root=ledger_root)
         self.state = engagement_state or self.store.get_or_create(
             beachhead=self.beachhead.value,
-            allow_mbr01_stage=allow_mbr01_stage,
+            allow_stage=allow_stage,
             operator=self.operator.value,
         )
         self.c2_enabled = c2_enabled or (self.beachhead is Beachhead.SESSION)
@@ -281,7 +281,7 @@ class CampaignOrchestrator:
 
         self.router = BeachheadRouter(
             automation_root=self.automation_root,
-            allow_mbr01_stage=allow_mbr01_stage or self.state.allow_mbr01_stage,
+            allow_stage=allow_stage or self.state.allow_stage,
             operator=self.operator,
             c2_enabled=self.c2_enabled,
             c2_backend=self.c2_backend,
@@ -294,7 +294,7 @@ class CampaignOrchestrator:
                 else None
             )
         )
-        self.allow_mbr01_stage = allow_mbr01_stage or self.state.allow_mbr01_stage
+        self.allow_stage = allow_stage or self.state.allow_stage
         if isinstance(branches, set):
             self.branches = branches or {"spine"}
         else:
@@ -409,7 +409,7 @@ class CampaignOrchestrator:
                 path=ExecutionPath.C2_IMPLANT if call_spec.kind == CallKind.C2 else plan.path,
                 beachhead=plan.beachhead,
                 argv=plan.argv,
-                uses_ws01_exec=plan.uses_ws01_exec,
+                uses_windows_exec=plan.uses_windows_exec,
                 mechanism=f"c2:{call_spec.c2_backend.value if call_spec.c2_backend else 'task'}" if call_spec.kind == CallKind.C2 else plan.mechanism,
                 script=plan.script,
                 requires_cred=plan.requires_cred,
@@ -701,9 +701,9 @@ class CampaignOrchestrator:
 
         for node in selected:
             default_path = (
-                ExecutionPath.WS01
+                ExecutionPath.WINDOWS
                 if self.beachhead is Beachhead.WINDOWS
-                else ExecutionPath.LINUX60
+                else ExecutionPath.LINUX
             )
 
             if node.stub:
@@ -879,7 +879,7 @@ class CampaignOrchestrator:
                 self._push(results, 
                     _step(
                         _blocked_plan(
-                            node, self.beachhead, ExecutionPath.STAGE_MBR01, operator=self.operator
+                            node, self.beachhead, ExecutionPath.STAGE, operator=self.operator
                         ),
                         node,
                         dry_run=dry_run,
@@ -1035,19 +1035,19 @@ class CampaignOrchestrator:
             "node_ids": list(self.node_ids) if self.node_ids else None,
             "started_at": min(starts) if starts else None,
             "finished_at": max(ends) if ends else None,
-            "allow_mbr01_stage": self.allow_mbr01_stage,
+            "allow_stage": self.allow_stage,
             "ledger_creds": self.ledger.names(),
             "state": self.state.to_dict(),
             "steps": [r.to_dict() for r in results],
-            "ws01_exec_count": sum(1 for r in results if r.plan.uses_ws01_exec and not r.skipped),
-            "local_ws01_count": sum(
-                1 for r in results if r.plan.mechanism == "local-ws01" and not r.skipped
+            "windows_exec_count": sum(1 for r in results if r.plan.uses_windows_exec and not r.skipped),
+            "local_windows_count": sum(
+                1 for r in results if r.plan.mechanism == "local-windows" and not r.skipped
             ),
             "linux_direct_count": sum(
-                1 for r in results if r.plan.mechanism == "direct-linux60" and not r.skipped
+                1 for r in results if r.plan.mechanism == "direct-linux" and not r.skipped
             ),
-            "mbr01_count": sum(
-                1 for r in results if r.plan.path is ExecutionPath.STAGE_MBR01 and not r.skipped
+            "stage_count": sum(
+                1 for r in results if r.plan.path is ExecutionPath.STAGE and not r.skipped
             ),
             "awaiting_approval_count": sum(1 for r in results if r.awaiting_approval),
             "stub_count": sum(1 for r in results if r.plan.stub and r.skipped),
