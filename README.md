@@ -24,7 +24,7 @@ Bring your own target environments, attack graphs, and seeds. RedStrike ships fu
 | | |
 |---|---|
 | Package | `redstrike` |
-| Commands | `redstrike` (`graph` / `campaign` / `report` / `c2` / `stage` / `console` / `check`) · `redstrike-api` · `redstrike-mcp` |
+| Commands | `redstrike` (`graph` / `campaign` / `report` / `c2` / `stage` / `install` / `api` / `console` / `check`) · `redstrike-api` · `redstrike-mcp` |
 | C2 Integration | Native **[C2Stack](https://github.com/Ganron007/C2Stack)** (Sliver, Meridian, Mythic, Havoc & Adaptix — fleet view, server-side builds, staging, tasking) |
 | Generic Graph Templates | [`generic-ad-recon.yaml`](examples/generic-ad-recon.yaml) · [`generic-adcs-audit.yaml`](examples/generic-adcs-audit.yaml) · [`generic-privilege-escalation.yaml`](examples/generic-privilege-escalation.yaml) · [`generic-rbcd-coercion.yaml`](examples/generic-rbcd-coercion.yaml) · [`generic-entra-recon.yaml`](examples/generic-entra-recon.yaml) |
 | Architecture & Modes | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) |
@@ -78,7 +78,7 @@ RedStrike bridges deterministic reproducibility with adaptive AI agency through 
 ```
 
 ### 1. Execution Profiles
-- **`GATED` Mode (Default / Safe):** Reconnaissance, discovery, and non-intrusive checks execute freely. High-risk operations (**DCSync**, **Ticket/Certificate Forgery**, **ACL Writes**, **Password Resets**) pause execution and wait for human operator approval (`redstrike graph approve --gate <name>`).
+- **`GATED` Mode (Default / Safe):** Reconnaissance, discovery, and non-intrusive checks execute freely. High-risk operations (**DCSync**, **Ticket/Certificate Forgery**, **ACL Writes**, **Forest Trusts**, **Persistence**, **Site Takeover**, **Cloud Takeover**) pause execution and wait for human operator approval (`redstrike graph approve --gate <name>`).
 - **`AUTONOMOUS` Mode (Unrestricted under Scope):** Allows AI agents (or automated pipelines) to explore and chain multi-hop paths without manual pauses, strictly enforced by `scope.yaml` IP/CIDR blocks, domain suffixes, and cooldown limits.
 
 ### 2. Execution Interfaces & Dual-Mode Transport
@@ -95,7 +95,7 @@ RedStrike bridges deterministic reproducibility with adaptive AI agency through 
   <img src="assets/redstrike-architecture.svg" alt="RedStrike Architecture" width="100%">
 </p>
 
-1. **Ingress** — CLI (`redstrike graph`), HTTP (`/ad/*`, `/jobs`, `/c2/*`), or FastMCP tools (`redstrike-mcp`).
+1. **Ingress** — CLI (`redstrike {graph|campaign} {run|start|approve|status|stream|teardown|check}`, `redstrike c2 …`), HTTP (`/ad/*`, `/jobs`, `/campaign/*`, `/builders/*`, `/c2/*`), or FastMCP tools (`redstrike-mcp`).
 2. **Auth & Trust** — Local loopback trust by default; `X-API-Key` required for remote interfaces.
 3. **Policy & Scope** — `ScopePolicy.assert_allowed` validates target IP/CIDRs and domains against `scope.yaml`.
 4. **HITL Gatekeeper** — Pauses high-risk operations in `gated` profile until the operator approves (append-only approvals log in engagement state).
@@ -163,14 +163,14 @@ Dispatch post-exploitation tasks directly through in-memory C2 implants (Sliver,
 cd C2Stack/Docker && ./docker-bootstrap.ps1 -All   # or: ./docker-bootstrap.sh --all
 
 # 1. Run campaign graph in C2 mode with Sliver backend (in-memory .NET assembly execution)
-redstrike graph run --phase 1-3 --c2 --c2-backend sliver --c2-session <session-id>
+redstrike graph run --engage default --beachhead windows --phase 1-3 --c2 --c2-backend sliver --c2-session <session-id>
 
 # 2. Run with Meridian C2 backend (covert DNS TXT tunneling / HTTP; driven via its container CLI)
-redstrike graph run --phase 1-3 --c2 --c2-backend meridian \
+redstrike graph run --engage default --beachhead windows --phase 1-3 --c2 --c2-backend meridian \
   --c2-endpoint "docker exec -i c2stack-meridian-1 meridian"
 
 # 3. Havoc / Adaptix are driven through C2Stack's Flight Control portal API (port 8000)
-redstrike graph run --phase 1-3 --c2 --c2-backend havoc --c2-endpoint http://127.0.0.1:8000
+redstrike graph run --engage default --beachhead windows --phase 1-3 --c2 --c2-backend havoc --c2-endpoint http://127.0.0.1:8000
 ```
 
 Available backends: `sliver` (CLI, `execute-assembly`), `meridian` (container CLI, DNS TXT egress), `mythic` (REST webhooks, Apollo agents), `havoc` and `adaptix` (C2Stack Flight Control portal at `http://127.0.0.1:8000`, set `C2STACK_PORTAL_URL` to override). Omit `--c2-session` to auto-select the first live session, or use `--c2-backend auto` to pick the first framework that has one.
@@ -193,7 +193,7 @@ redstrike c2 probe --path /gateway/v1/telemetry  # redirector: decoy vs backend 
 redstrike c2 task --backend havoc --session <id> --command "whoami"   # task ANY framework
 ```
 
-Note: Adaptix 0.7/Demon builds are compiled server-side inside the C2Stack containers; retrieval for Sliver uses `docker cp` and Mythic builds are queued and polled (dotnet takes minutes).
+Note: Adaptix/Demon builds are compiled server-side inside the C2Stack containers; retrieval for Sliver uses `docker cp` and Mythic builds are queued and polled (dotnet takes minutes).
 
 ### Option D: Reporting, Teardown & Dashboard
 
@@ -219,12 +219,12 @@ Entra ID intents ride the same engine (typed argv, scope targets, HITL gates, le
 redstrike graph run --engage tenant-a --beachhead linux --phase 9-9.3   --graph examples/generic-entra-recon.yaml --seed entra-seed.json
 ```
 
-- Intents: `entra.az_login`, `entra.account_show`, `entra.graph_query` (az rest), `entra.azurehound_collect[_cli_auth]`, `entra.user_role_enum`, `entra.roadrecon_auth[_token|_prt]`, `entra.roadrecon_gather`, `entra.kerberos_ticket` (Seamless-SSO/cloud-Kerberos, **HITL `cloud_takeover`**), `entra.prt_token`, `entra.adfs_spray` (raw-args shim — no canonical tool exists).
-- Flags verified against upstream docs **and the installed CLIs** during live verification (az 2.82.0 `az rest --help`; AADInternals 0.9.7 cmdlet parameters — exact match).
+- Intents (23): `entra.az_login`, `entra.account_show`, `entra.account_list`, `entra.signed_in_user`, `entra.role_assignment_list`, `entra.token_artifacts`, `entra.graph_query`, `entra.azurehound_collect`, `entra.azurehound_collect_jwt`, `entra.user_role_enum`, `entra.roadrecon_auth`, `entra.roadrecon_auth_device_code`, `entra.roadrecon_auth_token`, `entra.roadrecon_auth_prt`, `entra.roadrecon_gather`, `entra.roadtx_gettokens`, `entra.roadtx_prt`, `entra.hybrid_script`, `entra.kerberos_ticket` (Seamless-SSO/cloud-Kerberos, **HITL `cloud_takeover`**), `entra.prt_token`, `entra.adfs_spray` (raw-args shim — no canonical tool exists), `entra.monkey365`, `entra.graphrunner`.
+- Flags verified against upstream docs **and the installed CLIs** during live verification (az `az rest --help`; AADInternals cmdlet parameters — exact match at the verified 0.9.7, recommended 0.11.0 per the tool manifest).
 - JSON-emitting tools verify structurally: a node can assert `success_json: {path: tenantId, equals: <guid>}` instead of a stdout marker.
 - Tokens are first-class ledger material (`cred_type: token`) and JWTs/`access_token=`/`Bearer` values are scrubbed from every derived output.
 
-### Option C: Start Autonomous LLM FastMCP Server
+### Option F: Start Autonomous LLM FastMCP Server
 
 Connect RedStrike to Claude Desktop, Cursor, or your agent swarm:
 

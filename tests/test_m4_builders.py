@@ -83,7 +83,7 @@ def test_sql_redacts_embedded_password() -> None:
 
 
 def test_sharpsccm_and_mimikatz() -> None:
-    assert SharpSCCMBuilder().get_naa(server="mbr02")[0].endswith("SharpSCCM.exe") or True
+    assert SharpSCCMBuilder().get_naa(server="srv02")[0].endswith("SharpSCCM.exe") or True
     assert "sekurlsa::logonpasswords" in MimikatzBuilder().logonpasswords()
 
 
@@ -152,7 +152,7 @@ def test_api_builders_preview() -> None:
     client = TestClient(create_app(profile="campaign"))
     res = client.post(
         "/builders/preview",
-        json={"intent": "sharpsccm.get_naa", "args": {"server": "mbr02.range.local"}},
+        json={"intent": "sharpsccm.get_naa", "args": {"server": "srv02.range.local"}},
     )
     assert res.status_code == 200
     body = res.json()
@@ -223,11 +223,11 @@ def test_certipy_unpac_and_template() -> None:
 
 def test_sharpsccm_extensions() -> None:
     builder = SharpSCCMBuilder()
-    exec_argv = builder.exec_script(server="mbr02", script_body="whoami", device="WINDOWS-HOST")
+    exec_argv = builder.exec_script(server="srv02", script_body="whoami", device="WINDOWS-HOST")
     assert "-b" in exec_argv and "whoami" in exec_argv
     assert "-d" in exec_argv and "WINDOWS-HOST" in exec_argv
 
-    admin_argv = builder.adminservice_query(server="mbr02", endpoint="SMS_Application")
+    admin_argv = builder.adminservice_query(server="srv02", endpoint="SMS_Application")
     assert "adminservice" in admin_argv
 
 

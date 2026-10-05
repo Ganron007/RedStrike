@@ -12,7 +12,10 @@ These must stay off git (already gitignored where applicable):
 | `scope.yaml` | Your real target IP/CIDRs and domains |
 | Engagement seed JSON with real passwords | Credential material and NT hashes |
 | `--api-key` values / `REDSTRIKE_API_KEY` | Access to the API and FastMCP server |
-| SSH private keys (`REDSTRIKE_WINDOWS_SSH_KEY`) | Windows beachhead host access |
+| SSH private keys (`REDSTRIKE_WINDOWS_SSH_KEY`, `REDSTRIKE_LINUX_SSH_KEY`) | Windows/Linux target host access |
+| Mythic credentials (`MYTHIC_USERNAME` / `MYTHIC_PASSWORD` / `MYTHIC_API_KEY`), `MERIDIAN_API_KEY` | C2 teamserver access |
+| `C2STACK_PORTAL_URL` with embedded credentials | Flight Control portal access |
+| Ledger/rate-limit state under `~/.redstrike` | Earned credential material |
 | `.env`, `.pypirc`, `dist/` | Secrets and build artifacts |
 | Custom engagement graphs with real target names | Customer infrastructure data |
 

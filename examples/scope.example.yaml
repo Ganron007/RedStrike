@@ -3,9 +3,9 @@
 #
 # Built-in profiles:
 #   standalone      read-only AD assessment (default API)
-#   campaign        validate + high-risk allowed (HITL still gates --execute)
+#   campaign        all modes + high-risk allowed (ungated under scope; HITL only if REDSTRIKE_REQUIRE_HITL=1)
 #   lab-ungated     no HITL, all modes; MUST have non-empty targets AND domains
-#   validate-gated  same as campaign with longer cooldowns
+#   validate-gated  high-risk like campaign but OBSERVE/ASSESS/VALIDATE only (no REPORT), longer cooldowns
 #   adcs-deep       ADCS-focused
 #   forest-trust-review  read-only forest/trust review
 #

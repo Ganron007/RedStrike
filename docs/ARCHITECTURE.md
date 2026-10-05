@@ -50,9 +50,10 @@ Every operation—whether invoked via CLI graph or MCP agent—must pass through
   - **`dcsync`**: Domain Controller directory replication dumps.
   - **`ticket`**: Kerberos Golden/Silver/S4U ticket generation and PKINIT forgery.
   - **`acl_write`**: Object DACL and certificate template permission modifications.
-  - **`password_reset`**: Direct user account password resets.
-  - **`relay`**: Active NTLM network relay listener engagements.
   - **`forest`**: Cross-forest Kerberos hop and trust abuse.
+  - **`persistence`**: Persistence-establishing operations.
+  - **`site_takeover`**: Site-level takeover operations.
+  - **`cloud_takeover`**: Entra/cloud identity takeover (Phase 9).
 - Approval command: `redstrike graph approve --gate <name> --engage <id>`.
 
 ### Profile 2: `AUTONOMOUS` (Unrestricted AI Agency under Scope)
@@ -74,6 +75,7 @@ RedStrike eliminates shell injection vulnerabilities by constructing argument ve
 | `CoerceBuilder` | Authentication Coercion (RPC/SMB) | MS-RPRN (`spoolsample`/`printerbug`), MS-EFSR (`petitpotam`), DFIRCoerce (`dfircoerce`), and MS-FSRVP (`shadowcoerce`) |
 | `RubeusBuilder` | Windows Kerberos | AS-REP roasting, Kerberoasting, TGT request (`asktgt`), S4U RBCD (`s4u`), Golden/Silver/Diamond ticket generation |
 | `KerbruteBuilder` | Kerberos Pre-Auth Spraying | Pre-auth user enumeration (`userenum`), rate-limited password spraying (`passwordspray`), account brute-force (`bruteuser`) |
+| `MimikatzBuilder` | LSASS & Credential Dumping | Interactive logon passwords (`logonpasswords`), DCSync (`dcsync`), SAM extraction (`sam`) |
 | `ImpacketBuilder` | Replication & Relay Suite | DCSync replication dumps (`secretsdump`), Kerberoasting (`getuserspns`), WMI/SMB/Task execution, and NTLM relaying (`ntlmrelayx`) |
 | `BloodyADBuilder` | LDAP & Active Directory Objects | Object query (`get_object`), password reset (`set_password`), DACL grant (`add_generic_all`) |
 | `ShadowCredentialsBuilder` | Key Credential Links | Certipy and KeyCredentialLink shadow credential injection |
@@ -82,7 +84,7 @@ RedStrike eliminates shell injection vulnerabilities by constructing argument ve
 | `AdcsModernBuilder` | 2024–2026 Modern ADCS Vectors | ESC16 weak mapping audits and ESC17 (`pyesc17`) cross-realm certificate abuse |
 | `SqlBuilder` | MSSQL Database Instances | Linked database queries, `xp_cmdshell` execution |
 | `WinRSBuilder` | Windows Remote Management | WinRM / WinRS command execution |
-| `C2Adapters` | C2 Implants (Sliver, Meridian, Mythic, Havoc, Adaptix) | In-memory .NET `execute_assembly` (`Rubeus`, `SharpHound`), shell commands, PsExec lateral movement, covert DNS TXT tunneling |
+| `C2Adapters` | C2 Implants (Sliver, Meridian, Mythic, Havoc, Adaptix) | Per-backend tasking: Sliver (`shell`, `execute_assembly`, `psexec`, `list_sessions`); Meridian (`task`, `shell` — async queue+poll; `execute_assembly`/`psexec` rejected: no such modules); Mythic/Apollo (`shell`, `execute_assembly`, `psexec`, `list_sessions`); Havoc (`shell`, `execute_assembly`, `list_sessions` — no `psexec`); Adaptix (`shell`, `list_sessions` only). Covert DNS TXT tunneling is Meridian-only. |
 | `EntraBuilder` | Entra ID / Hybrid Identity | `az rest` Graph queries, AzureHound/Roadrecon collection, Seamless-SSO ticket forging (`cloud_takeover` gate), PRT workflows, ADFS spray shim |
 
 **Secret Redaction Invariant:** Builders mask plaintext passwords, NT hashes, and Kerberos keys in argv (logging + the activity journal); derived outputs (API/MCP responses, `--json` summaries, reports) are scrubbed of captured credential material (`REDSTRIKE_RAW_OUTPUT=1` opts out locally), and reports mask secrets unless `--include-secrets` is passed.
@@ -97,7 +99,7 @@ RedStrike seamlessly dispatches commands across heterogeneous infrastructure:
 2. **Windows Beachhead:** Transparent OpenSSH wrapper or native PowerShell execution for Windows binaries (`Rubeus.exe`, `SharpSCCM.exe`, `Mimikatz.exe`). Configured via `REDSTRIKE_WINDOWS_HOST`, `REDSTRIKE_WINDOWS_USER`, and `REDSTRIKE_WINDOWS_SSH_KEY`.
 3. **C2 Implant Execution (via C2Stack):** Dispatches in-memory .NET tools and lateral movement directly through active C2 sessions via `CallSpec` primitives:
    - **Sliver** (v1.7.7): In-memory assembly execution and remote commands through the `sliver-client` CLI (`127.0.0.1:31337`).
-   - **Meridian**: Custom Go stdlib implant with X25519/AES-GCM encryption and chunked DNS TXT covert egress over UDP 15353 (driven through the `c2stack-meridian-1` container CLI).
+   - **Meridian**: in-house Go implant driven through the `c2stack-meridian-1` container CLI (`sessions --json`, `exec --json <sid> -- <cmd>`, `results --json`); tasks are asynchronous (beacon-interval poll, base64 stdout/stderr); built-in modules are `exec/download/upload/sleep/exit` (no `execute-assembly`/`psexec`); supports HTTP and DNS TXT egress (see C2Stack docs for transport detail).
    - **Mythic** (Apollo): REST webhooks behind JWT auth on the published UI port (`127.0.0.1:7443`); assembly tasking stages files via the upload webhook and reads results from the `response` table.
    - **Havoc & Adaptix**: No direct operator REST API — dispatched through C2Stack's Flight Control portal HTTP API (`http://127.0.0.1:8000`): unified session table (`/api/ops/sessions`), per-framework tasking (`/api/ops/task`), and results polling.
    - **Full-stack lifecycle (`redstrike c2`)**: the same Flight Control API is also used to build implants server-side for every framework (Sliver/Havoc/Adaptix/Mythic), stage files into Mythic (`agent_file_id` for COFF/assembly tasking), and verify redirector routing — so a campaign can generate its own access instead of assuming sessions exist. `--c2-backend auto` selects the first framework with a live session and a missing `--c2-session` is resolved from the fleet.

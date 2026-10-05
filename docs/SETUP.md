@@ -104,15 +104,16 @@ You should see `0.6.0` (or newer). The Python import is `redstrike`.
 redstrike check
 ```
 
-Read the three blocks:
+Read the four blocks:
 
 | Block | Meaning |
 |---|---|
-| **Core** | Package, demo graph, demo seed, demo scripts. All `ok` → dry-run is possible. |
-| **Scope** | `todo` until you copy `scope.yaml` (next step). That is expected on a fresh clone. |
-| **Operator tools** | `missing` is fine for dry-run. Required only for live `--execute`. |
+| **Core (dry-run / API)** | Package, demo graph, demo seed, demo scripts (`ok`/`FAIL`). All `ok` → dry-run is possible. |
+| **Scope (create your own policy)** | `todo` until you copy `scope.yaml` (next step). That is expected on a fresh clone. |
+| **Operator tools (live `--execute` only)** | `missing` is fine for dry-run. `nxc`/`netexec`, `certipy`, `bloodyAD`, plus `ssh`/`bash` are required only for live `--execute`. |
+| **Toolchain manifest** | Per-tool install recipes and version probes (`ok`/`WARN`/`missing`). |
 
-Exit code `0` means core is OK. `redstrike check --execute-ready` exits non-zero if PATH tools are missing.
+Exit codes: `0` core OK; `1` core fail; `2` `--execute-ready` PATH tools missing; `3` `--version-gated` manifest mismatch. Useful flags: `--json`, `--version-gated`, `--ungated`.
 
 JSON (for scripts):
 
@@ -155,7 +156,11 @@ Built-in profiles (passed with `--profile`; your YAML overlays them):
 | `standalone` | Alias for `gated`. |
 | `campaign` | Alias for `autonomous`. |
 | `lab-ungated` | Opt-in fully ungated execution. **Requires** non-empty targets and domains in `scope.yaml` (`--ungated --scope`). |
-| `validate-gated` | Like `gated` with longer cooldowns and validation mode enabled. |
+| `lab-readonly` | Gated read-only variant. |
+| `validate-gated` | `observe`+`assess`+`validate` with high-risk ON (unlike `gated`) and longer cooldowns. |
+| `adcs-deep` | ADCS-focused (`assess`+`validate`, high-risk ON). |
+| `forest-trust-review` | Cross-forest review (`observe`+`assess`, high-risk OFF). |
+| `ungated` | Alias for `lab-ungated`. |
 
 After you save `scope.yaml`:
 
@@ -179,7 +184,7 @@ redstrike-campaign run --phase 1-3 --beachhead windows --operator linux --engage
   --automation-root examples/automation
 ```
 
-You should see `[DRY-RUN]` and `DEMO-RECON` / `DEMO-CREDS` / `DEMO-EXEC` / `DEMO-LATERAL` as `OK`.
+You should see `[DRY-RUN]` with `DEMO-RECON` / `DEMO-CREDS` / `DEMO-EXEC` / `DEMO-LATERAL` as `[PLAN]` steps. `[OK]` appears only for live-verified steps (`--execute`); `[GATE]`/`[SKIP]`/`[FAIL]` otherwise.
 
 The example seed password is the placeholder `CHANGE_ME`. Replace it in a **local** seed file
 for a real engagement; do not commit real passwords. See [SECURITY.md](SECURITY.md).
@@ -272,7 +277,7 @@ export REDSTRIKE_WINDOWS_SSH_KEY="/path/to/private-key"
 
 ---
 
-## Step 7 (Optional) — C2-Enabled Mode with C2Stack
+## Step 9 (Optional) — C2-Enabled Mode with C2Stack
 
 For in-memory post-exploitation, lateral movement, and covert egress without dropping binaries to disk, RedStrike natively integrates with **[C2Stack](https://github.com/Ganron007/C2Stack)** across all five of its frameworks: **Sliver** (v1.7.7), **Meridian**, **Mythic** (Apollo), **Havoc**, and **Adaptix**.
 
@@ -290,43 +295,43 @@ cd C2Stack/Docker
 ```bash
 # Sliver in-memory .NET assembly execution (Rubeus, SharpHound, Seatbelt)
 #   requires sliver-client on PATH with the C2Stack operator config imported
-redstrike graph run --phase 1-3 --c2 --c2-backend sliver --c2-session <sliver-session-id>
+redstrike graph run --engage default --beachhead windows --phase 1-3 --c2 --c2-backend sliver --c2-session <sliver-session-id>
 
 # Meridian covert DNS TXT tunneling & HTTP (driven through its container CLI)
-redstrike graph run --phase 1-3 --c2 --c2-backend meridian \
+redstrike graph run --engage default --beachhead windows --phase 1-3 --c2 --c2-backend meridian \
   --c2-endpoint "docker exec -i c2stack-meridian-1 meridian"
 
-# Mythic (Apollo agents) via REST webhooks on the published UI port (7443 -> 17443);
+# Mythic (Apollo agents) via REST webhooks (container port 17443, host-published as 7443);
 # set MYTHIC_USERNAME / MYTHIC_PASSWORD (defaults mythic_admin / mythic)
-redstrike graph run --phase 1-3 --c2 --c2-backend mythic --c2-session <callback-id> \
+redstrike graph run --engage default --beachhead windows --phase 1-3 --c2 --c2-backend mythic --c2-session <callback-id> \
   --c2-endpoint http://127.0.0.1:7443
 
 # Havoc & Adaptix have no direct operator REST API — RedStrike drives them through
 # C2Stack's Flight Control portal (http://127.0.0.1:8000, override with C2STACK_PORTAL_URL)
-redstrike graph run --phase 1-3 --c2 --c2-backend havoc  --c2-endpoint http://127.0.0.1:8000
-redstrike graph run --phase 1-3 --c2 --c2-backend adaptix --c2-endpoint http://127.0.0.1:8000
+redstrike graph run --engage default --beachhead windows --phase 1-3 --c2 --c2-backend havoc  --c2-endpoint http://127.0.0.1:8000
+redstrike graph run --engage default --beachhead windows --phase 1-3 --c2 --c2-backend adaptix --c2-endpoint http://127.0.0.1:8000
 ```
 
 Notes:
 - The Flight Control portal also exposes a unified live session table (`GET /api/ops/sessions`) across all five frameworks — handy for discovering session ids before tasking.
 - Havoc in-memory .NET execution (`dotnet`) requires the assembly staged inside the portal container first: `docker cp <assembly> c2stack-portal-1:/tmp/`.
-- Mythic task output is read from Mythic's `response` table via the `c2stack-mythic_postgres-1` container; `psexec`-style movement on Apollo is intentionally rejected (use `shell` + `sc.exe` or `wmiexecute`).
+- Mythic task output is read from Mythic's `response` table via the `c2stack-mythic_postgres-1` container; lateral movement goes through `c2.mythic.psexec` (agent command tasking — where the agent lacks it, use `shell` + `sc.exe`).
 
 ### 3. (Optional) Entra ID / hybrid tooling
 
 `redstrike check --version-gated` covers the Phase 9 hybrid category. Install what your engagement needs:
 
-- **Azure CLI** — `az rest`/`az login` (any current 2.x; verified against 2.82.0).
+- **Azure CLI** — `az rest`/`az login` (any current 2.x).
 - **AzureHound v2** (SpectreOps BloodHound CE) — `azurehound list -u <user> -p <pass> -t <tenant> -o out.json` (flags after `list`, per the upstream README); for CLI-auth, acquire a token with `az account get-access-token --resource https://graph.microsoft.com` and pass `--jwt` (there is no `--az-cli-auth` flag).
 - **ROADtools** — `pip install roadtools`; `roadrecon auth` (password, `--device-code -c <client-id>` per the CARTP lab, `--access-token`, or `--prt`) writes `.roadtools_auth`; `roadrecon gather` builds `roadrecon.db`. The **roadtx** hybrid flows (cloud-Kerberos-trust chain per the HackTricks/dirkjanm research) are driven by `entra.roadtx_gettokens` (`-r aadgraph`) and `entra.roadtx_prt` (`--key-pem`/`--cert-pem`), with the research's standalone scripts (`modifyuser.py`, `partialtofulltgt.py`) via the `entra.hybrid_script` raw shim.
 - **Monkey365 / GraphRunner** — course tools (CARTP LO7 / CARTE device-code phishing): `entra.monkey365` and `entra.graphrunner` wrap the lab-documented invocations; MFASweep.ps1 is manifest-tracked.
 - **Token caches** — `entra.token_artifacts` locates Azure/MSAL token caches (filenames per HackTricks' Azure post-exploitation notes) under an operator-supplied root; harvested JWTs land in the ledger as `cred_type: token`.
-- **AADInternals** — `Install-Module AADInternals` (PowerShell); probed via `Get-Module -ListAvailable` (verified against 0.9.7).
+- **AADInternals** — `Install-Module AADInternals` (PowerShell); probed via `Get-Module -ListAvailable` (verified live at 0.9.7; recommended 0.11.0).
 - **ADFS spray** — no canonical tool (forge your own choice); drive it with the raw-args shim `entra.adfs_spray`.
 
 Cloud runs fail closed until `scope.yaml` lists `allowed_tenants` (and/or `allowed_cloud_domains`); the cloud-takeover step (`entra.kerberos_ticket`) is additionally gated by the `cloud_takeover` HITL gate.
 
-### 3. Build, stage, and inspect the stack (`redstrike c2`)
+### 4. Build, stage, and inspect the stack (`redstrike c2`)
 
 RedStrike drives the whole C2Stack lifecycle through its Flight Control API — implant builds, file staging, fleet view, and redirector checks:
 
@@ -388,7 +393,11 @@ Environment reference (all optional; exactly one of container/ssh for Linux):
 | `REDSTRIKE_LINUX_CONTAINER` | run Linux tools via `docker exec -i <name>` (e.g. `c2stack-kali`) |
 | `REDSTRIKE_LINUX_SSH` | `user@host[:port]` — run Linux tools on a REMOTE host over SSH (ssh/scp/bash are never wrapped); mutually exclusive with the container |
 | `REDSTRIKE_LINUX_SSH_KEY` | SSH key for the remote Linux tool host |
+| `REDSTRIKE_LINUX_SSH_PORT` / `REDSTRIKE_LINUX_SSH_KNOWN_HOSTS` | SSH port override / strict host-key file for the remote Linux tool host |
 | `REDSTRIKE_WINDOWS_HOST` / `_USER` / `_SSH_KEY` | Windows target transport + tool host |
+| `REDSTRIKE_WINDOWS_SSH` | SSH-wrap kill-switch for the Windows target (`1` default; `0`/`false`/`no`/`off` disables the SSH wrap) |
+| `REDSTRIKE_SSH_BIN` | SSH client binary name/path (default `ssh`) |
+| `REDSTRIKE_OPERATOR` | Override operator auto-detect (`linux` / `windows` / `c2`) |
 | `REDSTRIKE_WINDOWS_TOOLS_DIR` | Windows tool directory (`;`-separated; first entry used); intents resolve bare `.exe` names there and `redstrike check` probes it over SSH |
 | `REDSTRIKE_WINDOWS_KNOWN_HOSTS` | pin the beachhead host key (strict checking) instead of accept-new |
 | `REDSTRIKE_LINUX_TOOLS_DIR` | tool directory on the container/ssh Linux target (e.g. an isolated venv bin) — bare names resolve there instead of the host PATH |
@@ -428,7 +437,7 @@ docker run --rm -it -p 8890:8890 redstrike api --host 0.0.0.0 --port 8890
 | Symptom | What to do |
 |---|---|
 | `redstrike: command not found` | Activate `.venv` and re-run `pip install -e ".[dev,mcp]"` |
-| `Unknown scope policy profile` | Use `standalone` or `campaign` (see Step 5) |
+| `Unknown scope policy profile` | Use a known profile (`gated`, `autonomous`, `lab-ungated`, `validate-gated`, `adcs-deep`, `forest-trust-review`, aliases `standalone`, `campaign`, `ungated`) — see Step 5 |
 | Scope line stays `todo` | You are not passing `--scope scope.yaml`, or the file is missing |
 | Dry-run looks for scripts under cwd | Pass `--automation-root examples/automation` |
 | `--execute` pauses immediately | Approve the HITL gate named in `pending_gate` |

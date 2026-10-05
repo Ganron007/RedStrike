@@ -32,9 +32,10 @@ Run the built-in diagnostic tool to verify environment readiness:
 ```bash
 redstrike check
 ```
-- **Core (All `ok`)**: Dry-run simulation and API are ready out-of-the-box with zero third-party tool dependencies.
-- **Scope (`todo`)**: Prompts you to create your custom `scope.yaml` policy.
-- **Operator Tools (`missing`)**: PATH binaries (`nxc`, `certipy`, `bloodyAD`) required only when running live `--execute`.
+- **Core (dry-run / API)**: Dry-run simulation and API are ready out-of-the-box with zero third-party tool dependencies.
+- **Scope (create your own policy)**: Prompts you to create your custom `scope.yaml` policy.
+- **Operator tools (live `--execute` only)**: PATH binaries (`nxc`/`netexec`, `certipy`, `bloodyAD`, plus `ssh` and `bash` for transport/script runs) required only when running live `--execute`.
+- **Toolchain manifest**: per-tool install recipes and version probes (`ok`/`WARN`/`missing`).
 
 ### Step 2: Creating Your Scope Policy
 RedStrike will never attack an unauthorized network. Copy and customize the example scope:
@@ -49,17 +50,16 @@ cp examples/scope.example.yaml scope.yaml
 Copy-Item examples\scope.example.yaml scope.yaml
 ```
 
-Open `scope.yaml` and configure your targets:
+Open `scope.yaml` and configure your targets (see `examples/scope.example.yaml` for the full key set):
 ```yaml
-version: "1.0"
 allowed_targets:
-  - "192.168.1.10"
+  - "192.168.1.7"
   - "192.168.1.11"
-  - "dc01.example.lab"
 allowed_domains:
   - "example.lab"
-  - "corp.local"
+allowed_modes: [observe, assess]
 allow_high_risk: false    # Set true only for active exploitation campaigns
+# Cloud (Phase 9): allowed_tenants / allowed_cloud_domains
 ```
 
 Verify scope activation:
@@ -81,7 +81,7 @@ redstrike-campaign run --phase 1-3 --beachhead windows --operator linux --engage
 ```
 
 ### What Happens Behind the Scenes:
-1. **DAG Graph Loader**: Ingests `examples/campaign-graph.m1.yaml` and validates node dependencies (`DEMO-RECON ➔ DEMO-CREDS ➔ DEMO-EXEC ➔ DEMO-LATERAL`).
+1. **DAG Graph Loader**: Ingests `examples/campaign-graph.m1.yaml` and selects nodes by `--phase`/`--branch` in file order (`DEMO-RECON`, `DEMO-CREDS`, `DEMO-EXEC`, `DEMO-LATERAL`).
 2. **Credential Ledger (SSoT)**: Ingests `examples/seed.example.json` into memory, tracking discovered credentials and DA privileges.
 3. **Dry-Run Execution**: Simulates step completion, generates mock telemetry, and outputs a clean execution trace.
 
@@ -173,7 +173,7 @@ Add to `.vscode/mcp.json` in your workspace root:
 **Objective**: Observe how RedStrike safely pauses on high-risk operations.
 
 1. When an AI agent attempts a high-risk operation (e.g. requesting a Domain Admin certificate or writing an ACL):
-2. **Execution Pauses**: RedStrike returns status `HITL_PENDING` with a unique gate ID.
+2. **Execution Pauses**: the step is marked `awaiting_approval` (rendered `GATE`) and the engagement state goes `paused` with the gate recorded as `pending_gate`.
 3. **Operator Approval**:
    On your terminal, inspect the pending intent and approve:
    ```bash
@@ -194,10 +194,10 @@ Add to `.vscode/mcp.json` in your workspace root:
 2. Run graph in C2-Enabled Mode:
    ```bash
    # Run campaign through an active Sliver session
-   redstrike graph run --phase 1-3 --c2 --c2-backend sliver --c2-session <session-id>
+   redstrike graph run --engage default --beachhead windows --phase 1-3 --c2 --c2-backend sliver --c2-session <session-id>
 
    # Or through Havoc/Adaptix via C2Stack's Flight Control portal (port 8000)
-   redstrike graph run --phase 1-3 --c2 --c2-backend havoc --c2-endpoint http://127.0.0.1:8000
+   redstrike graph run --engage default --beachhead windows --phase 1-3 --c2 --c2-backend havoc --c2-endpoint http://127.0.0.1:8000
    ```
 3. **What RedStrike Executes**:
    - Constructs a `CallSpec(kind="c2", c2_backend="sliver", c2_task_type="execute_assembly")`.
@@ -210,12 +210,12 @@ Add to `.vscode/mcp.json` in your workspace root:
 
 RedStrike is designed for seamless purple-teaming alongside **DFIR-Nexus**:
 
-| Attack Phase | RedStrike Intent | Expected Windows Telemetry | DFIR-Nexus Validation |
+| Attack Phase | RedStrike Intent (example) | Expected Windows Telemetry | DFIR-Nexus Validation |
 |---|---|---|---|
-| **Reconnaissance** | `enumerate_domain_users` | Event ID 4662 (Directory Service Access) | Sigma rule `win_ad_ldap_recon` |
-| **Credential Access**| `request_tgt` / Kerberoast | Event ID 4769 (Kerberos Ticket Request) | High-volume RC4 ticket alerts |
-| **Privilege Escalation**| `certipy_req` (ESC1/4) | Event ID 4886/4887 (Certificate Issued) | SAN UPN mismatch detection |
-| **Lateral Movement** | `winrs_exec` / `sql_query` | Event ID 4624 (Logon Type 3) & Sysmon 1 | Process tree anomaly analysis |
+| **Reconnaissance** | `netexec` enumeration (MCP: `enumerate_domain_users`) | Event ID 4662 (Directory Service Access) | Sigma rule `win_ad_ldap_recon` |
+| **Credential Access**| `rubeus.asktgt` / `rubeus.kerberoast` | Event ID 4769 (Kerberos Ticket Request) | High-volume RC4 ticket alerts |
+| **Privilege Escalation**| `certipy.req` (ESC1/4) | Event ID 4886/4887 (Certificate Issued) | SAN UPN mismatch detection |
+| **Lateral Movement** | `winrs.command` / `sql.mssqlclient` | Event ID 4624 (Logon Type 3) & Sysmon 1 | Process tree anomaly analysis |
 
 ---
 
