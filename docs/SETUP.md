@@ -319,7 +319,7 @@ Notes:
 
 ### 3. (Optional) Entra ID / hybrid tooling
 
-`redstrike check --version-gated` covers the Phase 9 hybrid category. Install what your engagement needs:
+`redstrike check --version-gated` covers the hybrid-identity tool category. Install what your engagement needs:
 
 - **Azure CLI** — `az rest`/`az login` (any current 2.x).
 - **AzureHound v2** (SpectreOps BloodHound CE) — `azurehound list -u <user> -p <pass> -t <tenant> -o out.json` (flags after `list`, per the upstream README); for CLI-auth, acquire a token with `az account get-access-token --resource https://graph.microsoft.com` and pass `--jwt` (there is no `--az-cli-auth` flag).
@@ -358,7 +358,7 @@ RedStrike carries **adapters + pins + recipes**, not vendored binaries. Three ex
 |---|---|---|
 | **Linux operator host** | nxc, certipy, bloodyAD, impacket, kerbrute, az, azurehound, roadtools/roadtx | `redstrike check` shows the manifest `install` recipe per tool (pip/apt/go). Optional: point execution at a **container** (e.g. C2Stack's Kali workstation) with `REDSTRIKE_LINUX_CONTAINER=c2stack-kali` — every Linux tool then runs via `docker exec -i c2stack-kali …`, `redstrike check` probes versions *inside* the container, and `ssh`/`scp`/`bash` are never wrapped. |
 | **Windows beachhead (windows target)** | Rubeus.exe, SharpSCCM.exe, mimikatz.exe, SharpHound.exe, AADInternals/GraphRunner/MFASweep PS modules | (1) install manually; (2) **tools-dir autodiscovery** — set `REDSTRIKE_WINDOWS_TOOLS_DIR=C:\Tools` and bare `.exe` names in intents resolve to that directory at run time (multi-dir: `C:\Tools;D:\RedTeam`, first entry wins); `redstrike check` SSH-probes presence there when `REDSTRIKE_WINDOWS_HOST` is set; (3) **`redstrike stage`** — `--plan` shows the tooling plan; `--download` fetches the **sha256-pinned** upstream artifact (SharpHound 2.17.0, mimikatz 2.2.0, SharpSCCM 2.0.14), verifies, extracts from the zip, and scp's it into the tools dir; `--file` stages operator-supplied binaries and **records** their hash (Rubeus has no upstream binary release — compile or verify a mirror). |
-| **C2 sessions** | assemblies/BOFs/beacons | `redstrike c2 stage` + the C2 build endpoints (Phase 8) |
+| **C2 sessions** | assemblies/BOFs/beacons | `redstrike c2 stage` + the C2 build endpoints |
 
 Pin semantics, stated plainly: a `sha256` in the manifest covers the **downloaded artifact**; archive-shipped tools (mimikatz, SharpHound) are verified at download time, and a `--file` input is the extracted binary whose hash is recorded (never silently claimed as "verified"). Downloads happen on the operator host (lab VMs often lack egress) and are pushed over SSH.
 

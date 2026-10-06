@@ -59,7 +59,7 @@ allowed_domains:
   - "example.lab"
 allowed_modes: [observe, assess]
 allow_high_risk: false    # Set true only for active exploitation campaigns
-# Cloud (Phase 9): allowed_tenants / allowed_cloud_domains
+# Cloud: allowed_tenants / allowed_cloud_domains
 ```
 
 Verify scope activation:

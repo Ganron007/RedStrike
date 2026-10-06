@@ -17,7 +17,7 @@ allowed_targets:
   - 192.168.1.11
 allowed_domains:
   - example.lab
-# Entra ID / hybrid identity (Phase 9): cloud nodes (`entra.*` intents carrying
+# Entra ID / hybrid identity: cloud nodes (`entra.*` intents carrying
 # a `tenant:` arg) are validated against these lists before any live run and
 # fail closed without them. Tenant GUIDs or verified domains both match.
 allowed_tenants:

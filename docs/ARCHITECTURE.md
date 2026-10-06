@@ -53,7 +53,7 @@ Every operation—whether invoked via CLI graph or MCP agent—must pass through
   - **`forest`**: Cross-forest Kerberos hop and trust abuse.
   - **`persistence`**: Persistence-establishing operations.
   - **`site_takeover`**: Site-level takeover operations.
-  - **`cloud_takeover`**: Entra/cloud identity takeover (Phase 9).
+  - **`cloud_takeover`**: Entra/cloud identity takeover.
 - Approval command: `redstrike graph approve --gate <name> --engage <id>`.
 
 ### Profile 2: `AUTONOMOUS` (Unrestricted AI Agency under Scope)

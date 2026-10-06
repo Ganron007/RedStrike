@@ -1,7 +1,7 @@
 version: 1
 name: "Generic Entra ID / Hybrid Identity Reconnaissance"
 
-# Phase 9 example. Every `entra.*` intent's flags are verified against upstream
+# Hybrid identity example. Every `entra.*` intent's flags are verified against upstream
 # (Microsoft Learn azure-cli reference, SpecterOps AzureHound CE docs, ROADtools
 # wiki, AADInternals cmdlet reference) — see redstrike/builders/entra.py.
 #
@@ -17,7 +17,7 @@ name: "Generic Entra ID / Hybrid Identity Reconnaissance"
 
 nodes:
   - id: "ENTRA-01-AZUREHOUND"
-    phase: 9.0
+    phase: 1.0
     title: "Collect Entra ID users, groups, and role edges (AzureHound v2)"
     path: "direct"
     beachheads: ["windows", "linux"]
@@ -33,7 +33,7 @@ nodes:
     # verification here (the file-export tools do not print markers).
 
   - id: "ENTRA-02-ROADRECON-AUTH"
-    phase: 9.0
+    phase: 1.0
     title: "Authenticate ROADrecon (writes .roadtools_auth)"
     path: "direct"
     beachheads: ["linux"]
@@ -45,7 +45,7 @@ nodes:
     success_marker: "ENTRA_02_ROADRECON_AUTH_OK"
 
   - id: "ENTRA-03-ROADRECON-GATHER"
-    phase: 9.0
+    phase: 1.0
     title: "Gather Entra ID object relationships (roadrecon.db)"
     path: "direct"
     beachheads: ["linux"]
@@ -58,7 +58,7 @@ nodes:
     success_marker: "ENTRA_03_ROADRECON_GATHER_OK"
 
   - id: "ENTRA-04-GRAPH-TENANT"
-    phase: 9.1
+    phase: 2.0
     title: "Confirm the signed-in tenant via Microsoft Graph (structured verify)"
     path: "direct"
     beachheads: ["windows", "linux"]
@@ -72,7 +72,7 @@ nodes:
       equals: "00000000-1111-2222-3333-444444444444"
 
   - id: "ENTRA-05-GRAPH-USERS"
-    phase: 9.1
+    phase: 2.0
     title: "Enumerate tenant users and mail-enabled principals (Graph)"
     path: "direct"
     beachheads: ["windows", "linux"]
@@ -84,7 +84,7 @@ nodes:
     success_marker: "ENTRA_05_GRAPH_USERS_OK"
 
   - id: "ENTRA-06-SSO-TICKET"
-    phase: 9.2
+    phase: 3.0
     title: "Forge a Seamless-SSO Kerberos ticket from AZUREADSSOACC$ (HITL)"
     path: "direct"
     beachheads: ["windows"]
@@ -99,7 +99,7 @@ nodes:
     success_marker: "ENTRA_06_SSO_TICKET_OK"
 
   - id: "ENTRA-07-ADFS-SPRAY"
-    phase: 9.3
+    phase: 4.0
     title: "ADFS spray (bring your own script — raw-args shim)"
     path: "direct"
     beachheads: ["linux"]

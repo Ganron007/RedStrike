@@ -17,9 +17,14 @@
 > to test. Unauthorized scanning, enumeration, or access attempts are illegal. The authors
 > and contributors accept no liability for any misuse or damage.
 
-RedStrike is an agentic Active Directory, ADCS, and Hybrid Identity assessment framework combining a **deterministic DAG attack-graph engine** with an **autonomous LLM agent (FastMCP)**, typed command builders (`shell=False`), scope policy, an HMAC-sealed credential ledger (optional AES-256-GCM at rest), human-in-the-loop safety gates, and **deep C2 framework integration via [C2Stack](https://github.com/Ganron007/C2Stack)** for in-memory implant execution (Sliver, Meridian, Mythic, Havoc, and Adaptix), covert DNS tunneling, and cross-platform lateral movement.
+RedStrike is an agentic assessment framework for **Active Directory, ADCS, and Hybrid Identity (Entra ID)**. It gives you two ways to run the same engine:
 
-Bring your own target environments, attack graphs, and seeds. RedStrike ships fully standalone with generic starter templates in `examples/` and native dual-mode execution (direct standard vs C2-enabled).
+- A **deterministic DAG engine** (`redstrike graph` / `redstrike campaign`) that executes declarative YAML attack graphs — repeatable, auditable, built for breach-and-attack simulation and hardening audits.
+- An **autonomous LLM agent** (`redstrike-mcp`, FastMCP) that plans and executes multi-hop attack paths on its own.
+
+Both run on the same safety rails: typed command builders (`shell=False`, no shell injection), a `scope.yaml` policy that fails closed on out-of-scope targets, a tamper-evident credential ledger, and human-in-the-loop gates on high-risk steps. Post-exploitation can run directly (Kali tools + Windows over SSH) or in-memory through C2 implants — Sliver, Meridian, Mythic, Havoc, and Adaptix — via [C2Stack](https://github.com/Ganron007/C2Stack).
+
+Bring your own target environments, attack graphs, and seeds. RedStrike ships standalone with generic starter templates in `examples/`.
 
 | | |
 |---|---|
@@ -35,46 +40,36 @@ Bring your own target environments, attack graphs, and seeds. RedStrike ships fu
 
 ---
 
-## Dual Execution Engine & 2-Tier Safety Profiles
+## How It Works
 
-RedStrike bridges deterministic reproducibility with adaptive AI agency through two execution interfaces, two execution policy profiles, and dual transport modes (Direct vs C2-Enabled via [C2Stack](https://github.com/Ganron007/C2Stack)):
+Two ways to drive the engine, two safety profiles, and two transports — all on the same typed builders:
 
 ```
-                          ┌────────────────────────────────────────────────────────┐
-                          │                  REDSTRIKE INTERFACES                  │
-                          └───────────────────────────┬────────────────────────────┘
-                                                      │
-                         ┌────────────────────────────┴────────────────────────────┐
-                         ▼                                                         ▼
-         ┌──────────────────────────────┐                          ┌──────────────────────────────┐
-         │ 1A. Deterministic DAG Engine │                          │ 1B. Autonomous LLM Agent     │
-         │  • redstrike graph run       │                          │  • FastMCP / REST API        │
-         │  • YAML attack graphs        │                          │  • BloodHound Cypher queries │
-         │  • Repeatable BAS & audits   │                          │  • Adaptive multi-hop goals  │
-         └───────────────┬──────────────┘                          └──────────────┬───────────────┘
-                         │                                                         │
-                         └────────────────────────────┬────────────────────────────┘
-                                                      ▼
-                          ┌────────────────────────────────────────────────────────┐
-                          │               2-TIER POLICY ENGINE                     │
-                          │                                                        │
-                          │  [GATED Profile] (Default / Safe)                      │
-                          │   • Read-only discovery runs freely                    │
-                          │   • High-risk jumps PAUSE for operator approval (HITL) │
-                          │                                                        │
-                          │  [AUTONOMOUS Profile] (Unrestricted Agency)            │
-                          │   • AI explores multi-hop paths toward objectives      │
-                          │   • Strictly bounded by scope.yaml IP/domain rules     │
-                          └───────────────────────────┬────────────────────────────┘
-                                                      ▼
-                           ┌────────────────────────────────────────────────────────┐
-                           │      TYPED BUILDERS, TRANSPORTS & C2STACK INTEGRATION  │
-                           │   • Linux/Kali: nxc, certipy, bloodyAD, impacket, coerce│
-                           │   • Windows Beachhead: Rubeus, SharpSCCM, Mimikatz     │
-                           │   • C2Stack Implants: Sliver, Meridian, Mythic,     │
-                           │     Havoc & Adaptix (Flight Control portal :8000)   │
-                           │   • Cloud / Entra ID: Microsoft Graph API, Az CLI      │
-                           └────────────────────────────────────────────────────────┘
+┌──────────────────────────────────┐    ┌──────────────────────────────────┐
+│ Deterministic DAG Engine         │    │ Autonomous LLM Agent             │
+│ redstrike graph / campaign run   │    │ FastMCP / REST API               │
+│ YAML attack graphs, repeatable   │    │ adaptive multi-hop goals,        │
+│ BAS & hardening audits           │    │ BloodHound Cypher queries        │
+└─────────────────┬────────────────┘    └─────────────────┬────────────────┘
+                  └───────────────────┬───────────────────┘
+                                      │
+                                      ▼
+        ┌────────────────────────────────────────────────────────────┐
+        │ SAFETY PROFILES                                            │
+        │ GATED (default): high-risk steps pause                     │
+        │ for operator approval (HITL)                               │
+        │ AUTONOMOUS: no pauses, strictly                            │
+        │ bounded by scope.yaml targets                              │
+        └─────────────────────────────┬──────────────────────────────┘
+                                      │
+                                      ▼
+        ┌────────────────────────────────────────────────────────────┐
+        │ WHERE TOOLS RUN                                            │
+        │ Direct: Kali tools + Windows over SSH                      │
+        │ C2: Sliver / Meridian / Mythic / Havoc /                   │
+        │      Adaptix in-memory implants (C2Stack)                  │
+        │ Cloud: Azure CLI + Microsoft Graph API                     │
+        └────────────────────────────────────────────────────────────┘
 ```
 
 ### 1. Execution Profiles
@@ -210,19 +205,25 @@ Tools are provided, not vendored: `redstrike check` prints per-tool install reci
 
 The credential ledger is HMAC-SHA256 sealed (tamper-evident; legacy files are re-sealed on next save, `REDSTRIKE_LEDGER_UNVERIFIED=1` is the recovery override). Install the `crypto` extra and set `REDSTRIKE_LEDGER_ENCRYPT=1` for AES-256-GCM encryption at rest.
 
-### Option E: Entra ID / Hybrid Identity (Phase 9)
+### Option E: Entra ID / Hybrid Identity
 
-Entra ID intents ride the same engine (typed argv, scope targets, HITL gates, ledger, verification):
+The bundled cloud-identity graph runs on the same engine — typed commands, scope checks, HITL gates, ledger, verification:
 
 ```bash
-# Cloud nodes are scope-gated: add allowed_tenants / allowed_cloud_domains to scope.yaml
-redstrike graph run --engage tenant-a --beachhead linux --phase 9-9.3   --graph examples/generic-entra-recon.yaml --seed entra-seed.json
+# 1. Allow your tenant in scope.yaml (cloud nodes fail closed without it):
+#      allowed_tenants: [contoso.onmicrosoft.com]
+# 2. Seed an operator credential the graph can use (see examples/seed.example.json)
+redstrike graph run --engage tenant-a --beachhead linux --phase 1-4 \
+  --graph examples/generic-entra-recon.yaml --seed entra-seed.json
 ```
 
-- Intents (23): `entra.az_login`, `entra.account_show`, `entra.account_list`, `entra.signed_in_user`, `entra.role_assignment_list`, `entra.token_artifacts`, `entra.graph_query`, `entra.azurehound_collect`, `entra.azurehound_collect_jwt`, `entra.user_role_enum`, `entra.roadrecon_auth`, `entra.roadrecon_auth_device_code`, `entra.roadrecon_auth_token`, `entra.roadrecon_auth_prt`, `entra.roadrecon_gather`, `entra.roadtx_gettokens`, `entra.roadtx_prt`, `entra.hybrid_script`, `entra.kerberos_ticket` (Seamless-SSO/cloud-Kerberos, **HITL `cloud_takeover`**), `entra.prt_token`, `entra.adfs_spray` (raw-args shim — no canonical tool exists), `entra.monkey365`, `entra.graphrunner`.
-- Flags verified against upstream docs **and the installed CLIs** during live verification (az `az rest --help`; AADInternals cmdlet parameters — exact match at the verified 0.9.7, recommended 0.11.0 per the tool manifest).
-- JSON-emitting tools verify structurally: a node can assert `success_json: {path: tenantId, equals: <guid>}` instead of a stdout marker.
-- Tokens are first-class ledger material (`cred_type: token`) and JWTs/`access_token=`/`Bearer` values are scrubbed from every derived output.
+- **23 `entra.*` intents** in four families:
+  - **Azure CLI & Microsoft Graph** — `entra.az_login`, `entra.account_show`, `entra.account_list`, `entra.signed_in_user`, `entra.role_assignment_list`, `entra.token_artifacts`, `entra.graph_query`, `entra.user_role_enum`
+  - **AzureHound collection** — `entra.azurehound_collect`, `entra.azurehound_collect_jwt`
+  - **ROADtools / ROADrecon** — `entra.roadrecon_auth` (plus `_device_code` / `_token` / `_prt` variants), `entra.roadrecon_gather`, `entra.roadtx_gettokens`, `entra.roadtx_prt`, `entra.hybrid_script`
+  - **Hybrid-identity attacks** — `entra.kerberos_ticket` (Seamless-SSO, **HITL `cloud_takeover`**), `entra.prt_token`, `entra.adfs_spray`, `entra.monkey365`, `entra.graphrunner`
+- Tool builders track the upstream CLIs; `redstrike check` probes installed versions and warns on drift. Cloud steps can verify against structured JSON output (`success_json`) instead of stdout markers, and harvested tokens land in the ledger as `cred_type: token` with JWT/Bearer values scrubbed from derived output.
+- Install recipes for the cloud tooling: [SETUP.md](docs/SETUP.md) → *Entra ID / hybrid tooling*.
 
 ### Option F: Start Autonomous LLM FastMCP Server
 
