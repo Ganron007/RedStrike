@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 
 from pydantic import BaseModel, Field
@@ -264,8 +265,213 @@ def campaign_run_phase(
     )
 
 
+def _mask(value: str | None) -> str | None:
+    if not value:
+        return None
+    if len(value) <= 6:
+        return "***"
+    return f"{value[:4]}…{value[-2:]} ({len(value)} chars)"
+
+
 def campaign_status(req: CampaignStatusRequest) -> dict[str, Any]:
-    return _session(req).status()
+    session = _session(req)
+    data = session.status()
+    # Flatten live state for the cockpit (11.2/11.3): the SPA reads these at
+    # top level (they also live under data["state"] from session.status()).
+    state = session.store.load() or session.state
+    data["pending_gate"] = state.pending_gate
+    data["completed_nodes"] = state.completed_nodes
+    data["attempted_nodes"] = state.attempted_nodes
+    # Masked credential matrix for the UI (11.4): shapes only — raw values
+    # only ever leave the ledger via the audited /campaign/credential/reveal.
+    ledger = CredentialLedger(req.engagement_id)
+    data["credentials"] = [
+        {
+            "name": cred.name,
+            "username": cred.username,
+            "domain": cred.domain,
+            "source": cred.source,
+            "cred_type": cred.cred_type,
+            "has_password": bool(cred.password),
+            "has_nt_hash": bool(cred.nt_hash),
+            "has_token": bool(cred.token),
+            "password_mask": _mask(cred.password),
+            "nt_hash_mask": _mask(cred.nt_hash),
+        }
+        for cred in (ledger.get(name) for name in ledger.names())
+        if cred is not None
+    ]
+    return data
+
+
+class CredentialRevealRequest(BaseModel):
+    engagement_id: str
+    name: str
+
+
+def campaign_credential_reveal(req: CredentialRevealRequest) -> dict[str, Any]:
+    """Return ONE credential's raw material, with an audit entry in state.
+
+    The reveal is deliberately loud: every call appends to
+    ``state.reveals`` (what was revealed, when) so UI reveals are traceable.
+    """
+    ledger = CredentialLedger(req.engagement_id)
+    cred = ledger.get(req.name)
+    if cred is None:
+        raise ValueError(f"credential '{req.name}' not found in engagement '{req.engagement_id}'")
+    store = EngagementStore(req.engagement_id)
+    # get_or_create: the audit trail must never be silently dropped just
+    # because the engagement has no state file yet (e.g. creds seeded via
+    # the API before any campaign start).
+    state = store.get_or_create()
+    from datetime import datetime
+    from datetime import timezone as _tz
+
+    state.reveals.append(
+        {
+            "name": req.name,
+            "ts": datetime.now(_tz.utc).isoformat(),
+        }
+    )
+    store.save(state)
+    return {
+        "name": cred.name,
+        "username": cred.username,
+        "domain": cred.domain,
+        "password": cred.password,
+        "nt_hash": cred.nt_hash,
+        "token": cred.token,
+        "cred_type": cred.cred_type,
+    }
+
+
+def campaign_events(engagement_id: str, *, follow_seconds: int = 300):
+    """SSE payload iterator tailing the engagement activity journal (11.4).
+
+    Returns an iterator of ``data: <json>`` frames (plus ``event: ping`` /
+    ``event: end`` markers). Replays existing events first, then polls for
+    appends until ``follow_seconds`` elapses. No secrets: the journal is
+    redacted at write time.
+    """
+    import time
+
+    from redstrike.runtime.activity import resolve_activity_log
+    from redstrike.runtime.hitl import EngagementStore
+
+    store = EngagementStore(engagement_id)
+    journal = resolve_activity_log(engagement_id, ledger_dir=store.dir)
+
+    def _empty():
+        yield "event: end\ndata: {}\n\n"
+
+    if journal is None or not Path(journal).is_file():
+        return _empty()
+
+    def _gen():
+        deadline = time.monotonic() + max(follow_seconds, 0)
+        # Replay what is already there.
+        with open(journal, encoding="utf-8") as handle:
+            for line in handle:
+                line = line.strip()
+                if line:
+                    yield f"data: {line}\n\n"
+        # Tail appends: poll the file (cheap, race-free — no seek games
+        # across rotations; the journal is append-only per engagement).
+        pos = Path(journal).stat().st_size
+        last_ping = time.monotonic()
+        while time.monotonic() < deadline:
+            with open(journal, encoding="utf-8") as handle:
+                handle.seek(pos)
+                chunk = handle.read()
+                pos = handle.tell()
+            for line in chunk.splitlines():
+                line = line.strip()
+                if line:
+                    yield f"data: {line}\n\n"
+            now = time.monotonic()
+            if now - last_ping >= 15:
+                yield "event: ping\ndata: {}\n\n"
+                last_ping = now
+            time.sleep(0.5)
+        yield "event: end\ndata: {}\n\n"
+
+    return _gen()
+
+
+class CampaignGraphRequest(BaseModel):
+    engagement_id: str | None = None
+    graph: str | None = None
+
+
+def campaign_graph(req: CampaignGraphRequest) -> dict[str, Any]:
+    """Node/edge dump of a graph for the cockpit's DAG view (11.2).
+
+    With ``engagement_id`` set, each node also carries its live state
+    (verified / attempted-unverified / pending-gate) from the engagement.
+    """
+    graph_path = resolve_graph_path(explicit=req.graph)
+    graph = load_campaign_graph(graph_path)
+    completed: dict[str, dict[str, str]] = {}
+    attempted: dict[str, dict[str, Any]] = {}
+    pending_gate: str | None = None
+    if req.engagement_id:
+        from redstrike.runtime.hitl import EngagementStore
+
+        state = EngagementStore(req.engagement_id).load()
+        if state is not None:
+            completed = state.completed_nodes
+            attempted = state.attempted_nodes
+            pending_gate = state.pending_gate
+    nodes = []
+    for node in graph.nodes:
+        if node.id in completed:
+            status = "verified"
+        elif node.hitl_gate and pending_gate == node.hitl_gate:
+            status = "gated"
+        elif node.id in attempted:
+            status = "failed" if not attempted[node.id].get("verified", False) else "verified"
+        elif node.stub:
+            status = "stub"
+        else:
+            status = "pending"
+        nodes.append(
+            {
+                "id": node.id,
+                "phase": node.phase,
+                "title": node.title,
+                "path": node.path,
+                "beachheads": list(node.beachheads),
+                "branch": node.branch,
+                "intent": node.intent,
+                "intent_args": node.intent_args,
+                "success_marker": node.success_marker,
+                "success_json": node.success_json,
+                "fail_patterns": list(node.fail_patterns),
+                "requires_cred": node.requires_cred,
+                "produces_cred": node.produces_cred,
+                "hitl_gate": node.hitl_gate,
+                "targets": collect_scope_targets(node),
+                "depends_on": list(node.depends_on),
+                "timeout_seconds": node.timeout_seconds,
+                "teardown": (
+                    {"description": str(node.teardown.get("description", ""))}
+                    if node.teardown
+                    else None
+                ),
+                "status": status,
+            }
+        )
+    return {
+        "graph": str(graph_path),
+        "graph_name": graph.name,
+        "pending_gate": pending_gate,
+        "nodes": nodes,
+        "edges": [
+            {"source": dep, "target": node.id}
+            for node in graph.nodes
+            for dep in node.depends_on
+        ],
+    }
 
 
 def campaign_recommend(req: Any) -> dict[str, Any]:

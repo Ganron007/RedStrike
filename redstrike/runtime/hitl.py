@@ -67,6 +67,8 @@ class EngagementState:
     #: Every live execution attempt (node_id -> {at, verified}). Unverified
     #: attempts on non-idempotent nodes refuse automatic re-runs under --resume.
     attempted_nodes: dict[str, dict[str, Any]] = field(default_factory=dict)
+    #: Audit trail of credential reveals ({name, ts}) — UI/API reveals are loud.
+    reveals: list[dict[str, str]] = field(default_factory=list)
     #: Process-local approvals (autonomous/ungated profiles). NEVER persisted:
     #: a later run in a gated profile must not inherit phantom approvals.
     _auto_approved: set[str] = field(default_factory=set, repr=False, compare=False)
@@ -138,6 +140,7 @@ class EngagementState:
                 for node_id, entry in (data.get("attempted_nodes") or {}).items()
                 if isinstance(entry, dict)
             },
+            reveals=[dict(item) for item in (data.get("reveals") or []) if isinstance(item, dict)],
         )
 
 

@@ -158,6 +158,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="Force re-execution of the selected nodes (clears their completed/attempted records)",
     )
     run.add_argument(
+        "--record-replay",
+        dest="record_replay",
+        action="store_true",
+        help="Save each node's real output for `redstrike replay` (10.1 eval harness)",
+    )
+    run.add_argument(
         "--prefer-script",
         action="store_true",
         help="Use script harness instead of typed intent when both are set",
@@ -447,6 +453,7 @@ def main(argv: list[str] | None = None) -> int:
                 resume=bool(getattr(args, "resume", False)) or None,
                 stop_on_failure=bool(getattr(args, "stop_on_failure", False)) or None,
                 rerun=bool(getattr(args, "rerun", False)),
+                record_replay=bool(getattr(args, "record_replay", False)),
             )
         except ValueError as exc:
             print(str(exc), file=sys.stderr)

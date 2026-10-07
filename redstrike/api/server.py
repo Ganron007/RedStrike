@@ -8,6 +8,7 @@ import threading
 import time
 from collections.abc import Callable
 from pathlib import Path
+from typing import Any
 
 from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.responses import JSONResponse
@@ -27,10 +28,12 @@ from redstrike.api.campaign import (
     C2StackStageRequest,
     C2StackTaskRequest,
     CampaignApproveRequest,
+    CampaignGraphRequest,
     CampaignRunRequest,
     CampaignStartRequest,
     CampaignStatusRequest,
     CampaignStreamRequest,
+    CredentialRevealRequest,
     IntentExecuteRequest,
     IntentPreviewRequest,
     c2_execute_assembly,
@@ -46,6 +49,8 @@ from redstrike.api.campaign import (
     c2_stack_status,
     c2_stack_task,
     campaign_approve,
+    campaign_credential_reveal,
+    campaign_graph,
     campaign_recommend,
     campaign_run_phase,
     campaign_start,
@@ -421,6 +426,52 @@ def create_app(
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
 
+    @app.post("/campaign/graph")
+    def campaign_graph_route(
+        payload: CampaignGraphRequest,
+        http_request: Request,
+        x_api_key: str | None = Header(default=None, alias="X-API-Key"),
+    ) -> dict[str, object]:
+        _require_auth(http_request, x_api_key)
+        try:
+            return campaign_graph(payload)
+        except (ValueError, KeyError, TypeError) as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        except FileNotFoundError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    @app.post("/campaign/credential/reveal")
+    def campaign_credential_reveal_route(
+        payload: CredentialRevealRequest,
+        http_request: Request,
+        x_api_key: str | None = Header(default=None, alias="X-API-Key"),
+    ) -> dict[str, object]:
+        _require_auth(http_request, x_api_key)
+        try:
+            return campaign_credential_reveal(payload)
+        except ValueError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    @app.get("/campaign/events/{engagement_id}")
+    def campaign_events_route(
+        engagement_id: str,
+        http_request: Request,
+        x_api_key: str | None = Header(default=None, alias="X-API-Key"),
+        follow_seconds: int = 300,
+    ) -> Any:
+        _require_auth(http_request, x_api_key)
+        from redstrike.api.campaign import campaign_events
+
+        try:
+            generator = campaign_events(
+                engagement_id, follow_seconds=min(max(follow_seconds, 1), 3600)
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        from fastapi.responses import StreamingResponse
+
+        return StreamingResponse(generator, media_type="text/event-stream")
+
     @app.post("/campaign/stream")
     def campaign_stream_route(
         payload: CampaignStreamRequest,
@@ -604,6 +655,13 @@ def create_app(
     ) -> dict[str, object]:
         _require_auth(http_request, x_api_key)
         return c2_stack_task(payload)
+
+    # --- Phase 11 cockpit (11.1): serve the pre-built SPA when present ---
+    from fastapi.staticfiles import StaticFiles
+
+    ui_dist = Path(__file__).resolve().parents[1] / "ui" / "dist"
+    if (ui_dist / "index.html").is_file():
+        app.mount("/ui", StaticFiles(directory=ui_dist, html=True), name="ui")
 
     return app
 

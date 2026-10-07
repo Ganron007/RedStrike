@@ -92,6 +92,8 @@ def load_engagement_bundle(
                         "return_code": record.get("return_code"),
                         "started_at": record.get("started_at"),
                         "finished_at": record.get("finished_at"),
+                        "tool": record.get("tool"),
+                        "tool_version": record.get("tool_version"),
                     }
                 )
 
@@ -206,16 +208,20 @@ def render_engagement_markdown(bundle: dict[str, Any]) -> str:
     lines.append("")
     steps = bundle.get("steps") or []
     if steps:
-        lines.append("| Node | Phase | Verified | Status | Mechanism | Skip reason |")
-        lines.append("|---|---|---|---|---|---|")
+        lines.append("| Node | Phase | Verified | Status | Mechanism | Tool | Skip reason |")
+        lines.append("|---|---|---|---|---|---|---|")
         for step in steps:
+            tool = step.get("tool") or ""
+            version = step.get("tool_version") or ""
+            tool_cell = f"{tool} {version}".strip() if tool else ""
             lines.append(
-                "| {node} | {phase} | {verified} | {status} | {mech} | {skip} |".format(
+                "| {node} | {phase} | {verified} | {status} | {mech} | {tool} | {skip} |".format(
                     node=step.get("node_id") or "",
                     phase=step.get("phase") or "",
                     verified="yes" if step.get("verified") else "no",
                     status=step.get("verify_status") or ("dry_run" if step.get("dry_run") else ""),
                     mech=step.get("mechanism") or "",
+                    tool=tool_cell.replace("|", "/"),
                     skip=(step.get("skip_reason") or "").replace("|", "/"),
                 )
             )

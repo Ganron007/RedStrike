@@ -63,6 +63,7 @@ class CampaignSession:
         scope_policy: ScopePolicy | None = None,
         resume: bool = False,
         stop_on_failure: bool = False,
+        record_replay: bool = False,
     ) -> None:
         self.engagement_id = engagement_id
         self.operator = OperatorMode(operator) if operator else detect_default_operator()
@@ -81,6 +82,7 @@ class CampaignSession:
         self.scope_policy = scope_policy
         self.resume = resume
         self.stop_on_failure = stop_on_failure
+        self.record_replay = record_replay
         self.store = EngagementStore(engagement_id, root=ledger_root)
         self.state = self.store.get_or_create(
             beachhead=beachhead,
@@ -129,6 +131,7 @@ class CampaignSession:
             scope_policy=self.scope_policy,
             resume=self.resume,
             stop_on_failure=self.stop_on_failure,
+            record_replay=self.record_replay,
         )
 
     def start(self) -> dict[str, Any]:
@@ -168,6 +171,7 @@ class CampaignSession:
         resume: bool | None = None,
         stop_on_failure: bool | None = None,
         rerun: bool = False,
+        record_replay: bool = False,
     ) -> dict[str, Any]:
         if not hitl_required():
             stop_on_hitl = False
@@ -179,6 +183,7 @@ class CampaignSession:
             resume=resume,
             stop_on_failure=stop_on_failure,
             rerun=rerun,
+            record_replay=record_replay,
         )
         self.state = orch.state
         summary = orch.summary(results)

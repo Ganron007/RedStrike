@@ -49,6 +49,9 @@ redstrike-campaign = "redstrike.cli.campaign:main"
 [tool.setuptools.packages.find]
 include = ["redstrike*"]
 
+[tool.setuptools.package-data]
+redstrike = ["ui/dist/**/*", "ui/dist/vendor/**/*"]
+
 [tool.ruff]
 line-length = 100
 target-version = "py310"

@@ -20,6 +20,7 @@ from redstrike.core.manifest import (
     TOOL_MANIFEST,
     ToolVersionStatus,
     audit_toolchain,
+    probe_tool_version,
     stage_display_name,
 )
 from redstrike.core.policy import (
@@ -159,6 +160,98 @@ def _windows_tools_probe() -> tuple[bool, str]:
             f"missing: {', '.join(missing)} (stage with: redstrike stage --tool <name>)"
         )
     return True, f"all {len(names)} Windows tools present in {tools_dir}"
+
+
+def graph_readiness(
+    graph_path: Path,
+    *,
+    container: str | None,
+    ssh_base: list[str] | None,
+    ssh_reachable: bool,
+    remote_tools_dir: str | None,
+) -> dict:
+    """Per-tool readiness for the tools a campaign graph's intents require.
+
+    Linux-side tools are probed on the active Linux target (local/container/
+    ssh); Windows-side tools are probed in the beachhead tools dir over SSH.
+    Exit semantics match `check`: ready → 0, missing → 2.
+    """
+    from redstrike.core.manifest import TOOL_MANIFEST
+    from redstrike.runtime.graph import load_campaign_graph
+    from redstrike.runtime.intent_tools import tools_for_intent
+
+    graph = load_campaign_graph(graph_path)
+    specs = {s.name: s for s in TOOL_MANIFEST}
+    required: dict[str, list[str]] = {}
+    for node in graph.nodes:
+        if node.stub:
+            continue
+        for tool in tools_for_intent(node.intent):
+            required.setdefault(tool, []).append(node.id)
+
+    tools_report: list[dict] = []
+    missing = 0
+    ws_dir = windows_tools_dir().split(";")[0].strip().rstrip("\\/") if windows_tools_dir() else ""
+    ws_user = windows_user() or "operator"
+    ws_key = windows_key()
+    ws_host = windows_host()
+    for tool, nodes in sorted(required.items()):
+        spec = specs.get(tool)
+        if spec is None:
+            tools_report.append({"tool": tool, "found": False, "nodes": nodes,
+                                 "detail": f"no manifest entry for tool '{tool}'"})
+            missing += 1
+            continue
+        if spec.platform == "windows":
+            found = False
+            detail = (
+                "windows-side tool — configure REDSTRIKE_WINDOWS_HOST/TOOLS_DIR "
+                "and stage with: redstrike stage --tool " + tool
+            )
+            if ws_host and ws_dir:
+                tool_name = stage_display_name(spec)
+                ps_list = f"'{tool_name}'"
+                command = (
+                    "powershell -NoProfile -Command "
+                    f'"Test-Path (Join-Path \'{ws_dir}\' {ps_list})"'
+                )
+                ssh = ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=8"]
+                if ws_key:
+                    ssh += ["-i", ws_key]
+                try:
+                    done = subprocess.run(
+                        [*ssh, f"{ws_user}@{ws_host}", command],
+                        capture_output=True, text=True, timeout=25, check=False,
+                    )
+                except (subprocess.SubprocessError, OSError) as exc:
+                    detail = f"probe failed: {exc}"
+                else:
+                    if done.returncode != 0:
+                        detail = f"beachhead unreachable: {done.stderr.strip()[:100]}"
+                    elif done.stdout.strip().lower() == "true":
+                        found = True
+                        detail = f"staged at {ws_dir}\\{tool_name}"
+                    else:
+                        detail = f"not staged in {ws_dir} — redstrike stage --tool {tool}"
+        else:
+            st = probe_tool_version(
+                spec,
+                exec_prefix=("docker", "exec", "-i", container) if container else None,
+                ssh_base=tuple(ssh_base) if ssh_base and ssh_reachable else None,
+                remote_tools_dir=remote_tools_dir,
+            )
+            found = st.found and (ssh_base is None or ssh_reachable)
+            detail = st.detail[:140]
+        if not found:
+            missing += 1
+        tools_report.append({"tool": tool, "found": found, "nodes": nodes, "detail": detail})
+    return {
+        "graph": str(graph_path),
+        "graph_name": graph.name,
+        "ready": missing == 0,
+        "missing": missing,
+        "tools": tools_report,
+    }
 
 
 def collect_checks(*, scope_path: Path, ungated: bool = False) -> list[CheckItem]:
@@ -309,6 +402,7 @@ def run_check(
     version_gated: bool = False,
     as_json: bool = False,
     ungated: bool = False,
+    graph: str | None = None,
 ) -> int:
     items = collect_checks(scope_path=Path(scope), ungated=ungated)
     from redstrike.core.runner import linux_ssh_base
@@ -330,12 +424,27 @@ def run_check(
     tools_ok = all(i.ok for i in tools)
     manifest_ok = all(m.is_compatible for m in manifest_statuses if m.found)
 
+    graph_report = None
+    if graph:
+        try:
+            graph_report = graph_readiness(
+                Path(graph),
+                container=linux_container(),
+                ssh_base=ssh_base,
+                ssh_reachable=ssh_reachable,
+                remote_tools_dir=os.environ.get("REDSTRIKE_LINUX_TOOLS_DIR", "").strip() or None,
+            )
+        except (ValueError, FileNotFoundError) as exc:
+            print(f"Graph readiness: cannot load graph '{graph}': {exc}", file=sys.stderr)
+            return 1
+
     payload = {
         "version": __version__,
         "core_ok": core_ok,
         "execute_ready": tools_ok,
         "manifest_ok": manifest_ok,
         "topology": topo,
+        "graph_readiness": graph_report,
         "items": [asdict(i) for i in items],
         "toolchain_manifest": [asdict(m) for m in manifest_statuses],
         "next": [
@@ -386,6 +495,12 @@ def run_check(
             print("--execute-ready: install missing PATH tools before live runs.")
         if version_gated and not manifest_ok:
             print("--version-gated: some operator tools are outdated. Upgrade to recommended versions.")
+        if graph_report is not None:
+            mark = "ok" if graph_report["ready"] else "MISSING TOOLS"
+            print(f"Graph readiness [{graph_report['graph_name']}]: {mark}")
+            for tool in graph_report["tools"]:
+                print(f"  [{'ok' if tool['found'] else 'missing'}] {tool['tool']}: {tool['detail']}")
+                print(f"        nodes: {', '.join(tool['nodes'])}")
         for line in payload["next"]:
             print(f"  next: {line}")
 
@@ -395,4 +510,6 @@ def run_check(
         return 2
     if version_gated and not manifest_ok:
         return 3
+    if graph_report is not None and not graph_report["ready"]:
+        return 2
     return 0

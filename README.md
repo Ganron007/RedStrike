@@ -29,7 +29,7 @@ Bring your own target environments, attack graphs, and seeds. RedStrike ships st
 | | |
 |---|---|
 | Package | `redstrike` |
-| Commands | `redstrike` (`graph` / `campaign` / `report` / `c2` / `stage` / `install` / `api` / `console` / `check`) · `redstrike-api` · `redstrike-mcp` |
+| Commands | `redstrike` (`graph` / `campaign` / `report` / `c2` / `stage` / `install` / `replay` / `api` / `console` / `ui` / `check`) · `redstrike-api` · `redstrike-mcp` |
 | C2 Integration | Native **[C2Stack](https://github.com/Ganron007/C2Stack)** (Sliver, Meridian, Mythic, Havoc & Adaptix — fleet view, server-side builds, staging, tasking) |
 | Generic Graph Templates | [`generic-ad-recon.yaml`](examples/generic-ad-recon.yaml) · [`generic-adcs-audit.yaml`](examples/generic-adcs-audit.yaml) · [`generic-privilege-escalation.yaml`](examples/generic-privilege-escalation.yaml) · [`generic-rbcd-coercion.yaml`](examples/generic-rbcd-coercion.yaml) · [`generic-entra-recon.yaml`](examples/generic-entra-recon.yaml) |
 | Architecture & Modes | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) |
@@ -90,7 +90,7 @@ Two ways to drive the engine, two safety profiles, and two transports — all on
   <img src="assets/redstrike-architecture.svg" alt="RedStrike Architecture" width="100%">
 </p>
 
-1. **Ingress** — CLI (`redstrike {graph|campaign} {run|start|approve|status|stream|teardown|check}`, `redstrike c2 …`), HTTP (`/ad/*`, `/jobs`, `/campaign/*`, `/builders/*`, `/c2/*`), or FastMCP tools (`redstrike-mcp`).
+1. **Ingress** — CLI (`redstrike {graph|campaign} {run|start|approve|status|stream|teardown|check}`, `redstrike c2 …`, `redstrike replay`, `redstrike ui`), HTTP (`/ad/*`, `/jobs`, `/campaign/*`, `/builders/*`, `/c2/*`), or FastMCP tools (`redstrike-mcp`).
 2. **Auth & Trust** — Local loopback trust by default; `X-API-Key` required for remote interfaces.
 3. **Policy & Scope** — `ScopePolicy.assert_allowed` validates target IP/CIDRs and domains against `scope.yaml`.
 4. **HITL Gatekeeper** — Pauses high-risk operations in `gated` profile until the operator approves (append-only approvals log in engagement state).
@@ -263,6 +263,26 @@ redstrike-mcp --api http://127.0.0.1:8890
   }
 }
 ```
+
+### Option G: Web Cockpit (`redstrike ui`)
+
+Zero-install browser command center — the API serves a pre-built static SPA (no Node.js needed):
+
+```bash
+redstrike ui        # starts the API if needed, opens http://127.0.0.1:8890/ui/
+```
+
+The cockpit renders the attack graph (Cytoscape) with live node states (pending / executing / verified / gated / failed), a one-click HITL approval modal when a high-risk step pauses, the masked credential ledger (reveals are audited in the engagement state), and the SSE journal stream. Point it at any graph with `POST /campaign/graph`; live state comes from `POST /campaign/status` and `GET /campaign/events/{engagement}`.
+
+### Reference agent loop (`examples/agent/redstrike_agent.py`)
+
+A ~120-line example of driving RedStrike the way an LLM agent would — over the same gated REST endpoints an operator uses, so scope policy, HITL gates, and the audit trail apply identically. Ships with a deterministic offline stub (always picks the top recommendation — the replay/eval regression target) plus an optional Anthropic provider:
+
+```bash
+python examples/agent/redstrike_agent.py --api http://127.0.0.1:8890 --engage demo --offline
+```
+
+The agent **never bypasses a gate**: when a run pauses for approval, the loop stops and reports. Pair it with `redstrike replay` for a repeatable eval: record a live run (`--record-replay`), then check the agent reaches the same verified end-state.
 
 ---
 

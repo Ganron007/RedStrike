@@ -1,14 +1,19 @@
 from __future__ import annotations
 
+import hashlib
+import json as _json
+import os
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 from redstrike.c2 import get_c2_client
+from redstrike.core.env import unmsys
+from redstrike.core.manifest import TOOL_MANIFEST, probe_tool_version
 from redstrike.core.models import C2Backend, CallKind, CallSpec
 from redstrike.core.policy import ScopePolicy, load_scope_policy
-from redstrike.core.runner import CommandRunner, redact_argv
+from redstrike.core.runner import CommandRunner, linux_container, linux_ssh_base, redact_argv
 from redstrike.core.secrets import extract_secrets, scrub_output
 from redstrike.runtime.activity import ActivityJournal, resolve_activity_log
 from redstrike.runtime.beachhead import (
@@ -30,6 +35,7 @@ from redstrike.runtime.graph import (
     resolve_graph_path,
 )
 from redstrike.runtime.hitl import EngagementState, EngagementStore, hitl_required
+from redstrike.runtime.intent_tools import tools_for_intent
 from redstrike.runtime.intents import DEFAULT_REGISTRY, IntentRegistry, UnknownIntentError
 from redstrike.runtime.ledger import Credential, CredentialLedger, MissingCredentialError
 from redstrike.runtime.preflight import PreflightResult
@@ -62,6 +68,8 @@ class StepResult:
     verify_status: str = "unverified"
     verify_reason: str = ""
     success_marker: str | None = None
+    tool: str | None = None
+    tool_version: str | None = None
 
     def __post_init__(self) -> None:
         now = _utc_now()
@@ -105,6 +113,8 @@ class StepResult:
             "verify_status": self.verify_status,
             "verify_reason": self.verify_reason,
             "success_marker": self.success_marker,
+            "tool": self.tool,
+            "tool_version": self.tool_version,
         }
 
 
@@ -247,6 +257,9 @@ class CampaignOrchestrator:
         scope_policy: ScopePolicy | None = None,
         resume: bool = False,
         stop_on_failure: bool = False,
+        record_replay: bool = False,
+        replay_mode: bool = False,
+        allow_drift: bool = False,
     ) -> None:
         self.engagement_id = engagement_id
         self.beachhead = Beachhead(beachhead)
@@ -277,6 +290,10 @@ class CampaignOrchestrator:
         self.scope_policy = scope_policy or (load_scope_policy(scope_path) if scope_path else None)
         self.resume = resume
         self.stop_on_failure = stop_on_failure
+        self.record_replay = record_replay
+        self.replay_mode = replay_mode
+        self.allow_drift = allow_drift
+        self._tool_version_cache: dict[str, str | None] = {}
         self.teardown = load_teardown_queue(self.store.dir / "teardown.json")
 
         self.router = BeachheadRouter(
@@ -364,6 +381,8 @@ class CampaignOrchestrator:
             return_code=result.return_code,
             started_at=result.started_at,
             finished_at=result.finished_at,
+            tool=result.tool,
+            tool_version=result.tool_version,
         )
         results.append(result)
         return result
@@ -620,6 +639,80 @@ class CampaignOrchestrator:
             "phase": str(node.phase),
         }
 
+    def _tool_for_node(self, node: CampaignNode) -> tuple[str | None, str | None]:
+        """(tool name, version) for an intent node, probed on the active target.
+
+        Probes match the runner's execution target: a configured Linux container
+        or SSH host is probed there, the Windows target via its tools dir over
+        SSH when configured, otherwise the local PATH. Cached per tool for the
+        run; probe failures record the tool name without a version (never fail
+        a step — provenance is best-effort).
+        """
+        tools = tools_for_intent(node.intent)
+        if not tools:
+            return None, None
+        tool = tools[0]
+        if tool in self._tool_version_cache:
+            return tool, self._tool_version_cache[tool]
+        spec = next((s for s in TOOL_MANIFEST if s.name == tool), None)
+        version: str | None = None
+        if spec is not None:
+            container = linux_container()
+            ssh_base = linux_ssh_base()
+            remote_dir = unmsys(os.environ.get("REDSTRIKE_LINUX_TOOLS_DIR", "").strip()) or None
+            try:
+                if container and spec.platform in ("linux", "both"):
+                    st = probe_tool_version(spec, exec_prefix=("docker", "exec", "-i", container), remote_tools_dir=remote_dir)
+                elif ssh_base and spec.platform in ("linux", "both"):
+                    st = probe_tool_version(spec, ssh_base=tuple(ssh_base), remote_tools_dir=remote_dir)
+                else:
+                    st = probe_tool_version(spec)
+                version = st.version or ("present" if st.found else None)
+            except Exception:  # noqa: BLE001 - provenance must not break runs
+                version = None
+        self._tool_version_cache[tool] = version
+        return tool, version
+
+    def _replay_path(self) -> Path:
+        return self.store.dir / "replay"
+
+    def _replay_record(self, node: CampaignNode, command: list[str] | CallSpec, completed: Any) -> None:
+        """Persist a real CommandResult for `redstrike replay` (10.1)."""
+
+        self._replay_path().mkdir(parents=True, exist_ok=True)
+        argv_str = " ".join(str(part) for part in command) if not isinstance(command, CallSpec) else command.to_display_command().__str__()
+        rec = {
+            "node_id": node.id,
+            "phase": str(node.phase),
+            "argv_sha256": hashlib.sha256(argv_str.encode("utf-8")).hexdigest(),
+            "recorded_at": _utc_now(),
+            "result": completed.model_dump(mode="json"),
+        }
+        (self._replay_path() / f"{node.id}.json").write_text(
+            _json.dumps(rec, indent=2) + "\n", encoding="utf-8"
+        )
+
+    def _replay_load(self, node: CampaignNode, command: list[str] | CallSpec) -> tuple[Any | None, str | None]:
+        """Load a recording for this node; (recording, drift_reason)."""
+
+        path = self._replay_path() / f"{node.id}.json"
+        if not path.is_file():
+            return None, f"replay: no recording for node '{node.id}'"
+        try:
+            rec = _json.loads(path.read_text(encoding="utf-8"))
+        except ValueError:
+            return None, f"replay: recording for '{node.id}' is corrupt"
+        argv_str = " ".join(str(part) for part in command) if not isinstance(command, CallSpec) else command.to_display_command().__str__()
+        argv_sha = hashlib.sha256(argv_str.encode("utf-8")).hexdigest()
+        if rec.get("argv_sha256") != argv_sha:
+            return None, (
+                f"replay drift: node '{node.id}' argv changed since recording at "
+                f"{rec.get('recorded_at', '?')} (pass --allow-drift to ignore)"
+            )
+        from redstrike.core.models import CommandResult as _CR
+
+        return _CR.model_validate(rec["result"]), None
+
     def _clear_rerun_state(self, nodes: list[CampaignNode]) -> None:
         """Drop completion/attempt records for the selected nodes (`--rerun`)."""
         cleared = 0
@@ -672,10 +765,16 @@ class CampaignOrchestrator:
         resume: bool | None = None,
         stop_on_failure: bool | None = None,
         rerun: bool = False,
+        record_replay: bool | None = None,
+        replay_mode: bool | None = None,
+        allow_drift: bool = False,
     ) -> list[StepResult]:
         results: list[StepResult] = []
         do_resume = self.resume if resume is None else resume
         do_stop_on_failure = self.stop_on_failure if stop_on_failure is None else stop_on_failure
+        self.record_replay = self.record_replay if record_replay is None else record_replay
+        self.replay_mode = self.replay_mode if replay_mode is None else replay_mode
+        self.allow_drift = allow_drift
         self._resolve_c2()
         self.state.last_phase = phase_spec
         self.state.status = "running"
@@ -916,6 +1015,7 @@ class CampaignOrchestrator:
                 break
 
             started = _utc_now()
+            tool, tool_version = self._tool_for_node(node)
             self.activity.emit(
                 "step_start",
                 engagement_id=self.engagement_id,
@@ -925,9 +1025,40 @@ class CampaignOrchestrator:
                 branch=node.branch,
                 mechanism=plan.mechanism,
                 argv=plan.argv,
+                tool=tool,
+                tool_version=tool_version,
             )
             command = argv_for_plan(plan)
-            if plan.timeout_seconds:
+            if self.replay_mode:
+                recording, drift = self._replay_load(node, command)
+                if recording is None:
+                    if self.allow_drift:
+                        self._push(results,
+                            _step(
+                                _blocked_plan(node, self.beachhead, default_path, mechanism="replay-drift", operator=self.operator),
+                                node,
+                                dry_run=dry_run,
+                                skipped=True,
+                                skip_reason=drift,
+                            )
+                        )
+                        outcomes[node.id] = "skipped"
+                        continue
+                    self._push(results,
+                        _step(
+                            plan,
+                            node,
+                            dry_run=False,
+                            return_code=1,
+                            stderr=drift,
+                            error=drift,
+                            started_at=_utc_now(),
+                        )
+                    )
+                    outcomes[node.id] = "unverified"
+                    continue
+                completed = recording
+            elif plan.timeout_seconds:
                 completed = self.runner.run(command, timeout_seconds=plan.timeout_seconds)
             else:
                 completed = self.runner.run(command)
@@ -966,6 +1097,8 @@ class CampaignOrchestrator:
             else:
                 outcomes[node.id] = "unverified"
                 self._record_attempt(node, verified=False)
+            if self.record_replay and not self.replay_mode:
+                self._replay_record(node, command, completed)
             step = _step(
                 plan,
                 node,
@@ -977,6 +1110,7 @@ class CampaignOrchestrator:
                 started_at=started,
                 finished_at=finished,
             )
+            step.tool, step.tool_version = tool, tool_version
             self._push(results, step)
 
             if do_stop_on_failure and not step.verified:
