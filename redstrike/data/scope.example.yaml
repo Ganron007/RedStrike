@@ -1,0 +1,30 @@
+# Copy this file to scope.yaml in the working directory, then edit.
+# Overlay a built-in profile with: redstrike-api --scope scope.yaml --profile standalone
+#
+# Built-in profiles:
+#   standalone      read-only AD assessment (default API)
+#   campaign        all modes + high-risk allowed (ungated under scope; HITL only if REDSTRIKE_REQUIRE_HITL=1)
+#   lab-ungated     no HITL, all modes; MUST have non-empty targets AND domains
+#   validate-gated  high-risk like campaign but OBSERVE/ASSESS/VALIDATE only (no REPORT), longer cooldowns
+#   adcs-deep       ADCS-focused
+#   forest-trust-review  read-only forest/trust review
+#
+# Empty allowed_targets / allowed_domains means "no extra restriction" on standalone.
+# lab-ungated / --ungated refuses to start if either list is empty.
+
+allowed_targets:
+  - 192.168.1.7
+  - 192.168.1.11
+allowed_domains:
+  - example.lab
+# Entra ID / hybrid identity: cloud nodes (`entra.*` intents carrying
+# a `tenant:` arg) are validated against these lists before any live run and
+# fail closed without them. Tenant GUIDs or verified domains both match.
+allowed_tenants:
+  - contoso.onmicrosoft.com
+allowed_cloud_domains:
+  - contoso.onmicrosoft.com
+allowed_modes:
+  - observe
+  - assess
+allow_high_risk: false

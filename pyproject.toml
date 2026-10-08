@@ -50,7 +50,7 @@ redstrike-campaign = "redstrike.cli.campaign:main"
 include = ["redstrike*"]
 
 [tool.setuptools.package-data]
-redstrike = ["ui/dist/**/*", "ui/dist/vendor/**/*"]
+redstrike = ["ui/dist/**/*", "ui/dist/vendor/**/*", "data/**/*"]
 
 [tool.ruff]
 line-length = 100

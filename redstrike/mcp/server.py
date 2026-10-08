@@ -48,9 +48,19 @@ def _post(
     payload: dict[str, Any],
     *,
     timeout: int = 300,
+    api_key: str | None = None,
 ) -> dict[str, Any]:
     _validate_api_url(api_url)
-    response = requests.post(f"{api_url.rstrip('/')}{path}", json=payload, timeout=timeout)
+    headers: dict[str, str] = {}
+    key = api_key or os.environ.get("REDSTRIKE_API_KEY")
+    if key:
+        headers["X-API-Key"] = key
+    response = requests.post(
+        f"{api_url.rstrip('/')}{path}",
+        json=payload,
+        headers=headers,
+        timeout=timeout,
+    )
     response.raise_for_status()
     return response.json()
 
@@ -85,8 +95,10 @@ def build_payload(
     }
 
 
-def create_mcp(api_url: str):
+def create_mcp(api_url: str, api_key: str | None = None):
     _validate_api_url(api_url)
+    if api_key:
+        os.environ["REDSTRIKE_API_KEY"] = api_key
 
     try:
         from mcp.server.fastmcp import FastMCP
@@ -849,8 +861,13 @@ def create_mcp(api_url: str):
 def main() -> None:
     parser = argparse.ArgumentParser(description="Run the RedStrike MCP server")
     parser.add_argument("--api", default="http://127.0.0.1:8890", help="RedStrike API URL")
+    parser.add_argument(
+        "--api-key",
+        default=os.environ.get("REDSTRIKE_API_KEY"),
+        help="Optional API key for authenticated API endpoints (env: REDSTRIKE_API_KEY)",
+    )
     args = parser.parse_args()
-    create_mcp(args.api).run()
+    create_mcp(args.api, api_key=args.api_key).run()
 
 
 if __name__ == "__main__":

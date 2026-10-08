@@ -33,6 +33,7 @@ from redstrike.api.campaign import (
     CampaignStartRequest,
     CampaignStatusRequest,
     CampaignStreamRequest,
+    CampaignTeardownRequest,
     CredentialRevealRequest,
     IntentExecuteRequest,
     IntentPreviewRequest,
@@ -51,11 +52,13 @@ from redstrike.api.campaign import (
     campaign_approve,
     campaign_credential_reveal,
     campaign_graph,
+    campaign_list_graphs,
     campaign_recommend,
     campaign_run_phase,
     campaign_start,
     campaign_status,
     campaign_stream,
+    campaign_teardown,
     intent_execute,
     intent_preview,
 )
@@ -208,7 +211,6 @@ def create_app(
                 "allowed_targets and allowed_domains"
             )
         policy.require_scope_ready()
-        os.environ["REDSTRIKE_UNGATED"] = "1"
     service = ActiveDirectoryAssessmentService(policy)
     shared_window = rate_limit_db or os.environ.get("REDSTRIKE_RATE_LIMIT_DB") or None
     if shared_window:
@@ -278,7 +280,7 @@ def create_app(
             "ungated": policy.ungated,
             "require_scope": policy.require_scope,
             "allow_high_risk": policy.allow_high_risk,
-            "hitl_required": hitl_required(),
+            "hitl_required": hitl_required(resolved, policy=policy),
             "guardrails": {
                 "max_concurrent_per_target": policy.max_concurrent_per_target,
                 "max_concurrent_per_domain": policy.max_concurrent_per_domain,
@@ -440,6 +442,36 @@ def create_app(
         except FileNotFoundError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
 
+    @app.get("/campaign/graphs")
+    def campaign_graphs_route(
+        http_request: Request,
+        x_api_key: str | None = Header(default=None, alias="X-API-Key"),
+    ) -> dict[str, object]:
+        _require_auth(http_request, x_api_key)
+        return campaign_list_graphs()
+
+    @app.post("/campaign/teardown")
+    def campaign_teardown_route(
+        payload: CampaignTeardownRequest,
+        http_request: Request,
+        x_api_key: str | None = Header(default=None, alias="X-API-Key"),
+    ) -> dict[str, object]:
+        _require_auth(http_request, x_api_key)
+        try:
+            return campaign_teardown(payload)
+        except Exception as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    @app.get("/topology")
+    def api_topology_route(
+        http_request: Request,
+        x_api_key: str | None = Header(default=None, alias="X-API-Key"),
+    ) -> dict[str, object]:
+        _require_auth(http_request, x_api_key)
+        from redstrike.cli.check import topology
+
+        return topology()
+
     @app.post("/campaign/credential/reveal")
     def campaign_credential_reveal_route(
         payload: CredentialRevealRequest,
@@ -556,6 +588,28 @@ def create_app(
         _require_auth(http_request, x_api_key)
         return c2_list_sessions(payload)
 
+    def _assert_c2_allowed(target: str | None = None, *, is_high_risk: bool = False) -> None:
+        if is_high_risk and not policy.allow_high_risk:
+            raise HTTPException(
+                status_code=403,
+                detail="High-risk C2 operation forbidden by current scope policy (allow_high_risk=false)",
+            )
+        if policy.require_scope:
+            if not target:
+                raise HTTPException(
+                    status_code=403,
+                    detail="Explicit target required under require_scope policy for direct C2 tasking",
+                )
+            try:
+                policy.assert_target_in_scope(target)
+            except PermissionError as exc:
+                raise HTTPException(status_code=403, detail=str(exc)) from exc
+        elif target:
+            try:
+                policy.assert_target_in_scope(target)
+            except PermissionError as exc:
+                raise HTTPException(status_code=403, detail=str(exc)) from exc
+
     @app.post("/c2/execute-assembly")
     def api_c2_execute_assembly(
         payload: C2ExecuteAssemblyRequest,
@@ -563,6 +617,7 @@ def create_app(
         x_api_key: str | None = Header(default=None, alias="X-API-Key"),
     ) -> dict[str, object]:
         _require_auth(http_request, x_api_key)
+        _assert_c2_allowed(payload.target)
         return c2_execute_assembly(payload)
 
     @app.post("/c2/shell")
@@ -572,6 +627,7 @@ def create_app(
         x_api_key: str | None = Header(default=None, alias="X-API-Key"),
     ) -> dict[str, object]:
         _require_auth(http_request, x_api_key)
+        _assert_c2_allowed(payload.target)
         return c2_shell(payload)
 
     @app.post("/c2/psexec")
@@ -581,6 +637,7 @@ def create_app(
         x_api_key: str | None = Header(default=None, alias="X-API-Key"),
     ) -> dict[str, object]:
         _require_auth(http_request, x_api_key)
+        _assert_c2_allowed(payload.target, is_high_risk=True)
         return c2_psexec(payload)
 
     # --- C2Stack Flight Control surface (fleet, probe, builds, staging) ---
@@ -654,6 +711,7 @@ def create_app(
         x_api_key: str | None = Header(default=None, alias="X-API-Key"),
     ) -> dict[str, object]:
         _require_auth(http_request, x_api_key)
+        _assert_c2_allowed(payload.target)
         return c2_stack_task(payload)
 
     # --- Phase 11 cockpit (11.1): serve the pre-built SPA when present ---
@@ -661,9 +719,16 @@ def create_app(
 
     ui_dist = Path(__file__).resolve().parents[1] / "ui" / "dist"
     if (ui_dist / "index.html").is_file():
+        from fastapi.responses import RedirectResponse
+
+        @app.get("/", include_in_schema=False)
+        def _root_redirect() -> RedirectResponse:
+            return RedirectResponse(url="/ui/")
+
         app.mount("/ui", StaticFiles(directory=ui_dist, html=True), name="ui")
 
     return app
+
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -691,6 +756,8 @@ def main(argv: list[str] | None = None) -> None:
         "(default: <redstrike home>/.redstrike/rate-limit.db; env REDSTRIKE_RATE_LIMIT_DB)",
     )
     args = parser.parse_args(argv)
+    if args.host not in ("127.0.0.1", "localhost", "::1") and not args.api_key and not os.environ.get("REDSTRIKE_API_KEY"):
+        parser.error("Non-loopback bind (--host) requires --api-key or REDSTRIKE_API_KEY environment variable")
     if args.ungated and not args.scope:
         parser.error("--ungated requires --scope with non-empty allowed_targets and allowed_domains")
 

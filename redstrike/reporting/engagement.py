@@ -53,15 +53,20 @@ def load_engagement_bundle(
             "domain": cred.domain,
             "source": cred.source,
             "notes": cred.notes,
+            "cred_type": cred.cred_type or ("token" if cred.token else ("nt_hash" if cred.nt_hash else "password")),
             "has_password": bool(cred.password),
             "has_nt_hash": bool(cred.nt_hash),
+            "has_token": bool(cred.token),
+            "expires_at": cred.expires_at,
         }
         if include_secrets:
             entry["password"] = cred.password
             entry["nt_hash"] = cred.nt_hash
+            entry["token"] = cred.token
         else:
             entry["password_mask"] = _mask(cred.password)
             entry["nt_hash_mask"] = _mask(cred.nt_hash)
+            entry["token_mask"] = _mask(cred.token)
         credentials.append(entry)
 
     journal_path = resolve_activity_log(engagement_id, ledger_dir=store.dir)
@@ -233,17 +238,25 @@ def render_engagement_markdown(bundle: dict[str, Any]) -> str:
     lines.append("")
     credentials = bundle.get("credentials") or []
     if credentials:
-        lines.append("| Name | Username | Domain | Source | Password | NT hash |")
+        lines.append("| Name | Username | Domain | Type | Source | Material |")
         lines.append("|---|---|---|---|---|---|")
         for cred in credentials:
+            parts = []
+            if cred.get("password") or cred.get("password_mask"):
+                parts.append(f"pwd:{cred.get('password') or cred.get('password_mask')}")
+            if cred.get("nt_hash") or cred.get("nt_hash_mask"):
+                parts.append(f"nt:{cred.get('nt_hash') or cred.get('nt_hash_mask')}")
+            if cred.get("token") or cred.get("token_mask"):
+                parts.append(f"token:{cred.get('token') or cred.get('token_mask')}")
+            mat_str = " ".join(parts) if parts else "—"
             lines.append(
-                "| {name} | {user} | {domain} | {source} | {pw} | {nt} |".format(
+                "| {name} | {user} | {domain} | {ctype} | {source} | {mat} |".format(
                     name=cred.get("name") or "",
                     user=cred.get("username") or "",
                     domain=cred.get("domain") or "",
+                    ctype=cred.get("cred_type") or "password",
                     source=cred.get("source") or "",
-                    pw=cred.get("password") or cred.get("password_mask") or "—",
-                    nt=cred.get("nt_hash") or cred.get("nt_hash_mask") or "—",
+                    mat=mat_str,
                 )
             )
         lines.append("")

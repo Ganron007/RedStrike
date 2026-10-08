@@ -275,7 +275,7 @@ def _run_teardown(args: argparse.Namespace) -> int:
             continue
         try:
             result = runner.run(list(action.command))
-        except (FileNotFoundError, ValueError) as exc:
+        except (OSError, ValueError) as exc:
             action.executed = True
             action.success = False
             failed += 1

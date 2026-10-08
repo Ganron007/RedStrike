@@ -4,8 +4,8 @@ __pycache__/
 *.py[cod]
 .pytest_cache/
 .ruff_cache/
-dist/
-build/
+/dist/
+/build/
 *.egg-info/
 scope.yaml
 .agents/
@@ -50,6 +50,7 @@ secrets.*
 
 # Internal / maintainer-only (keep local; do not ship)
 docs/internal/
+/Doc/Internal/
 AGENTS.md
 CHANGELOG.md
 ROADMAP.md

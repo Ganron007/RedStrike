@@ -81,6 +81,7 @@ class C2ExecuteAssemblyRequest(BaseModel):
     args: list[str] = Field(default_factory=list)
     endpoint: str | None = None
     timeout_seconds: int = 120
+    target: str | None = None
 
 
 class C2ShellRequest(BaseModel):
@@ -89,6 +90,7 @@ class C2ShellRequest(BaseModel):
     command: str
     endpoint: str | None = None
     timeout_seconds: int = 60
+    target: str | None = None
 
 
 class C2PsExecRequest(BaseModel):
@@ -297,10 +299,28 @@ def campaign_status(req: CampaignStatusRequest) -> dict[str, Any]:
             "has_token": bool(cred.token),
             "password_mask": _mask(cred.password),
             "nt_hash_mask": _mask(cred.nt_hash),
+            "token_mask": _mask(cred.token),
+            "expires_at": cred.expires_at,
         }
         for cred in (ledger.get(name) for name in ledger.names())
         if cred is not None
     ]
+    try:
+        from redstrike.runtime.teardown import load_queue
+
+        td_queue = load_queue(session.store.dir / "teardown.json")
+        data["teardown"] = [
+            {
+                "name": a.name,
+                "target": a.target,
+                "description": a.description,
+                "executed": a.executed,
+                "success": a.success,
+            }
+            for a in td_queue.all_actions
+        ]
+    except Exception:
+        data["teardown"] = []
     return data
 
 
@@ -341,7 +361,10 @@ def campaign_credential_reveal(req: CredentialRevealRequest) -> dict[str, Any]:
         "password": cred.password,
         "nt_hash": cred.nt_hash,
         "token": cred.token,
-        "cred_type": cred.cred_type,
+        "cred_type": cred.cred_type or ("token" if cred.token else ("nt_hash" if cred.nt_hash else "password")),
+        "expires_at": cred.expires_at,
+        "notes": cred.notes,
+        "source": cred.source,
     }
 
 
@@ -349,9 +372,8 @@ def campaign_events(engagement_id: str, *, follow_seconds: int = 300):
     """SSE payload iterator tailing the engagement activity journal (11.4).
 
     Returns an iterator of ``data: <json>`` frames (plus ``event: ping`` /
-    ``event: end`` markers). Replays existing events first, then polls for
-    appends until ``follow_seconds`` elapses. No secrets: the journal is
-    redacted at write time.
+    ``event: end`` markers). If the journal does not exist yet (run not started),
+    it polls until created or timeout. No secrets: journal is redacted at write.
     """
     import time
 
@@ -359,43 +381,161 @@ def campaign_events(engagement_id: str, *, follow_seconds: int = 300):
     from redstrike.runtime.hitl import EngagementStore
 
     store = EngagementStore(engagement_id)
-    journal = resolve_activity_log(engagement_id, ledger_dir=store.dir)
-
-    def _empty():
-        yield "event: end\ndata: {}\n\n"
-
-    if journal is None or not Path(journal).is_file():
-        return _empty()
 
     def _gen():
         deadline = time.monotonic() + max(follow_seconds, 0)
-        # Replay what is already there.
-        with open(journal, encoding="utf-8") as handle:
-            for line in handle:
-                line = line.strip()
-                if line:
-                    yield f"data: {line}\n\n"
-        # Tail appends: poll the file (cheap, race-free — no seek games
-        # across rotations; the journal is append-only per engagement).
-        pos = Path(journal).stat().st_size
         last_ping = time.monotonic()
-        while time.monotonic() < deadline:
-            with open(journal, encoding="utf-8") as handle:
-                handle.seek(pos)
-                chunk = handle.read()
-                pos = handle.tell()
-            for line in chunk.splitlines():
-                line = line.strip()
-                if line:
-                    yield f"data: {line}\n\n"
+        journal = resolve_activity_log(engagement_id, ledger_dir=store.dir)
+
+        # If journal does not exist yet, wait/poll until deadline
+        while (journal is None or not Path(journal).is_file()) and time.monotonic() < deadline:
+            time.sleep(0.5)
+            journal = resolve_activity_log(engagement_id, ledger_dir=store.dir)
             now = time.monotonic()
             if now - last_ping >= 15:
                 yield "event: ping\ndata: {}\n\n"
                 last_ping = now
-            time.sleep(0.5)
+
+        if journal and Path(journal).is_file():
+            # Replay what is already there.
+            with open(journal, encoding="utf-8") as handle:
+                for line in handle:
+                    line = line.strip()
+                    if line:
+                        yield f"data: {line}\n\n"
+            pos = Path(journal).stat().st_size
+            while time.monotonic() < deadline:
+                with open(journal, encoding="utf-8") as handle:
+                    handle.seek(pos)
+                    chunk = handle.read()
+                    pos = handle.tell()
+                for line in chunk.splitlines():
+                    line = line.strip()
+                    if line:
+                        yield f"data: {line}\n\n"
+                now = time.monotonic()
+                if now - last_ping >= 15:
+                    yield "event: ping\ndata: {}\n\n"
+                    last_ping = now
+                time.sleep(0.5)
         yield "event: end\ndata: {}\n\n"
 
     return _gen()
+
+
+class CampaignTeardownRequest(BaseModel):
+    engagement_id: str
+    execute: bool = False
+
+
+def campaign_teardown(req: CampaignTeardownRequest) -> dict[str, Any]:
+    """Inspect or execute registered reversible actions for an engagement."""
+    from redstrike.core.runner import CommandRunner, redact_argv
+    from redstrike.runtime.hitl import EngagementStore
+    from redstrike.runtime.teardown import load_queue, save_queue
+
+    store = EngagementStore(req.engagement_id)
+    queue_path = store.dir / "teardown.json"
+    queue = load_queue(queue_path)
+
+    if not req.execute:
+        return {
+            "engagement_id": req.engagement_id,
+            "queue_file": str(queue_path),
+            "pending": [
+                {
+                    "name": a.name,
+                    "target": a.target,
+                    "description": a.description,
+                    "command": redact_argv(a.command),
+                    "executed": a.executed,
+                }
+                for a in queue.pending
+            ],
+            "executed": [
+                {
+                    "name": a.name,
+                    "target": a.target,
+                    "description": a.description,
+                    "success": a.success,
+                }
+                for a in queue.all_actions
+                if a.executed
+            ],
+        }
+
+    runner = CommandRunner()
+    summary: list[dict[str, Any]] = []
+    failed = 0
+    succeeded = 0
+    for action in reversed(queue.pending):
+        if not action.command:
+            action.executed = True
+            action.success = False
+            failed += 1
+            summary.append({
+                "name": action.name,
+                "target": action.target,
+                "description": action.description,
+                "error": "no teardown command declared",
+            })
+            continue
+        try:
+            res = runner.run(list(action.command))
+            action.executed = True
+            action.success = res.success
+            if res.success:
+                succeeded += 1
+            else:
+                failed += 1
+            summary.append({
+                "name": action.name,
+                "target": action.target,
+                "description": action.description,
+                "success": res.success,
+                "return_code": res.return_code,
+            })
+        except Exception as exc:
+            action.executed = True
+            action.success = False
+            failed += 1
+            summary.append({
+                "name": action.name,
+                "target": action.target,
+                "description": action.description,
+                "error": str(exc),
+            })
+
+    save_queue(queue_path, queue)
+    return {
+        "engagement_id": req.engagement_id,
+        "executed_count": len(summary),
+        "succeeded": succeeded,
+        "failed": failed,
+        "actions": summary,
+    }
+
+
+def campaign_list_graphs() -> dict[str, Any]:
+    """List bundled example graphs with metadata for easy selection in the UI."""
+    repo_root = Path(__file__).resolve().parents[2]
+    examples_dir = repo_root / "examples"
+    graphs = []
+    if examples_dir.is_dir():
+        for p in sorted(examples_dir.glob("*.yaml")):
+            try:
+                g = load_campaign_graph(p)
+                phases = sorted(list({n.phase for n in g.nodes}))
+                graphs.append({
+                    "name": g.name,
+                    "filename": p.name,
+                    "path": f"examples/{p.name}",
+                    "node_count": len(g.nodes),
+                    "phases": phases,
+                })
+            except Exception:
+                continue
+    return {"graphs": graphs}
 
 
 class CampaignGraphRequest(BaseModel):
@@ -554,12 +694,15 @@ def campaign_stream(
 
 def c2_list_sessions(req: C2ListSessionsRequest) -> dict[str, Any]:
     from redstrike.c2 import get_c2_client
+
     client = get_c2_client(req.backend, endpoint=req.endpoint)
     sessions = client.list_sessions()
+    last_err = getattr(client, "last_error", None)
     return {
-        "ok": True,
+        "ok": last_err is None,
         "backend": req.backend,
         "sessions": [s.model_dump(mode="json") for s in sessions],
+        "error": last_err,
     }
 
 
@@ -658,6 +801,7 @@ class C2StackTaskRequest(C2StackRequest):
     command: str
     wait: int = 25
     callback_id: int | None = None
+    target: str | None = None
 
 
 def c2_stack_status(req: C2StackRequest) -> dict[str, Any]:

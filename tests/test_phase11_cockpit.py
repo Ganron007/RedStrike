@@ -366,3 +366,95 @@ def test_ui_bundle_served(tmp_path: Path, monkeypatch) -> None:
     resp = client.get("/ui/")
     assert resp.status_code == 200
     assert "RedStrike Cockpit" in resp.text
+
+
+def test_api_campaign_graphs_and_topology(monkeypatch) -> None:
+    from test_api import _OkService
+
+    monkeypatch.setattr(server, "ActiveDirectoryAssessmentService", _OkService)
+    client = TestClient(server.create_app())
+
+    resp = client.get("/campaign/graphs")
+    assert resp.status_code == 200
+    graphs = resp.json()["graphs"]
+    assert len(graphs) >= 1
+    assert any(g["filename"].endswith(".yaml") for g in graphs)
+
+    top = client.get("/topology")
+    assert top.status_code == 200
+    assert "linux_execution" in top.json()
+
+
+def test_api_campaign_teardown_endpoint(tmp_path: Path, monkeypatch) -> None:
+    from test_api import _OkService
+    from redstrike.runtime.teardown import TeardownQueue, save_queue
+
+    monkeypatch.setenv("REDSTRIKE_HOME", str(tmp_path / "home"))
+    monkeypatch.setattr(server, "ActiveDirectoryAssessmentService", _OkService)
+    client = TestClient(server.create_app())
+
+    import sys
+
+    q = TeardownQueue()
+    q.register("T01", "10.0.0.1", [sys.executable, "-c", "print('cleaned')"], "cleanup test")
+    eng_dir = tmp_path / "home" / "engagements" / "td-eng"
+    save_queue(eng_dir / "teardown.json", q)
+
+    # list pending
+    resp = client.post("/campaign/teardown", json={"engagement_id": "td-eng", "execute": False})
+    assert resp.status_code == 200
+    data = resp.json()
+    assert len(data["pending"]) == 1
+    assert data["pending"][0]["name"] == "T01"
+
+    # execute
+    run_resp = client.post("/campaign/teardown", json={"engagement_id": "td-eng", "execute": True})
+    assert run_resp.status_code == 200
+    run_data = run_resp.json()
+    assert run_data["executed_count"] == 1
+    assert run_data["succeeded"] == 1
+
+
+def test_resolve_graph_path_fallback() -> None:
+    from redstrike.runtime.graph import resolve_graph_path
+
+    # Resolves directly via examples/ fallback
+    p = resolve_graph_path(explicit="generic-ad-recon.yaml")
+    assert p.is_file()
+
+
+def test_ui_static_files_served(monkeypatch) -> None:
+    from test_api import _OkService
+
+    monkeypatch.setattr(server, "ActiveDirectoryAssessmentService", _OkService)
+    client = TestClient(server.create_app())
+
+    # HTML
+    resp = client.get("/ui/index.html")
+    assert resp.status_code == 200
+    assert "RedStrike Cockpit" in resp.text
+    assert "styles.css" in resp.text
+
+    # CSS
+    resp_css = client.get("/ui/styles.css")
+    assert resp_css.status_code == 200
+    assert "--bg-core" in resp_css.text
+
+    # JS
+    resp_js = client.get("/ui/app.js")
+    assert resp_js.status_code == 200
+    assert "REDSTRIKE COCKPIT" in resp_js.text
+
+
+    # Vendored Cytoscape
+    resp_cy = client.get("/ui/vendor/cytoscape.min.js")
+    assert resp_cy.status_code == 200
+    assert len(resp_cy.content) > 10000
+
+    # Root redirect to cockpit
+    resp_root = client.get("/", follow_redirects=False)
+    assert resp_root.status_code in (302, 307)
+    assert resp_root.headers["location"] == "/ui/"
+
+
+

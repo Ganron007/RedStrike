@@ -1,0 +1,592 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>RedStrike Cockpit</title>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><polygon points='50,5 95,25 95,75 50,95 5,75 5,25' fill='%23080c16' stroke='%23f43f5e' stroke-width='8'/><circle cx='50' cy='50' r='18' fill='%23f43f5e'/></svg>">
+</head>
+<body>
+  <!-- ================= TOP NAVIGATION BAR ================= -->
+  <header class="topbar">
+    <div class="topbar-left">
+      <div class="brand">
+        <div class="brand-shield">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 2L3 7v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V7l-9-5z"/>
+            <path d="M12 8v8M8 12h8" stroke="#00f0ff" stroke-width="2.2" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <div class="brand-text">
+          <span class="brand-name">RED<span class="brand-accent">STRIKE</span></span>
+          <span class="brand-badge">COCKPIT</span>
+        </div>
+      </div>
+
+      <nav class="nav-tabs" role="tablist">
+        <button class="nav-tab active" data-tab="graph" role="tab" aria-selected="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="6" cy="6" r="3"/><circle cx="18" cy="6" r="3"/><circle cx="12" cy="18" r="3"/><path d="M8.5 7.5L10.5 15.5M15.5 7.5L13.5 15.5M9 6h6"/></svg>
+          Attack Graph
+        </button>
+        <button class="nav-tab" data-tab="campaign" role="tab" aria-selected="false">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+          Campaign Deck
+        </button>
+        <button class="nav-tab" data-tab="creds" role="tab" aria-selected="false">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+          Credential Vault
+          <span id="credBadge" class="tab-badge">0</span>
+        </button>
+        <button class="nav-tab" data-tab="c2" role="tab" aria-selected="false">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+          C2 Fleet
+          <span id="c2Badge" class="tab-badge">0</span>
+        </button>
+        <button class="nav-tab" data-tab="journal" role="tab" aria-selected="false">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+          Live Journal
+          <span id="journalPulse" class="pulse-indicator"></span>
+        </button>
+        <button class="nav-tab" data-tab="topology" role="tab" aria-selected="false">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg>
+          Environment
+        </button>
+        <button class="nav-tab" data-tab="teardown" role="tab" aria-selected="false">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M10 11v6M14 11v6"/></svg>
+          Teardown
+          <span id="teardownBadge" class="tab-badge" style="display:none">0</span>
+        </button>
+      </nav>
+    </div>
+
+    <div class="topbar-right">
+      <div class="engagement-pill" title="Active engagement workspace">
+        <span class="pill-label">ENGAGEMENT</span>
+        <input id="engageId" class="inline-input" size="10" value="demo" spellcheck="false">
+      </div>
+
+      <div class="connection-status" id="connStatusBtn" title="Click to configure API connection">
+        <span id="healthDot" class="status-dot off"></span>
+        <span id="connLabel" class="conn-text">Connecting...</span>
+      </div>
+
+      <div class="sound-toggle" id="btnSoundToggle" title="Audio feedback toggle">
+        <svg id="soundOnIco" viewBox="0 0 24 24" fill="none" stroke="currentColor"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
+        <svg id="soundOffIco" viewBox="0 0 24 24" fill="none" stroke="currentColor" class="hidden"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>
+      </div>
+
+      <button id="btnSettings" class="icon-btn" title="Cockpit Settings & Auth">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <!-- ================= SUB-HEADER ACTION STRIP ================= -->
+  <section class="action-strip">
+    <div class="strip-item graph-picker">
+      <span class="strip-label">GRAPH TEMPLATE:</span>
+      <select id="presetGraphSelect" class="styled-select" title="Choose a bundled attack graph">
+        <option value="">(Custom Path)</option>
+        <option value="examples/generic-ad-recon.yaml" selected>Active Directory Recon (generic-ad-recon.yaml)</option>
+        <option value="examples/generic-adcs-audit.yaml">ADCS Vulnerability Audit (generic-adcs-audit.yaml)</option>
+        <option value="examples/generic-privilege-escalation.yaml">Privilege Escalation (generic-privilege-escalation.yaml)</option>
+        <option value="examples/generic-rbcd-coercion.yaml">RBCD Coercion Chain (generic-rbcd-coercion.yaml)</option>
+        <option value="examples/generic-entra-recon.yaml">Entra ID Hybrid Recon (generic-entra-recon.yaml)</option>
+        <option value="examples/campaign-graph.m1.yaml">P1.0 Spine Campaign (campaign-graph.m1.yaml)</option>
+      </select>
+      <input id="graphPath" class="path-input" placeholder="Graph path (e.g. examples/generic-ad-recon.yaml)" value="examples/generic-ad-recon.yaml" spellcheck="false">
+      <button id="btnLoadGraph" class="btn btn-primary" title="Load selected attack graph into DAG">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Load Graph
+      </button>
+    </div>
+
+    <div class="strip-divider"></div>
+
+    <div class="strip-item run-picker">
+      <span class="strip-label">PHASE:</span>
+      <input id="phaseSpec" class="phase-input" value="1-3" size="6" placeholder="1-3" title="Phase specification, e.g. 1-3, 0.5-8, 1,2,3">
+      <button id="btnDryRun" class="btn btn-cyan" title="Preview attack graph without executing commands">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+        Dry-Run
+      </button>
+      <button id="btnExecuteLive" class="btn btn-danger" title="Execute campaign commands live against in-scope targets">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+        Execute Live
+      </button>
+    </div>
+
+    <div class="strip-divider"></div>
+
+    <div class="strip-item toggles-picker">
+      <button id="btnRefreshStatus" class="btn btn-ghost" title="Refresh state from backend API">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+        Refresh
+      </button>
+      <button id="btnToggleSSE" class="btn btn-toggle" title="Connect to live SSE activity stream">
+        <span class="live-dot"></span>
+        <span id="sseBtnLabel">Live Stream: Off</span>
+      </button>
+    </div>
+  </section>
+
+  <!-- ================= MAIN VIEW CONTAINER ================= -->
+  <main class="main-viewport">
+
+    <!-- VIEW 1: ATTACK GRAPH (DAG) -->
+    <div id="view-graph" class="view-panel active">
+      <div class="graph-viewport-wrapper">
+        <div class="graph-hud">
+          <div class="hud-group search-group">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <input id="graphNodeSearch" type="search" placeholder="Filter / search node ID or intent..." spellcheck="false">
+          </div>
+
+          <div class="hud-group filter-group">
+            <span class="hud-label">PHASE:</span>
+            <select id="graphPhaseFilter" class="hud-select">
+              <option value="all">All Phases</option>
+            </select>
+            <span class="hud-label">STATUS:</span>
+            <select id="graphStatusFilter" class="hud-select">
+              <option value="all">All Statuses</option>
+              <option value="verified">Verified</option>
+              <option value="executing">Executing</option>
+              <option value="gated">Gated</option>
+              <option value="failed">Failed</option>
+              <option value="pending">Pending</option>
+              <option value="stub">Stub</option>
+            </select>
+          </div>
+
+          <div class="hud-group controls-group">
+            <button id="btnZoomIn" class="hud-btn" title="Zoom In">+</button>
+            <button id="btnZoomOut" class="hud-btn" title="Zoom Out">&minus;</button>
+            <button id="btnFitGraph" class="hud-btn" title="Fit Entire Graph">Fit</button>
+            <button id="btnLayoutToggle" class="hud-btn" title="Toggle Layout (Breadthfirst / Concentric / Grid / Circle)">Layout</button>
+          </div>
+        </div>
+
+        <div id="cy" class="cy-canvas" aria-label="Interactive DAG Attack Graph"></div>
+
+        <div class="graph-footer-stats" id="graphSummaryStats">
+          <span class="stat-pill graph-title"><span id="graphNameDisplay">No graph loaded</span></span>
+          <span class="stat-pill"><span class="badge-dot dot-verified"></span> Verified: <strong id="cntVerified">0</strong></span>
+          <span class="stat-pill"><span class="badge-dot dot-executing"></span> Executing: <strong id="cntExecuting">0</strong></span>
+          <span class="stat-pill"><span class="badge-dot dot-gated"></span> Gated: <strong id="cntGated">0</strong></span>
+          <span class="stat-pill"><span class="badge-dot dot-failed"></span> Failed: <strong id="cntFailed">0</strong></span>
+          <span class="stat-pill"><span class="badge-dot dot-pending"></span> Pending: <strong id="cntPending">0</strong></span>
+          <span class="stat-pill"><span class="badge-dot dot-stub"></span> Stub: <strong id="cntStub">0</strong></span>
+          <span class="stat-pill total-pill">Total: <strong id="cntTotal">0</strong></span>
+        </div>
+      </div>
+
+      <!-- SLIDE-OVER NODE INSPECTOR -->
+      <aside id="nodeDrawer" class="node-inspector hidden" aria-label="Node Inspector">
+        <div class="inspector-header">
+          <div class="inspector-title-wrap">
+            <span id="inspNodePhaseBadge" class="insp-phase-badge">Phase 1</span>
+            <h2 id="inspNodeId" class="insp-node-id">NODE_ID</h2>
+          </div>
+          <button id="btnInspectorClose" class="icon-btn close-btn" title="Close Drawer">&times;</button>
+        </div>
+
+        <div class="inspector-tabs">
+          <button class="insp-tab active" data-insp-tab="overview">Overview</button>
+          <button class="insp-tab" data-insp-tab="intent">Execution & Intent</button>
+          <button class="insp-tab" data-insp-tab="verify">Verification</button>
+          <button class="insp-tab" data-insp-tab="telemetry">Live Telemetry</button>
+        </div>
+
+        <div class="inspector-content">
+          <div id="inspTab-overview" class="insp-panel active">
+            <div class="insp-meta-card">
+              <h3 id="inspNodeTitle">Node Title</h3>
+              <p id="inspNodeStatusBanner" class="insp-status-banner">Pending Execution</p>
+            </div>
+            <dl class="insp-dl" id="inspOverviewDl"></dl>
+          </div>
+
+          <div id="inspTab-intent" class="insp-panel">
+            <div class="code-box-header">
+              <span>INTENT / SCRIPT</span>
+              <button id="btnCopyIntentArgs" class="mini-copy-btn">Copy</button>
+            </div>
+            <pre id="inspIntentCodeBlock" class="code-block"></pre>
+            <dl class="insp-dl" id="inspIntentDl"></dl>
+          </div>
+
+          <div id="inspTab-verify" class="insp-panel">
+            <dl class="insp-dl" id="inspVerifyDl"></dl>
+          </div>
+
+          <div id="inspTab-telemetry" class="insp-panel">
+            <dl class="insp-dl" id="inspTelemetryDl">
+              <dt>Status</dt><dd>No execution event recorded yet for this node.</dd>
+            </dl>
+          </div>
+        </div>
+
+        <div class="inspector-footer">
+          <button id="btnFocusNode" class="btn btn-cyan btn-sm">Center in DAG</button>
+          <button id="btnRecommendNode" class="btn btn-ghost btn-sm">Rank In Next-Action</button>
+        </div>
+      </aside>
+    </div>
+
+    <!-- VIEW 2: CAMPAIGN DECK -->
+    <div id="view-campaign" class="view-panel">
+      <div class="deck-layout">
+        <div class="deck-card run-summary-card">
+          <div class="card-header">
+            <h3>Campaign Status &amp; Progress</h3>
+            <span id="deckEngagementId" class="badge-tag">demo</span>
+          </div>
+          <div class="progress-bar-container">
+            <div id="deckProgressBar" class="progress-bar-fill" style="width: 0%"></div>
+          </div>
+          <div class="metrics-grid">
+            <div class="metric-box">
+              <span class="metric-num text-cyan" id="deckMetricTotal">0</span>
+              <span class="metric-lbl">Total Steps</span>
+            </div>
+            <div class="metric-box">
+              <span class="metric-num text-green" id="deckMetricVerified">0</span>
+              <span class="metric-lbl">Verified</span>
+            </div>
+            <div class="metric-box">
+              <span class="metric-num text-red" id="deckMetricFailed">0</span>
+              <span class="metric-lbl">Failed</span>
+            </div>
+            <div class="metric-box">
+              <span class="metric-num text-amber" id="deckMetricGated">0</span>
+              <span class="metric-lbl">Gated</span>
+            </div>
+            <div class="metric-box">
+              <span class="metric-num text-violet" id="deckMetricCreds">0</span>
+              <span class="metric-lbl">Captured Creds</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="deck-card recommend-card">
+          <div class="card-header">
+            <h3>Next-Best-Action Recommender</h3>
+            <button id="btnRefreshRecommend" class="mini-copy-btn">Evaluate</button>
+          </div>
+          <div id="deckRecommendationsList" class="recommend-list">
+            <p class="empty-hint">Click Evaluate to compute next actionable attack steps derived from graph prerequisites.</p>
+          </div>
+        </div>
+
+        <div class="deck-card steps-card full-span">
+          <div class="card-header">
+            <h3>Campaign Execution Stepper</h3>
+            <div class="stepper-actions">
+              <input id="stepperSearch" type="search" placeholder="Filter steps..." class="mini-input">
+            </div>
+          </div>
+          <div class="stepper-timeline" id="deckStepperTimeline">
+            <p class="empty-hint">Load a graph and run a phase to see execution steps appear here.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- VIEW 3: CREDENTIAL VAULT -->
+    <div id="view-creds" class="view-panel">
+      <div class="pane-full-card">
+        <div class="vault-toolbar">
+          <div class="vault-search">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <input id="credSearch" type="search" placeholder="Search accounts, domains, or types..." spellcheck="false">
+          </div>
+          <div class="vault-filters">
+            <button class="filter-chip active" data-filter="all">All</button>
+            <button class="filter-chip" data-filter="password">Passwords</button>
+            <button class="filter-chip" data-filter="hash">NT Hashes</button>
+            <button class="filter-chip" data-filter="token">Tokens / Cloud</button>
+          </div>
+          <div class="vault-actions">
+            <button id="btnRefreshCreds" class="btn btn-ghost btn-sm">Refresh Vault</button>
+            <button id="btnExportCreds" class="btn btn-cyan btn-sm">Export JSON</button>
+          </div>
+        </div>
+
+        <div class="table-container">
+          <table id="credTable" class="modern-table">
+            <thead>
+              <tr>
+                <th>Name / ID</th>
+                <th>Username</th>
+                <th>Domain / Realm</th>
+                <th>Type</th>
+                <th>Source</th>
+                <th>Secret Material (Masked)</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="credTableBody"></tbody>
+          </table>
+          <div id="credEmptyHint" class="empty-state">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            <p>No credentials captured or seeded in the ledger for this engagement yet.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- VIEW 4: C2 FLEET -->
+    <div id="view-c2" class="view-panel">
+      <div class="pane-full-card">
+        <div class="vault-toolbar">
+          <div class="c2-fleet-title">
+            <h3>Active C2 Agent Fleet</h3>
+            <span class="hint-sub">Unified multi-framework integration (Sliver &middot; Havoc &middot; Mythic &middot; Adaptix &middot; Meridian)</span>
+          </div>
+          <div class="vault-actions c2-endpoint-bar">
+            <span class="strip-label">C2STACK PORTAL:</span>
+            <input id="c2EndpointInput" class="path-input" style="width:210px" value="http://127.0.0.1:8000" placeholder="http://127.0.0.1:8000" spellcheck="false" title="C2Stack Flight Control portal URL (Docker host IP & port)">
+            <button id="btnRefreshC2" class="btn btn-primary btn-sm" title="Query C2Stack portal for unified fleet sessions">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+              Probe &amp; Refresh
+            </button>
+          </div>
+        </div>
+
+        <div id="c2BackendsRow" class="c2-backends-container">
+          <div class="c2-backend-card" id="bcard-sliver">
+            <span class="badge-dot dot-pending" id="bdot-sliver"></span>
+            <span class="bname">Sliver</span>
+            <span class="bstatus" id="btxt-sliver">Unchecked</span>
+          </div>
+          <div class="c2-backend-card" id="bcard-havoc">
+            <span class="badge-dot dot-pending" id="bdot-havoc"></span>
+            <span class="bname">Havoc</span>
+            <span class="bstatus" id="btxt-havoc">Unchecked</span>
+          </div>
+          <div class="c2-backend-card" id="bcard-adaptix">
+            <span class="badge-dot dot-pending" id="bdot-adaptix"></span>
+            <span class="bname">Adaptix</span>
+            <span class="bstatus" id="btxt-adaptix">Unchecked</span>
+          </div>
+          <div class="c2-backend-card" id="bcard-mythic">
+            <span class="badge-dot dot-pending" id="bdot-mythic"></span>
+            <span class="bname">Mythic</span>
+            <span class="bstatus" id="btxt-mythic">Unchecked</span>
+          </div>
+          <div class="c2-backend-card" id="bcard-meridian">
+            <span class="badge-dot dot-pending" id="bdot-meridian"></span>
+            <span class="bname">Meridian</span>
+            <span class="bstatus" id="btxt-meridian">Unchecked</span>
+          </div>
+        </div>
+
+
+        <div class="table-container">
+          <table id="c2Table" class="modern-table">
+            <thead>
+              <tr>
+                <th>Session ID</th>
+                <th>Backend</th>
+                <th>Hostname</th>
+                <th>User Context</th>
+                <th>OS / Arch</th>
+                <th>Transport</th>
+                <th>Last Checkin</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="c2TableBody"></tbody>
+          </table>
+          <div id="c2EmptyHint" class="empty-state">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+            <p>No active C2 implant sessions detected on configured C2Stack / adapter endpoints.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- VIEW 5: LIVE JOURNAL (SSE STREAM) -->
+    <div id="view-journal" class="view-panel">
+      <div class="terminal-card">
+        <div class="terminal-toolbar">
+          <div class="term-left">
+            <span class="term-dot red"></span>
+            <span class="term-dot amber"></span>
+            <span class="term-dot green"></span>
+            <span class="term-title">EVENT JOURNAL STREAM &mdash; activity-<span id="journalEngageLabel">demo</span>.jsonl</span>
+          </div>
+          <div class="term-controls">
+            <input id="journalFilter" type="search" placeholder="Filter log entries..." class="term-search-input">
+            <button id="btnJournalAutoscroll" class="term-btn active" title="Toggle autoscroll">Autoscroll: ON</button>
+            <button id="btnClearJournal" class="term-btn" title="Clear visual log">Clear</button>
+            <button id="btnExportJournal" class="term-btn" title="Download journal output">Download</button>
+          </div>
+        </div>
+        <div id="eventLogContainer" class="terminal-screen" aria-live="polite"></div>
+      </div>
+    </div>
+
+    <!-- VIEW 6: ENVIRONMENT & TOPOLOGY -->
+    <div id="view-topology" class="view-panel">
+      <div class="topology-grid">
+        <div class="topo-card">
+          <div class="card-header">
+            <h3>Execution Target Topology</h3>
+            <button id="btnRefreshTopology" class="mini-copy-btn">Re-probe</button>
+          </div>
+          <div id="topoDetails" class="topo-body">
+            <p class="empty-hint">Loading execution topology probe...</p>
+          </div>
+        </div>
+
+        <div class="topo-card">
+          <div class="card-header">
+            <h3>Active Scope Policy</h3>
+          </div>
+          <div id="policyDetails" class="topo-body">
+            <p class="empty-hint">Scope details will populate from status request.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- VIEW 7: TEARDOWN & CLEANUP -->
+    <div id="view-teardown" class="view-panel">
+      <div class="pane-full-card">
+        <div class="vault-toolbar">
+          <div>
+            <h3>Reversible Post-Exploitation Actions</h3>
+            <span class="hint-sub">Tracked cleanup queue registered by verified attack steps for zero artifact residue</span>
+          </div>
+          <div class="vault-actions">
+            <button id="btnExecuteTeardown" class="btn btn-danger btn-sm">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+              Execute Teardown
+            </button>
+          </div>
+        </div>
+
+        <div class="table-container">
+          <table id="teardownTable" class="modern-table">
+            <thead>
+              <tr>
+                <th>Action Name</th>
+                <th>Target Host</th>
+                <th>Description</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="teardownTableBody"></tbody>
+          </table>
+          <div id="teardownEmptyHint" class="empty-state">
+            <p>No reversible cleanup actions in the queue for this engagement.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- ================= HITL GATE MODAL ================= -->
+  <div id="gateModal" class="modal-backdrop hidden" role="alertdialog" aria-modal="true">
+    <div class="modal-window gate-window">
+      <div class="modal-glow-stripe"></div>
+      <div class="modal-header">
+        <div class="gate-icon-pulse">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        </div>
+        <div>
+          <h2 class="modal-title text-amber">HUMAN-IN-THE-LOOP GATE REQUIRED</h2>
+          <span class="modal-subtitle">High-impact operation paused awaiting operator authorization</span>
+        </div>
+      </div>
+
+      <div class="modal-body">
+        <div class="gate-callout">
+          <span class="gate-tag">GATE: <code id="gateName">dcsync</code></span>
+          <div id="gateDetailContent" class="gate-details-text"></div>
+        </div>
+
+        <div class="form-group" style="margin-top: 14px;">
+          <label class="form-label" for="gateApprovalNote">Operator Authorization Note:</label>
+          <input id="gateApprovalNote" class="form-input" value="Authorized by operator via RedStrike Cockpit" placeholder="Enter reason / ticket ref...">
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button id="btnDismissGate" class="btn btn-ghost">Leave Paused</button>
+        <button id="btnApproveGate" class="btn btn-danger">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="20 6 9 17 4 12"/></svg>
+          Authorize &amp; Approve Gate
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= CREDENTIAL REVEAL MODAL ================= -->
+  <div id="revealModal" class="modal-backdrop hidden" role="alertdialog" aria-modal="true">
+    <div class="modal-window wide-window">
+      <div class="modal-header">
+        <h2 class="modal-title text-cyan">AUDITED CREDENTIAL REVEAL</h2>
+        <button id="btnCloseRevealModal" class="icon-btn">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p class="warn-notice">
+          <strong>Audited Action:</strong> Revealing this secret has been permanently logged with timestamp into the engagement state ledger (<code>state.reveals</code>).
+        </p>
+        <pre id="revealBody" class="credential-code-viewer"></pre>
+      </div>
+      <div class="modal-footer">
+        <button id="btnCopyReveal" class="btn btn-cyan">Copy Secret Material</button>
+        <button id="btnCloseReveal" class="btn btn-ghost">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= SETTINGS / CONNECTION MODAL ================= -->
+  <div id="settingsModal" class="modal-backdrop hidden" role="dialog" aria-modal="true">
+    <div class="modal-window">
+      <div class="modal-header">
+        <h2 class="modal-title">COCKPIT SETTINGS</h2>
+        <button id="btnCloseSettingsModal" class="icon-btn">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label" for="apiBase">API Base URL:</label>
+          <input id="apiBase" class="form-input" placeholder="http://127.0.0.1:8890 (or empty for same origin)">
+          <span class="field-hint">Leave blank when served from the RedStrike API server.</span>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="apiKey">API Key (X-API-Key):</label>
+          <input id="apiKey" type="password" class="form-input" placeholder="Required for remote connections">
+          <span class="field-hint">Not required on local loopback (127.0.0.1).</span>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="modalEngageId">Default Engagement ID:</label>
+          <input id="modalEngageId" class="form-input" value="demo">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="modalC2Endpoint">C2Stack Flight Control URL:</label>
+          <input id="modalC2Endpoint" class="form-input" value="http://127.0.0.1:8000" placeholder="http://127.0.0.1:8000">
+          <span class="field-hint">Docker host IP &amp; port running C2Stack portal.</span>
+        </div>
+
+      </div>
+      <div class="modal-footer">
+        <button id="btnTestConn" class="btn btn-ghost">Test Connection</button>
+        <button id="btnSaveSettings" class="btn btn-primary">Save &amp; Connect</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- TOAST NOTIFICATION CONTAINER -->
+  <div id="toastContainer" class="toast-container" aria-live="assertive"></div>
+
+  <!-- VENDOR & APP SCRIPTS -->
+  <script src="vendor/cytoscape.min.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

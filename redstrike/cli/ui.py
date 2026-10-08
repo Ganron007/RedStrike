@@ -18,6 +18,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--profile", default=None)
     parser.add_argument("--ungated", action="store_true")
     parser.add_argument("--api-key", default=None)
+    parser.add_argument("--no-browser", action="store_true", help="Do not open browser automatically")
     args = parser.parse_args(argv)
 
     base = args.api.rstrip("/")
@@ -43,8 +44,12 @@ def main(argv: list[str] | None = None) -> int:
 
             from redstrike.api.server import create_app
 
-            app = create_app(scope_path=args.scope, api_key=args.api_key,
-                             ungated=bool(args.ungated))
+            app = create_app(
+                scope_path=args.scope,
+                api_key=args.api_key,
+                profile=args.profile,
+                ungated=bool(args.ungated),
+            )
             uvicorn.run(app, host=host, port=port, log_level="warning")
 
         threading.Thread(target=_serve, daemon=True).start()
@@ -53,7 +58,8 @@ def main(argv: list[str] | None = None) -> int:
                 break
             time.sleep(0.2)
 
-    webbrowser.open(base + "/ui/")
+    if not args.no_browser:
+        webbrowser.open(base + "/ui/")
     print(f"cockpit: {base}/ui/  (Ctrl-C to stop the embedded API)")
     try:
         while True:

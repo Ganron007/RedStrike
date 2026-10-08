@@ -260,8 +260,10 @@ class CampaignOrchestrator:
         record_replay: bool = False,
         replay_mode: bool = False,
         allow_drift: bool = False,
+        profile: str | None = None,
     ) -> None:
         self.engagement_id = engagement_id
+        self.profile = profile
         self.beachhead = Beachhead(beachhead)
         self.operator = OperatorMode(operator)
         self.automation_root = Path(automation_root)
@@ -325,6 +327,11 @@ class CampaignOrchestrator:
         self.activity = ActivityJournal(
             resolve_activity_log(engagement_id, ledger_dir=self.ledger.dir)
         )
+
+    def _hitl_active(self) -> bool:
+        if self.scope_policy and getattr(self.scope_policy, "ungated", False):
+            return False
+        return hitl_required(self.profile, policy=self.scope_policy)
 
     def parse_phases(self, phase_spec: str):
         return parse_phase_filter(phase_spec)
@@ -477,20 +484,56 @@ class CampaignOrchestrator:
                 return backend
         return None
 
-    def _resolve_session_id(self) -> str | None:
-        """First live session id for the active backend (adapter first, portal fallback)."""
+    def _resolve_session_id(self, target: str | None = None) -> str | None:
+        """Resolve live session id matching the intended target host and scope."""
         client = self.runner.c2_client
+        candidates: list[str] = []
         if client is not None:
             try:
                 live = [s for s in client.list_sessions() if s.is_alive]
             except Exception:  # noqa: BLE001 - adapter transport issues must not abort the run
                 live = []
-            if live:
-                return live[0].id
+            for s in live:
+                host = s.hostname or s.remote_address
+                if host and ":" in host:
+                    host = host.split(":")[0]
+                if self.scope_policy and host:
+                    try:
+                        self.scope_policy.assert_target_in_scope(host)
+                    except PermissionError:
+                        continue
+                if target:
+                    if host and (target.lower() in host.lower() or host.lower() in target.lower()):
+                        candidates.append(str(s.id))
+                else:
+                    candidates.append(str(s.id))
+            if len(candidates) == 1:
+                return candidates[0]
+            if len(candidates) > 1:
+                if self.c2_session_id and self.c2_session_id in candidates:
+                    return self.c2_session_id
+                raise RuntimeError(
+                    f"Multiple eligible C2 sessions found for backend '{self.c2_backend.value}'; "
+                    "explicit session binding (--c2-session) is required to avoid ambiguous dispatch"
+                )
+
         from redstrike.c2.stack import C2StackClient
 
-        picked = C2StackClient(endpoint=self.c2_endpoint).select_session(self.c2_backend.value)
-        return str(picked["id"]) if picked and picked.get("id") else None
+        picked = C2StackClient(endpoint=self.c2_endpoint).select_session(
+            self.c2_backend.value,
+            hostname=target,
+        )
+        if picked and picked.get("id"):
+            p_host = picked.get("hostname") or picked.get("remote_address")
+            if p_host and ":" in str(p_host):
+                p_host = str(p_host).split(":")[0]
+            if self.scope_policy and p_host:
+                try:
+                    self.scope_policy.assert_target_in_scope(str(p_host))
+                except PermissionError:
+                    return None
+            return str(picked["id"])
+        return None
 
     def _resolve_c2(self) -> None:
         """Resolve ``--c2-backend auto`` and a missing session id against the live stack.
@@ -590,9 +633,18 @@ class CampaignOrchestrator:
         """
         targets = collect_scope_targets(node)
         cloud_targets = collect_cloud_targets(node)
-        if not targets and not cloud_targets:
-            return None
         policy = self.scope_policy
+        if not targets and not cloud_targets:
+            if policy and policy.require_scope:
+                is_local = (
+                    node.stub
+                    or getattr(node, "local_only", False)
+                    or node.path in ("local", "internal")
+                    or (node.intent and node.intent in ("local_helper", "parse_artifact", "noop"))
+                )
+                if not is_local:
+                    return f"node {node.id} has no declared targets under require_scope policy"
+            return None
         if policy is None:
             return (
                 "live execution against target(s) "
@@ -625,11 +677,29 @@ class CampaignOrchestrator:
                 return str(exc)
         return None
 
+    def _node_fingerprint(self, node: CampaignNode) -> str:
+        data = {
+            "id": node.id,
+            "title": node.title,
+            "phase": str(node.phase),
+            "script": node.script,
+            "intent": node.intent,
+            "intent_args": node.intent_args,
+            "targets": list(node.targets),
+            "success_marker": node.success_marker,
+            "success_json": node.success_json,
+            "fail_patterns": list(node.fail_patterns),
+            "expected_errors": list(node.expected_errors),
+            "depends_on": list(node.depends_on),
+        }
+        return hashlib.sha256(_json.dumps(data, sort_keys=True).encode("utf-8")).hexdigest()
+
     def _record_completed(self, node: CampaignNode, finished_at: str | None) -> None:
         self.state.completed_nodes[node.id] = {
             "verified_at": finished_at or _utc_now(),
             "phase": str(node.phase),
             "intent": node.intent or node.script or "",
+            "fingerprint": self._node_fingerprint(node),
         }
 
     def _record_attempt(self, node: CampaignNode, *, verified: bool) -> None:
@@ -851,20 +921,26 @@ class CampaignOrchestrator:
 
             if not dry_run and do_resume and node.id in self.state.completed_nodes:
                 prior = self.state.completed_nodes[node.id]
-                reason = f"already verified at {prior.get('verified_at', '?')} (resume)"
-                self._push(results, 
-                    _step(
-                        _blocked_plan(
-                            node, self.beachhead, default_path, mechanism="resumed", operator=self.operator
-                        ),
-                        node,
-                        dry_run=dry_run,
-                        skipped=True,
-                        skip_reason=reason,
+                prior_fp = prior.get("fingerprint")
+                expected_fp = self._node_fingerprint(node)
+                if prior_fp and prior_fp != expected_fp and not self.allow_drift:
+                    # Node definition drifted since prior run; invalidate completion record
+                    self.state.completed_nodes.pop(node.id, None)
+                else:
+                    reason = f"already verified at {prior.get('verified_at', '?')} (resume)"
+                    self._push(results, 
+                        _step(
+                            _blocked_plan(
+                                node, self.beachhead, default_path, mechanism="resumed", operator=self.operator
+                            ),
+                            node,
+                            dry_run=dry_run,
+                            skipped=True,
+                            skip_reason=reason,
+                        )
                     )
-                )
-                outcomes[node.id] = "verified"
-                continue
+                    outcomes[node.id] = "verified"
+                    continue
 
             if not dry_run and do_resume and node.idempotent is False:
                 attempt = self.state.attempted_nodes.get(node.id)
@@ -889,7 +965,7 @@ class CampaignOrchestrator:
                     outcomes[node.id] = "skipped"
                     continue
 
-            if hitl_required() and node.hitl_gate and not self.state.is_approved(node.hitl_gate):
+            if self._hitl_active() and node.hitl_gate and not self.state.is_approved(node.hitl_gate):
                 # Preview without resolving intent/creds (approval may precede seed).
                 plan = self.router.plan_step(
                     node_id=node.id,
@@ -943,6 +1019,7 @@ class CampaignOrchestrator:
                         error=str(exc),
                     )
                 )
+                outcomes[node.id] = "skipped"
                 continue
             except TypeError as exc:
                 self._push(results, 
@@ -961,6 +1038,7 @@ class CampaignOrchestrator:
                         error=str(exc),
                     )
                 )
+                outcomes[node.id] = "skipped"
                 continue
             except MissingCredentialError as exc:
                 self._push(results, 
@@ -973,6 +1051,7 @@ class CampaignOrchestrator:
                         error=str(exc),
                     )
                 )
+                outcomes[node.id] = "skipped"
                 continue
             except PermissionError as exc:
                 self._push(results, 
@@ -987,6 +1066,7 @@ class CampaignOrchestrator:
                         error=str(exc),
                     )
                 )
+                outcomes[node.id] = "skipped"
                 continue
 
             if dry_run:
@@ -1085,14 +1165,14 @@ class CampaignOrchestrator:
                         name=node.id,
                         target=",".join(collect_scope_targets(node)) or "-",
                         command=list(node.teardown["command"]),
-                        description=str(node.teardown["description"]),
+                        description=str(node.teardown.get("description", "")),
                     )
                     save_teardown_queue(self.store.dir / "teardown.json", self.teardown)
                     self.activity.emit(
                         "teardown_registered",
                         engagement_id=self.engagement_id,
                         node_id=node.id,
-                        description=str(node.teardown["description"]),
+                        description=str(node.teardown.get("description", "")),
                     )
             else:
                 outcomes[node.id] = "unverified"

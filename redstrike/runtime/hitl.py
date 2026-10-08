@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import uuid
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
@@ -32,13 +33,15 @@ def ungated_requested() -> bool:
     return profile in {"autonomous", "campaign", "lab-ungated"}
 
 
-def hitl_required(profile: str | None = None) -> bool:
+def hitl_required(profile: str | None = None, policy: Any = None) -> bool:
     """HITL is active for 'gated' profile (default). 'autonomous' profile runs ungated under scope.
 
     Set ``REDSTRIKE_REQUIRE_HITL=1`` to force human approval gates unconditionally.
     """
     if os.environ.get("REDSTRIKE_REQUIRE_HITL", "").strip() == "1":
         return True
+    if policy is not None and getattr(policy, "ungated", False):
+        return False
     if profile is not None:
         p = profile.strip().lower()
         if p in {"autonomous", "campaign", "lab-ungated"}:
@@ -69,6 +72,7 @@ class EngagementState:
     attempted_nodes: dict[str, dict[str, Any]] = field(default_factory=dict)
     #: Audit trail of credential reveals ({name, ts}) — UI/API reveals are loud.
     reveals: list[dict[str, str]] = field(default_factory=list)
+    revision: int = 0
     #: Process-local approvals (autonomous/ungated profiles). NEVER persisted:
     #: a later run in a gated profile must not inherit phantom approvals.
     _auto_approved: set[str] = field(default_factory=set, repr=False, compare=False)
@@ -141,6 +145,7 @@ class EngagementState:
                 if isinstance(entry, dict)
             },
             reveals=[dict(item) for item in (data.get("reveals") or []) if isinstance(item, dict)],
+            revision=int(data.get("revision") or 0),
         )
 
 
@@ -170,13 +175,80 @@ class EngagementStore:
 
     def save(self, state: EngagementState) -> None:
         self.dir.mkdir(parents=True, exist_ok=True)
-        tmp = self.path.with_suffix(".tmp")
-        tmp.write_text(json.dumps(state.to_dict(), indent=2) + "\n", encoding="utf-8")
-        os.replace(tmp, self.path)
+        lock_path = self.dir / ".lock"
+        lock_fd = open(lock_path, "a+b")
         try:
-            os.chmod(self.path, 0o600)
-        except OSError:
-            pass
+            if os.name == "nt":
+                import msvcrt
+                try:
+                    lock_fd.seek(0)
+                    msvcrt.locking(lock_fd.fileno(), msvcrt.LK_LOCK, 1)
+                except OSError:
+                    pass
+            else:
+                import fcntl
+                try:
+                    fcntl.flock(lock_fd.fileno(), fcntl.LOCK_EX)
+                except OSError:
+                    pass
+
+            existing = self.load()
+            if existing is not None:
+                merged_gates = list(dict.fromkeys(existing.approved_gates + state.approved_gates))
+                state.approved_gates = merged_gates
+
+                seen_approvals = set()
+                merged_approvals = []
+                for a in existing.approvals + state.approvals:
+                    key = (a.get("gate"), a.get("note"), a.get("ts"))
+                    if key not in seen_approvals:
+                        seen_approvals.add(key)
+                        merged_approvals.append(a)
+                state.approvals = merged_approvals
+
+                merged_completed = dict(existing.completed_nodes)
+                merged_completed.update(state.completed_nodes)
+                state.completed_nodes = merged_completed
+
+                merged_attempted = dict(existing.attempted_nodes)
+                merged_attempted.update(state.attempted_nodes)
+                state.attempted_nodes = merged_attempted
+
+                seen_reveals = set()
+                merged_reveals = []
+                for r in existing.reveals + state.reveals:
+                    key = (r.get("name"), r.get("ts"))
+                    if key not in seen_reveals:
+                        seen_reveals.add(key)
+                        merged_reveals.append(r)
+                state.reveals = merged_reveals
+
+                state.revision = max(state.revision, existing.revision) + 1
+            else:
+                state.revision = max(state.revision, 0) + 1
+
+            tmp = self.dir / f"state.{uuid.uuid4().hex}.tmp"
+            tmp.write_text(json.dumps(state.to_dict(), indent=2) + "\n", encoding="utf-8")
+            os.replace(tmp, self.path)
+            try:
+                os.chmod(self.path, 0o600)
+            except OSError:
+                pass
+        finally:
+            if os.name == "nt":
+                import msvcrt
+                try:
+                    lock_fd.seek(0)
+                    msvcrt.locking(lock_fd.fileno(), msvcrt.LK_UNLCK, 1)
+                except OSError:
+                    pass
+            else:
+                import fcntl
+                try:
+                    fcntl.flock(lock_fd.fileno(), fcntl.LOCK_UN)
+                except OSError:
+                    pass
+            lock_fd.close()
 
     def get_or_create(
         self,

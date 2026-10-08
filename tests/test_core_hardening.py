@@ -750,3 +750,134 @@ def test_api_rejects_oversized_body(monkeypatch) -> None:
     assert "exceeds" in oversized.json()["detail"]
 
     assert client.get("/health").status_code == 200  # normal traffic unaffected
+
+
+def test_direct_c2_route_enforces_scope_and_risk(tmp_path: Path) -> None:
+    from fastapi.testclient import TestClient
+
+    from redstrike.api import server
+
+    scope = tmp_path / "scope.yaml"
+    scope.write_text(
+        'allowed_targets: ["192.0.2.10"]\nallowed_domains: ["corp.local"]\n'
+        "require_scope: true\nallow_high_risk: false\n",
+        encoding="utf-8",
+    )
+    app = server.create_app(scope_path=str(scope), api_key="secret-key")
+    client = TestClient(app)
+
+    # 1. Out-of-scope target rejected with 403
+    res_out = client.post(
+        "/c2/psexec",
+        json={"session_id": "sess-1", "target": "192.0.2.250"},
+        headers={"X-API-Key": "secret-key"},
+    )
+    assert res_out.status_code == 403
+
+    # 2. Targetless remote command rejected under require_scope
+    res_targetless = client.post(
+        "/c2/shell",
+        json={"session_id": "sess-1", "command": "whoami"},
+        headers={"X-API-Key": "secret-key"},
+    )
+    assert res_targetless.status_code == 403
+    assert "Explicit target required" in res_targetless.json()["detail"]
+
+    # 3. High risk operation rejected when allow_high_risk is False even if target in scope
+    res_high_risk = client.post(
+        "/c2/psexec",
+        json={"session_id": "sess-1", "target": "192.0.2.10"},
+        headers={"X-API-Key": "secret-key"},
+    )
+    assert res_high_risk.status_code == 403
+    assert "High-risk C2 operation forbidden" in res_high_risk.json()["detail"]
+
+
+def test_server_profile_isolation(tmp_path: Path) -> None:
+    from redstrike.api import server
+    from redstrike.runtime.hitl import hitl_required
+
+    scope = tmp_path / "scope.yaml"
+    scope.write_text(
+        'allowed_targets: ["192.0.2.10"]\nallowed_domains: ["corp.local"]\n',
+        encoding="utf-8",
+    )
+
+    # Create ungated app
+    app_ungated = server.create_app(scope_path=str(scope), ungated=True)
+    assert app_ungated.state.ungated is True
+
+    # Immediately create a normal gated app
+    app_gated = server.create_app(scope_path=str(scope), profile="gated")
+    assert app_gated.state.ungated is False
+    assert hitl_required("gated", policy=app_gated.state.policy) is True
+
+
+def test_node_definition_drift_invalidates_cache(tmp_path: Path) -> None:
+    from redstrike.runtime.graph import CampaignGraph, CampaignNode
+    from redstrike.runtime.orchestrator import CampaignOrchestrator
+
+    node_v1 = CampaignNode(
+        id="WT001",
+        phase=1.0,
+        title="Original Script",
+        path="local",
+        beachheads=("windows",),
+        script="original.sh",
+        requires_cred=None,
+        produces_cred=None,
+        targets=("10.0.0.1",),
+    )
+    graph = CampaignGraph(name="test", version="1.0", nodes=[node_v1])
+    orch = CampaignOrchestrator(
+        engagement_id="drift-test",
+        beachhead=Beachhead.LINUX,
+        automation_root=tmp_path,
+        ledger_root=tmp_path,
+        resume=True,
+    )
+    orch.graph = graph
+
+    # Record v1 completion with its fingerprint
+    orch._record_completed(node_v1, finished_at="2026-10-08T00:00:00Z")
+    assert "WT001" in orch.state.completed_nodes
+    v1_fp = orch.state.completed_nodes["WT001"]["fingerprint"]
+
+    # Now simulate node definition drift (changed script)
+    node_v2 = CampaignNode(
+        id="WT001",
+        phase=1.0,
+        title="Changed Script",
+        path="local",
+        beachheads=("windows",),
+        script="changed.sh",
+        requires_cred=None,
+        produces_cred=None,
+        targets=("10.0.0.1",),
+    )
+    orch.graph = CampaignGraph(name="test", version="1.0", nodes=[node_v2])
+
+    v2_fp = orch._node_fingerprint(node_v2)
+    assert v1_fp != v2_fp
+
+
+def test_mcp_forwards_api_key(monkeypatch) -> None:
+    from redstrike.mcp import server as mcp_server
+
+    captured_headers = {}
+
+    def mock_post(url, json=None, headers=None, timeout=None):
+        captured_headers.update(headers or {})
+        class MockResp:
+            def raise_for_status(self): pass
+            def json(self): return {"ok": True}
+        return MockResp()
+
+    monkeypatch.setattr("requests.post", mock_post)
+    mcp_server._post(
+        "http://127.0.0.1:8890",
+        "/health",
+        {},
+        api_key="forwarded-key-123",
+    )
+    assert captured_headers.get("X-API-Key") == "forwarded-key-123"

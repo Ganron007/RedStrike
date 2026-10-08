@@ -224,6 +224,11 @@ def resolve_graph_path(
     if explicit is not None:
         path = Path(explicit)
         if not path.is_file():
+            repo_root = Path(__file__).resolve().parents[2]
+            if (repo_root / explicit).is_file():
+                return repo_root / explicit
+            if (repo_root / "examples" / explicit).is_file():
+                return repo_root / "examples" / explicit
             raise FileNotFoundError(f"campaign graph not found: {path}")
         return path
 
@@ -242,6 +247,19 @@ def resolve_graph_path(
         fallback = examples / name
         if fallback.is_file():
             return fallback
+
+    try:
+        import importlib.resources as pkg_resources
+
+        data_files = pkg_resources.files("redstrike.data")
+        for name in ("campaign-graph.m1.yaml", "generic-ad-recon.yaml"):
+            cand = data_files.joinpath(name)
+            p = Path(str(cand))
+            if p.is_file():
+                return p
+    except Exception:
+        pass
+
     raise FileNotFoundError(
         "No campaign graph found (pass --graph, set REDSTRIKE_GRAPH, or check examples/)"
     )

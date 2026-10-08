@@ -24,12 +24,23 @@ def default_automation_root() -> Path:
 
 
 def default_seed_path() -> Path | None:
-    """REDSTRIKE_SEED, then bundled example."""
+    """REDSTRIKE_SEED, repo example, then bundled data resource."""
     env = os.environ.get("REDSTRIKE_SEED", "").strip()
     if env and Path(env).is_file():
         return Path(env)
     example = Path(__file__).resolve().parents[2] / "examples" / "seed.example.json"
-    return example if example.is_file() else None
+    if example.is_file():
+        return example
+    try:
+        import importlib.resources as pkg_resources
+
+        data_p = pkg_resources.files("redstrike.data").joinpath("seed.example.json")
+        p = Path(str(data_p))
+        if p.is_file():
+            return p
+    except Exception:
+        pass
+    return None
 
 
 def default_prefer_script() -> bool:
@@ -64,6 +75,7 @@ class CampaignSession:
         resume: bool = False,
         stop_on_failure: bool = False,
         record_replay: bool = False,
+        allow_drift: bool = False,
     ) -> None:
         self.engagement_id = engagement_id
         self.operator = OperatorMode(operator) if operator else detect_default_operator()
@@ -83,6 +95,7 @@ class CampaignSession:
         self.resume = resume
         self.stop_on_failure = stop_on_failure
         self.record_replay = record_replay
+        self.allow_drift = allow_drift
         self.store = EngagementStore(engagement_id, root=ledger_root)
         self.state = self.store.get_or_create(
             beachhead=beachhead,
@@ -92,7 +105,7 @@ class CampaignSession:
         self.state.beachhead = beachhead
         self.state.operator = self.operator.value
         self.state.allow_stage = allow_stage
-        if not hitl_required(profile):
+        if not hitl_required(self.profile, policy=self.scope_policy):
             # Process-local auto-approval only: persisting wildcard approvals
             # would silently pre-approve a LATER gated run of this engagement.
             for gate in sorted(KNOWN_GATES):
@@ -123,6 +136,7 @@ class CampaignSession:
             branches=self.branches,
             prefer_script=self.prefer_script,
             node_ids=self.node_ids,
+            profile=self.profile,
             c2_enabled=self.c2_enabled,
             c2_backend=self.c2_backend,
             c2_session_id=self.c2_session_id,
@@ -132,6 +146,7 @@ class CampaignSession:
             resume=self.resume,
             stop_on_failure=self.stop_on_failure,
             record_replay=self.record_replay,
+            allow_drift=self.allow_drift,
         )
 
     def start(self) -> dict[str, Any]:
@@ -145,7 +160,7 @@ class CampaignSession:
             "allow_stage": self.state.allow_stage,
             "approved_gates": list(self.state.approved_gates),
             "known_gates": sorted(KNOWN_GATES),
-            "hitl_required": hitl_required(),
+            "hitl_required": hitl_required(self.profile, policy=self.scope_policy),
             "branches": self.branches or "spine",
         }
 
@@ -173,7 +188,8 @@ class CampaignSession:
         rerun: bool = False,
         record_replay: bool = False,
     ) -> dict[str, Any]:
-        if not hitl_required():
+        effective_profile = profile or self.profile
+        if not hitl_required(effective_profile, policy=self.scope_policy):
             stop_on_hitl = False
         orch = self._orchestrator()
         results = orch.run(
@@ -188,7 +204,7 @@ class CampaignSession:
         self.state = orch.state
         summary = orch.summary(results)
         if include_preflight:
-            summary["preflight"] = orch.preflight(profile=profile).to_dict()
+            summary["preflight"] = orch.preflight(profile=effective_profile).to_dict()
         return summary
 
     def status(self) -> dict[str, Any]:
@@ -201,6 +217,7 @@ class CampaignSession:
             "graph": str(orch.graph_path),
             "graph_name": orch.graph.name,
             "known_gates": sorted(KNOWN_GATES),
+            "hitl_required": hitl_required(self.profile, policy=self.scope_policy),
             "beachhead": Beachhead(state.beachhead).value,
             "operator": self.operator.value,
             "branches": sorted(orch.branches),

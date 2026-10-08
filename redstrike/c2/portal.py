@@ -75,6 +75,7 @@ class PortalClient(BaseC2Client):
         ).rstrip("/")
         self.timeout_seconds = timeout_seconds
         self.wait_seconds = wait_seconds
+        self.last_error: str | None = None
 
     # ------------------------------------------------------------------ HTTP
     def _get_json(self, path: str, timeout: int = _DEFAULT_TIMEOUT) -> dict[str, Any] | None:
@@ -106,11 +107,17 @@ class PortalClient(BaseC2Client):
     # ------------------------------------------------------------- interface
     def list_sessions(self) -> list[C2Session]:
         data = self._get_json("/api/ops/sessions")
-        if not isinstance(data, dict) or not data.get("ok", True):
+        if not isinstance(data, dict):
+            self.last_error = "unreachable"
+            return []
+        if not data.get("ok", True):
+            self.last_error = str(data.get("error") or "portal error")
             return []
         backend_info = (data.get("backends") or {}).get(self.backend.value)
         if isinstance(backend_info, dict) and backend_info.get("ok") is False:
+            self.last_error = str(backend_info.get("error") or f"backend {self.backend.value} unavailable")
             return []
+        self.last_error = None
         sessions: list[C2Session] = []
         for entry in data.get("sessions") or []:
             if entry.get("backend") != self.backend.value:
@@ -172,7 +179,7 @@ class PortalClient(BaseC2Client):
         errors = str(result.get("errors") or "")
         return CommandResult(
             command=redact_argv(display_cmd),
-            return_code=1 if (errors and not output) else 0,
+            return_code=1 if errors else 0,
             stdout=output,
             stderr=errors,
             duration_seconds=time.monotonic() - started,
@@ -209,18 +216,31 @@ class PortalClient(BaseC2Client):
                 duration_seconds=time.monotonic() - started,
             )
 
+        expected_task_id = str(data.get("task_id") or (data.get("result") or {}).get("task_id") or "")
         deadline = started + max(timeout_seconds, 10)
         while time.monotonic() < deadline:
             for task in self._adaptix_tasks(session_id):
                 task_id = str(task.get("a_task_id") or "")
-                if task_id and task_id not in known_ids:
-                    return CommandResult(
-                        command=redact_argv(display_cmd),
-                        return_code=0,
-                        stdout=str(task.get("a_text") or task.get("a_message") or ""),
-                        stderr="",
-                        duration_seconds=time.monotonic() - started,
-                    )
+                if not task_id:
+                    continue
+                if expected_task_id:
+                    if task_id != expected_task_id:
+                        continue
+                elif task_id in known_ids:
+                    continue
+                status = str(task.get("a_status") or "").lower()
+                if status in ("queued", "pending", "running"):
+                    continue
+                out = str(task.get("a_text") or task.get("a_message") or "")
+                err = str(task.get("a_error") or "")
+                rc = 1 if (err or status in ("failed", "error")) else 0
+                return CommandResult(
+                    command=redact_argv(display_cmd),
+                    return_code=rc,
+                    stdout=out,
+                    stderr=err,
+                    duration_seconds=time.monotonic() - started,
+                )
             time.sleep(_POLL_INTERVAL)
         return CommandResult(
             command=redact_argv(display_cmd),

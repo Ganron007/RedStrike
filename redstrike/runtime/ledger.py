@@ -3,7 +3,9 @@ from __future__ import annotations
 import json
 import logging
 import os
+import uuid
 from dataclasses import asdict, dataclass
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -83,8 +85,13 @@ class CredentialLedger:
             )
 
         integrity = raw.get("integrity")
-        if "encrypted" in raw:
+        is_encrypted = "encrypted" in raw
+        if is_encrypted:
             # The seal covers the CIPHERTEXT envelope; verify before decrypting.
+            if not integrity and not crypto.unverified_allowed():
+                raise crypto.IntegrityError(
+                    f"encrypted ledger {self.path} has no integrity seal (tamper or downgrade)"
+                )
             if integrity:
                 try:
                     key = self._key_bytes(create=False)
@@ -101,29 +108,36 @@ class CredentialLedger:
                     )
             plaintext = crypto.decrypt_text(raw["encrypted"], key=self._key_bytes(create=False))
             raw = json.loads(plaintext) if plaintext else {}
-            integrity = None  # consumed with the envelope
 
         items = raw.get("credentials", raw) if isinstance(raw, dict) else {}
 
-        if integrity:
-            try:
-                key = self._key_bytes(create=False)
-                if not crypto.verify(items, integrity, key=key):
-                    raise crypto.IntegrityError(
-                        f"ledger {self.path} failed HMAC verification (tampered or wrong key)"
+        key_exists = (self.dir / "key.bin").is_file() or bool(os.environ.get("REDSTRIKE_LEDGER_KEY"))
+
+        if not is_encrypted:
+            if integrity:
+                try:
+                    key = self._key_bytes(create=False)
+                    if not crypto.verify(items, integrity, key=key):
+                        raise crypto.IntegrityError(
+                            f"ledger {self.path} failed HMAC verification (tampered or wrong key)"
+                        )
+                except crypto.IntegrityError:
+                    if not crypto.unverified_allowed():
+                        raise
+                    logger.warning(
+                        "ledger %s failed integrity verification; loading UNVERIFIED (operator override)",
+                        self.path,
                     )
-            except crypto.IntegrityError:
-                if not crypto.unverified_allowed():
-                    raise
-                logger.warning(
-                    "ledger %s failed integrity verification; loading UNVERIFIED (operator override)",
-                    self.path,
-                )
-        elif raw and not crypto.unverified_allowed() and "encrypted" not in raw:
-            logger.warning(
-                "ledger %s has no integrity seal (legacy file); it will be sealed on next save",
-                self.path,
-            )
+            else:
+                if key_exists and not crypto.unverified_allowed():
+                    raise crypto.IntegrityError(
+                        f"ledger {self.path} has no integrity seal on a keyed engagement (tamper or downgrade)"
+                    )
+                if raw:
+                    logger.warning(
+                        "ledger %s has no integrity seal; loading under legacy/unverified policy",
+                        self.path,
+                    )
 
         self._creds = {}
         if isinstance(items, dict):
@@ -144,25 +158,60 @@ class CredentialLedger:
         }
         envelope: dict[str, Any] = {"engagement_id": self.engagement_id}
         if crypto.encryption_requested():
-            encrypted = crypto.encrypt_text(json.dumps(payload), key=key)
-            if encrypted is not None:
-                envelope["encrypted"] = encrypted
-                envelope["integrity"] = crypto.seal(encrypted, key=key)
-            else:
-                logger.warning(
-                    "REDSTRIKE_LEDGER_ENCRYPT is set but the 'cryptography' package is "
-                    "not installed; storing the ledger sealed but NOT encrypted"
+            if not crypto.encryption_available():
+                raise RuntimeError(
+                    "REDSTRIKE_LEDGER_ENCRYPT requested but 'cryptography' package is unavailable"
                 )
+            encrypted = crypto.encrypt_text(json.dumps(payload), key=key)
+            if encrypted is None:
+                raise RuntimeError("Failed to produce encrypted ledger envelope")
+            envelope["encrypted"] = encrypted
+            envelope["integrity"] = crypto.seal(encrypted, key=key)
         if "encrypted" not in envelope:
             envelope["credentials"] = credentials
             envelope["integrity"] = crypto.seal(credentials, key=key)
-        tmp = self.path.with_suffix(".tmp")
+        tmp = self.dir / f"creds.{uuid.uuid4().hex}.tmp"
         tmp.write_text(json.dumps(envelope, indent=2) + "\n", encoding="utf-8")
         os.replace(tmp, self.path)
         try:
             os.chmod(self.path, 0o600)
         except OSError:
             pass
+
+    @classmethod
+    def import_legacy(
+        cls,
+        source_path: Path | str,
+        engagement_id: str,
+        *,
+        root: Path | None = None,
+    ) -> CredentialLedger:
+        """Explicitly import an unsealed legacy ledger with documented provenance."""
+        src = Path(source_path)
+        if not src.is_file():
+            raise FileNotFoundError(f"Source ledger file not found: {source_path}")
+        ledger = cls(engagement_id, root=root)
+        raw = json.loads(src.read_text(encoding="utf-8"))
+        items = raw.get("credentials", raw) if isinstance(raw, dict) else {}
+        ledger._creds = {}
+        if isinstance(items, dict):
+            for name, payload in items.items():
+                ledger._creds[name] = _from_payload(name, payload)
+        elif isinstance(items, list):
+            for payload in items:
+                name = str(payload["name"])
+                ledger._creds[name] = _from_payload(name, payload)
+        ledger.dir.mkdir(parents=True, exist_ok=True)
+        marker = ledger.dir / ".legacy_import"
+        marker.write_text(
+            json.dumps({
+                "source": str(src.resolve()),
+                "imported_at": datetime.now(timezone.utc).isoformat(),
+            }),
+            encoding="utf-8",
+        )
+        ledger.save()
+        return ledger
 
     def seed(self, credentials: list[dict[str, Any]] | dict[str, Any], *, overwrite: bool = False) -> int:
         added = 0
