@@ -229,6 +229,21 @@ def resolve_graph_path(
                 return repo_root / explicit
             if (repo_root / "examples" / explicit).is_file():
                 return repo_root / "examples" / explicit
+            data_dir = Path(__file__).resolve().parent.parent / "data"
+            if (data_dir / explicit).is_file():
+                return data_dir / explicit
+            if (data_dir / path.name).is_file():
+                return data_dir / path.name
+            try:
+                import importlib.resources as pkg_resources
+
+                data_files = pkg_resources.files("redstrike.data")
+                cand = data_files.joinpath(path.name)
+                p = Path(str(cand))
+                if p.is_file():
+                    return p
+            except Exception:
+                pass
             raise FileNotFoundError(f"campaign graph not found: {path}")
         return path
 

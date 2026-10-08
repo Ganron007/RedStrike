@@ -484,6 +484,18 @@ class CampaignOrchestrator:
                 return backend
         return None
 
+    @staticmethod
+    def _clean_host(val: str | None) -> str:
+        """Extract host/IP from address string, safely preserving IPv6 addresses."""
+        if not val:
+            return ""
+        text = str(val).strip()
+        if text.startswith("[") and "]" in text:
+            return text[1 : text.index("]")]
+        if text.count(":") == 1:
+            return text.split(":")[0]
+        return text
+
     def _resolve_session_id(self, target: str | None = None) -> str | None:
         """Resolve live session id matching the intended target host and scope."""
         client = self.runner.c2_client
@@ -494,9 +506,7 @@ class CampaignOrchestrator:
             except Exception:  # noqa: BLE001 - adapter transport issues must not abort the run
                 live = []
             for s in live:
-                host = s.hostname or s.remote_address
-                if host and ":" in host:
-                    host = host.split(":")[0]
+                host = self._clean_host(s.hostname or s.remote_address)
                 if self.scope_policy and host:
                     try:
                         self.scope_policy.assert_target_in_scope(host)
@@ -524,12 +534,10 @@ class CampaignOrchestrator:
             hostname=target,
         )
         if picked and picked.get("id"):
-            p_host = picked.get("hostname") or picked.get("remote_address")
-            if p_host and ":" in str(p_host):
-                p_host = str(p_host).split(":")[0]
+            p_host = self._clean_host(picked.get("hostname") or picked.get("remote_address"))
             if self.scope_policy and p_host:
                 try:
-                    self.scope_policy.assert_target_in_scope(str(p_host))
+                    self.scope_policy.assert_target_in_scope(p_host)
                 except PermissionError:
                     return None
             return str(picked["id"])

@@ -478,8 +478,8 @@ function openInspector(nodeId) {
   const dlIntent = $("inspIntentDl");
   if (dlIntent) {
     dlIntent.innerHTML = `
-      <dt>Intent</dt><dd><code>${node.intent || "custom"}</code></dd>
-      <dt>Teardown Action</dt><dd>${node.teardown ? `<code>${node.teardown.action}</code>: ${node.teardown.description || ""}` : "None"}</dd>
+      <dt>Intent</dt><dd><code>${esc(node.intent || "custom")}</code></dd>
+      <dt>Teardown Action</dt><dd>${node.teardown ? `<code>${esc(node.teardown.action)}</code>: ${esc(node.teardown.description || "")}` : "None"}</dd>
     `;
   }
 
@@ -487,9 +487,9 @@ function openInspector(nodeId) {
   const dlVerify = $("inspVerifyDl");
   if (dlVerify) {
     dlVerify.innerHTML = `
-      <dt>Marker</dt><dd>${node.success_marker ? `<code>${node.success_marker}</code>` : "None"}</dd>
-      <dt>JSON Validation</dt><dd>${node.success_json ? `<pre style="font-size:10px">${JSON.stringify(node.success_json, null, 2)}</pre>` : "None"}</dd>
-      <dt>Check Command</dt><dd>${node.check_command ? `<code>${JSON.stringify(node.check_command)}</code>` : "None"}</dd>
+      <dt>Marker</dt><dd>${node.success_marker ? `<code>${esc(node.success_marker)}</code>` : "None"}</dd>
+      <dt>JSON Validation</dt><dd>${node.success_json ? `<pre style="font-size:10px">${esc(JSON.stringify(node.success_json, null, 2))}</pre>` : "None"}</dd>
+      <dt>Check Command</dt><dd>${node.check_command ? `<code>${esc(JSON.stringify(node.check_command))}</code>` : "None"}</dd>
     `;
   }
 
@@ -503,13 +503,13 @@ function openInspector(nodeId) {
           ? `${((new Date(ev.ts) - new Date(state.nodeStartTs[nodeId])) / 1000).toFixed(2)}s`
           : "—";
       dlTelemetry.innerHTML = `
-        <dt>Last Event</dt><dd><span class="badge-tag">${ev.event}</span></dd>
-        <dt>Timestamp</dt><dd>${ev.ts || "—"}</dd>
+        <dt>Last Event</dt><dd><span class="badge-tag">${esc(ev.event)}</span></dd>
+        <dt>Timestamp</dt><dd>${esc(ev.ts || "—")}</dd>
         <dt>Verified</dt><dd>${ev.verified !== undefined ? (ev.verified ? "✅ True" : "❌ False") : "—"}</dd>
-        <dt>Status Code</dt><dd><code>${ev.return_code ?? "—"}</code></dd>
-        <dt>Duration</dt><dd>${dur}</dd>
-        <dt>Tool / Version</dt><dd>${ev.tool ? `${ev.tool} ${ev.tool_version || ""}` : "—"}</dd>
-        <dt>Verify Reason</dt><dd>${ev.verify_reason || "—"}</dd>
+        <dt>Status Code</dt><dd><code>${esc(ev.return_code ?? "—")}</code></dd>
+        <dt>Duration</dt><dd>${esc(dur)}</dd>
+        <dt>Tool / Version</dt><dd>${ev.tool ? `${esc(ev.tool)} ${esc(ev.tool_version || "")}` : "—"}</dd>
+        <dt>Verify Reason</dt><dd>${esc(ev.verify_reason || "—")}</dd>
       `;
     } else {
       dlTelemetry.innerHTML = `<dt>Status</dt><dd>No live execution telemetry logged yet for this node.</dd>`;
@@ -577,14 +577,14 @@ function renderExecutionStepper() {
     else if (s === "executing") icon = "⟳";
 
     card.innerHTML = `
-      <div class="step-badge-indicator ${s}">${icon}</div>
+      <div class="step-badge-indicator ${esc(s)}">${esc(icon)}</div>
       <div class="step-body">
         <div class="step-top">
-          <span class="step-id">${n.id}</span>
-          <span class="step-status-chip ${s}">${s}</span>
+          <span class="step-id">${esc(n.id)}</span>
+          <span class="step-status-chip ${esc(s)}">${esc(s)}</span>
         </div>
-        <div class="step-desc">${n.title || n.intent || "Campaign attack step"}</div>
-        ${n.intent_args ? `<div class="step-cmd">${JSON.stringify(n.intent_args)}</div>` : ""}
+        <div class="step-desc">${esc(n.title || n.intent || "Campaign attack step")}</div>
+        ${n.intent_args ? `<div class="step-cmd">${esc(JSON.stringify(n.intent_args))}</div>` : ""}
       </div>
     `;
     card.addEventListener("click", () => {
@@ -633,10 +633,10 @@ function computeRecommendations() {
     item.className = "rec-item";
     item.innerHTML = `
       <div>
-        <div class="rec-title">${cand.id} &mdash; ${cand.title || cand.intent}</div>
-        <div class="rec-reason">Prerequisites met (${(cand.depends_on || []).length} deps clear) &middot; Phase ${cand.phase || 1}</div>
+        <div class="rec-title">${esc(cand.id)} &mdash; ${esc(cand.title || cand.intent)}</div>
+        <div class="rec-reason">Prerequisites met (${(cand.depends_on || []).length} deps clear) &middot; Phase ${esc(cand.phase || 1)}</div>
       </div>
-      <button class="btn btn-cyan btn-sm" data-cand-id="${cand.id}">Inspect</button>
+      <button class="btn btn-cyan btn-sm" data-cand-id="${esc(cand.id)}">Inspect</button>
     `;
     item.querySelector("button")?.addEventListener("click", () => {
       openInspector(cand.id);
@@ -944,7 +944,7 @@ function appendLogLine(rec) {
 }
 
 function escapeHtml(str) {
-  return String(str).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  return esc(str);
 }
 
 function exportJournal() {
@@ -1014,10 +1014,10 @@ function showGateModal(gate, st) {
   const content = $("gateDetailContent");
   if (content) {
     content.innerHTML = `
-      Execution for engagement <strong>${escapeHtml(st.engagement_id || state.engagement)}</strong> is gated.
-      ${first.title ? `<br>Node: <code>${first.id}</code> &mdash; ${escapeHtml(first.title)}` : ""}
-      ${first.intent ? `<br>Intent: <code>${first.intent}</code>` : ""}
-      ${first.targets?.length ? `<br>Target Hosts: <code>${first.targets.join(", ")}</code>` : ""}
+      Execution for engagement <strong>${esc(st.engagement_id || state.engagement)}</strong> is gated.
+      ${first.title ? `<br>Node: <code>${esc(first.id)}</code> &mdash; ${esc(first.title)}` : ""}
+      ${first.intent ? `<br>Intent: <code>${esc(first.intent)}</code>` : ""}
+      ${first.targets?.length ? `<br>Target Hosts: <code>${first.targets.map(esc).join(", ")}</code>` : ""}
     `;
   }
   $("gateModal")?.classList.remove("hidden");
@@ -1086,15 +1086,15 @@ async function refreshTopology() {
             (t) => `
           <div class="topo-item">
             <div>
-              <span class="topo-host">${t.hostname || t.ip}</span>
-              <span class="topo-role">${t.ip ? `(${t.ip})` : ""} &middot; ${t.role || "Target"}</span>
+              <span class="topo-host">${esc(t.hostname || t.ip)}</span>
+              <span class="topo-role">${t.ip ? `(${esc(t.ip)})` : ""} &middot; ${esc(t.role || "Target")}</span>
             </div>
-            <span class="badge-tag">${t.domain || "CADRE"}</span>
+            <span class="badge-tag">${esc(t.domain || "CADRE")}</span>
           </div>`
           )
           .join("");
       } else {
-        container.innerHTML = `<pre class="code-block">${JSON.stringify(topo, null, 2)}</pre>`;
+        container.innerHTML = `<pre class="code-block">${esc(JSON.stringify(topo, null, 2))}</pre>`;
       }
     }
     if (policyCont) {
@@ -1105,7 +1105,7 @@ async function refreshTopology() {
         </div>
         <div class="topo-item">
           <div><span class="topo-host">Engagement Ledger</span></div>
-          <span class="badge-tag">${state.engagement}</span>
+          <span class="badge-tag">${esc(state.engagement)}</span>
         </div>
       `;
     }
@@ -1138,10 +1138,10 @@ function renderTeardown() {
   actions.forEach((a) => {
     const tr = document.createElement("tr");
     tr.innerHTML = `
-      <td><code>${a.action || a.name}</code></td>
-      <td><strong>${a.target || "localhost"}</strong></td>
-      <td>${a.description || "Reversible post-exploitation state"}</td>
-      <td><span class="badge-tag">${a.status || "Registered"}</span></td>
+      <td><code>${esc(a.action || a.name)}</code></td>
+      <td><strong>${esc(a.target || "localhost")}</strong></td>
+      <td>${esc(a.description || "Reversible post-exploitation state")}</td>
+      <td><span class="badge-tag">${esc(a.status || "Registered")}</span></td>
     `;
     tbody.appendChild(tr);
   });

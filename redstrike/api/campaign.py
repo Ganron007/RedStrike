@@ -520,16 +520,23 @@ def campaign_list_graphs() -> dict[str, Any]:
     """List bundled example graphs with metadata for easy selection in the UI."""
     repo_root = Path(__file__).resolve().parents[2]
     examples_dir = repo_root / "examples"
+    data_dir = Path(__file__).resolve().parent.parent / "data"
+    search_dirs = [d for d in (examples_dir, data_dir) if d.is_dir()]
     graphs = []
-    if examples_dir.is_dir():
-        for p in sorted(examples_dir.glob("*.yaml")):
+    seen: set[str] = set()
+    for sdir in search_dirs:
+        for p in sorted(sdir.glob("*.yaml")):
+            if p.name in seen:
+                continue
+            seen.add(p.name)
             try:
                 g = load_campaign_graph(p)
                 phases = sorted(list({n.phase for n in g.nodes}))
+                rel_path = f"examples/{p.name}" if sdir == examples_dir else f"redstrike/data/{p.name}"
                 graphs.append({
                     "name": g.name,
                     "filename": p.name,
-                    "path": f"examples/{p.name}",
+                    "path": rel_path,
                     "node_count": len(g.nodes),
                     "phases": phases,
                 })

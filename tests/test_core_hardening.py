@@ -881,3 +881,36 @@ def test_mcp_forwards_api_key(monkeypatch) -> None:
         api_key="forwarded-key-123",
     )
     assert captured_headers.get("X-API-Key") == "forwarded-key-123"
+
+
+def test_clean_host_ipv6_and_ports() -> None:
+    from redstrike.runtime.orchestrator import CampaignOrchestrator
+
+    clean = CampaignOrchestrator._clean_host
+    assert clean("192.168.1.50:443") == "192.168.1.50"
+    assert clean("dc01.cadre.local:8080") == "dc01.cadre.local"
+    assert clean("192.168.1.50") == "192.168.1.50"
+    assert clean("[2001:db8::1]:8443") == "2001:db8::1"
+    assert clean("[2001:db8::1]") == "2001:db8::1"
+    assert clean("2001:db8::1") == "2001:db8::1"
+    assert clean("") == ""
+    assert clean(None) == ""
+
+
+def test_resolve_graph_path_and_list_bundled() -> None:
+    from redstrike.api.campaign import campaign_list_graphs
+    from redstrike.runtime.graph import resolve_graph_path
+
+    # Resolving bundled filename should find the graph in examples or redstrike/data
+    resolved = resolve_graph_path(explicit="generic-ad-recon.yaml")
+    assert resolved.is_file()
+    assert resolved.name == "generic-ad-recon.yaml"
+
+    # campaign_list_graphs must return bundled graphs without duplicate names
+    res = campaign_list_graphs()
+    graphs = res.get("graphs") or []
+    assert len(graphs) >= 1
+    filenames = [g["filename"] for g in graphs]
+    assert len(filenames) == len(set(filenames))
+    assert "generic-ad-recon.yaml" in filenames
+
